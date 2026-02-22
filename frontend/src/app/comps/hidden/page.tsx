@@ -68,10 +68,6 @@ export default async function HiddenCompsPage({
             Make sure the backend is running and reachable.
           </p>
         </div>
-      ) : data.length === 0 ? (
-        <div className="rounded-xl border border-tft-border bg-tft-surface/40 px-5 py-12 text-center text-tft-muted text-sm">
-          No composition data found.
-        </div>
       ) : (
         <CompsList
           data={data}

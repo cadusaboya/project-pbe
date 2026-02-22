@@ -300,6 +300,10 @@ export default function CompsList({
             onChange={(e) => handleCoreSizesChange(e.target.value)}
             className="bg-tft-surface border border-tft-border text-tft-text rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent"
           >
+            <option value="2">Core 2</option>
+            <option value="3">Core 3</option>
+            <option value="2,3">Core 2/3</option>
+            <option value="2,3,4">Core 2/3/4</option>
             <option value="4,5,6">Core 4/5/6</option>
             <option value="4">Core 4</option>
             <option value="5">Core 5</option>
