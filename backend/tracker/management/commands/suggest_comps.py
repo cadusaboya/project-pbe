@@ -264,20 +264,42 @@ class Command(BaseCommand):
         return output
 
     def _dedupe_similar(self, candidates: list[dict]) -> list[dict]:
-        kept: list[dict] = []
+        # 1) Hard dedupe: same final board (core + flex) on same level.
+        best_by_signature: dict[tuple[int, tuple[str, ...]], dict] = {}
         for c in candidates:
-            is_similar = False
-            cset = set(c["core"])
+            signature = tuple(sorted(set(c["core"]) | set(c["flex"])))
+            key = (c["level"], signature)
+            prev = best_by_signature.get(key)
+            if prev is None:
+                best_by_signature[key] = c
+                continue
+            # Keep stronger candidate by occurrences, then AVP.
+            if (c["occurrences"], -c["avg_placement"]) > (
+                prev["occurrences"],
+                -prev["avg_placement"],
+            ):
+                best_by_signature[key] = c
+
+        deduped = sorted(
+            best_by_signature.values(),
+            key=lambda c: (-c["occurrences"], c["avg_placement"], c["level"], c["core"]),
+        )
+
+        # 2) Soft dedupe: avoid near-identical outputs among remaining suggestions.
+        kept: list[dict] = []
+        for c in deduped:
+            cset = set(c["core"]) | set(c["flex"])
+            too_similar = False
             for k in kept:
                 if c["level"] != k["level"]:
                     continue
-                kset = set(k["core"])
+                kset = set(k["core"]) | set(k["flex"])
                 overlap = len(cset & kset)
                 union = len(cset | kset)
                 similarity = (overlap / union) if union else 0.0
-                if similarity >= 0.8:
-                    is_similar = True
+                if similarity >= 0.88:
+                    too_similar = True
                     break
-            if not is_similar:
+            if not too_similar:
                 kept.append(c)
         return kept

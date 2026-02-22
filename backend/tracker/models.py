@@ -91,6 +91,8 @@ class Comp(models.Model):
     units = models.JSONField(default=list)
     target_level = models.PositiveSmallIntegerField(default=8)
     excluded_units = models.JSONField(default=list)
+    required_traits = models.JSONField(default=list)
+    required_unit_item_counts = models.JSONField(default=dict)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

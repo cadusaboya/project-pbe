@@ -708,6 +708,7 @@ class CompsView(APIView):
 
         boards: list[dict] = []
         all_units: set[str] = set()
+        match_participant_cache: dict[str, dict[str, dict]] = {}
         for p in participants.iterator(chunk_size=500):
             unit_set = {
                 uu.unit.character_id
@@ -716,10 +717,40 @@ class CompsView(APIView):
             }
             if not unit_set:
                 continue
+
+            item_count_by_unit = {}
+            for uu in p.unit_usages.all():
+                if not uu.unit_id or not uu.unit or not uu.unit.character_id:
+                    continue
+                item_count_by_unit[uu.unit.character_id] = len(uu.items or [])
+
+            active_traits = set()
+            match_map = match_participant_cache.get(p.match_id)
+            if match_map is None:
+                participants_data = (p.match.raw_json or {}).get("info", {}).get("participants", [])
+                match_map = {
+                    str(pp.get("puuid", "")): pp
+                    for pp in participants_data
+                    if pp.get("puuid")
+                }
+                match_participant_cache[p.match_id] = match_map
+            pdata = match_map.get(p.puuid)
+            if pdata:
+                for t in pdata.get("traits", []) or []:
+                    tier_current = t.get("tier_current", 0) or 0
+                    num_units = t.get("num_units", 0) or 0
+                    if tier_current > 0 or num_units > 0:
+                        name = str(t.get("name", "")).strip()
+                        if name:
+                            active_traits.add(name)
+
             boards.append({
                 "match_id": p.match_id,
                 "placement": p.placement,
+                "level": p.level,
                 "unit_set": unit_set,
+                "item_count_by_unit": item_count_by_unit,
+                "active_traits": active_traits,
             })
             all_units |= unit_set
 
@@ -739,6 +770,19 @@ class CompsView(APIView):
             core_set = set(core_units)
             raw_excluded = comp.excluded_units if isinstance(comp.excluded_units, list) else []
             excluded_set = {str(u).strip() for u in raw_excluded if str(u).strip()}
+            raw_required_traits = comp.required_traits if isinstance(comp.required_traits, list) else []
+            required_traits = [str(t).strip() for t in raw_required_traits if str(t).strip()]
+            required_traits_lower = [t.lower() for t in required_traits]
+            raw_required_items = (
+                comp.required_unit_item_counts
+                if isinstance(comp.required_unit_item_counts, dict)
+                else {}
+            )
+            required_item_counts = {
+                str(unit).strip(): max(1, int(cnt))
+                for unit, cnt in raw_required_items.items()
+                if str(unit).strip()
+            }
 
             target_level = max(1, min(int(comp.target_level or 8), 10))
             if len(core_units) >= target_level:
@@ -759,10 +803,26 @@ class CompsView(APIView):
                     continue
                 if not core_set.issubset(b["unit_set"]):
                     continue
+                if required_traits_lower:
+                    active = {t.lower() for t in b["active_traits"]}
+                    ok_traits = True
+                    for req in required_traits_lower:
+                        if not any(req in trait for trait in active):
+                            ok_traits = False
+                            break
+                    if not ok_traits:
+                        continue
+                if required_item_counts:
+                    ok_items = True
+                    for unit_id, min_items in required_item_counts.items():
+                        if b["item_count_by_unit"].get(unit_id, 0) < min_items:
+                            ok_items = False
+                            break
+                    if not ok_items:
+                        continue
                 core_count += 1
                 core_total_placement += b["placement"]
                 core_matches.add(b["match_id"])
-
                 remaining = sorted(b["unit_set"] - core_set)
                 if flex_size == 0 or len(remaining) < flex_size:
                     continue

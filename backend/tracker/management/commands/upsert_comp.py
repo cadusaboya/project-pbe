@@ -51,6 +51,24 @@ class Command(BaseCommand):
                 "Accepts short names or full IDs."
             ),
         )
+        parser.add_argument(
+            "--require-traits",
+            type=str,
+            default="",
+            help=(
+                "Comma-separated required active traits. "
+                "Example: --require-traits 'Bilgewater,Sniper'"
+            ),
+        )
+        parser.add_argument(
+            "--require-items",
+            type=str,
+            default="",
+            help=(
+                "Comma-separated unit:min_items rules. "
+                "Example: --require-items 'MissFortune:3,Swain:2'"
+            ),
+        )
 
     def handle(self, *args, **options):
         name = options["name"].strip()
@@ -59,6 +77,8 @@ class Command(BaseCommand):
         is_active = not options["inactive"]
         target_level = max(1, min(int(options["level"]), 10))
         exclude_raw = (options.get("exclude") or "").strip()
+        require_traits_raw = (options.get("require_traits") or "").strip()
+        require_items_raw = (options.get("require_items") or "").strip()
 
         if not name:
             raise CommandError("--name cannot be empty.")
@@ -106,12 +126,35 @@ class Command(BaseCommand):
                 seen_ex.add(u)
                 excluded_units.append(u)
 
+        required_traits: list[str] = []
+        if require_traits_raw:
+            required_traits = [t.strip() for t in require_traits_raw.split(",") if t.strip()]
+
+        required_unit_item_counts: dict[str, int] = {}
+        if require_items_raw:
+            for raw_rule in [r.strip() for r in require_items_raw.split(",") if r.strip()]:
+                if ":" not in raw_rule:
+                    raise CommandError(
+                        f"Invalid require-items rule '{raw_rule}'. Use Unit:Count format."
+                    )
+                raw_unit, raw_count = raw_rule.split(":", 1)
+                unit_norm = self._normalize_token(raw_unit.strip(), prefix)
+                try:
+                    min_count = max(1, int(raw_count.strip()))
+                except ValueError as exc:
+                    raise CommandError(
+                        f"Invalid item count in rule '{raw_rule}'. Must be integer."
+                    ) from exc
+                required_unit_item_counts[unit_norm] = min_count
+
         comp, created = Comp.objects.update_or_create(
             name=name,
             defaults={
                 "units": units,
                 "target_level": target_level,
                 "excluded_units": excluded_units,
+                "required_traits": required_traits,
+                "required_unit_item_counts": required_unit_item_counts,
                 "is_active": is_active,
             },
         )
@@ -122,6 +165,13 @@ class Command(BaseCommand):
         self.stdout.write(f"Target level: {comp.target_level}")
         if comp.excluded_units:
             self.stdout.write(f"Excluded: {', '.join(comp.excluded_units)}")
+        if comp.required_traits:
+            self.stdout.write(f"Required traits: {', '.join(comp.required_traits)}")
+        if comp.required_unit_item_counts:
+            pretty = ", ".join(
+                f"{k}:{v}" for k, v in comp.required_unit_item_counts.items()
+            )
+            self.stdout.write(f"Required items: {pretty}")
         self.stdout.write(f"Active: {comp.is_active}")
 
         if unresolved:
