@@ -1,7 +1,8 @@
 import WinningCompsList, { WinningComp } from "../components/WinningCompsList";
+import { backendUrl } from "@/lib/backend";
 
 async function fetchWinningComps(gameVersion?: string): Promise<WinningComp[]> {
-  const url = new URL("http://localhost:8000/api/winning-comps/");
+  const url = new URL(backendUrl("/api/winning-comps/"));
   url.searchParams.set("limit", "200");
   if (gameVersion) url.searchParams.set("game_version", gameVersion);
 
@@ -12,7 +13,7 @@ async function fetchWinningComps(gameVersion?: string): Promise<WinningComp[]> {
 
 async function fetchItemAssets(): Promise<Record<string, string>> {
   try {
-    const res = await fetch("http://localhost:8000/api/item-assets/", {
+    const res = await fetch(backendUrl("/api/item-assets/"), {
       cache: "no-store",
     });
     if (!res.ok) return {};
@@ -24,7 +25,7 @@ async function fetchItemAssets(): Promise<Record<string, string>> {
 
 async function fetchVersions(): Promise<string[]> {
   try {
-    const res = await fetch("http://localhost:8000/api/versions/", {
+    const res = await fetch(backendUrl("/api/versions/"), {
       cache: "no-store",
     });
     if (!res.ok) return [];
@@ -68,7 +69,7 @@ export default async function WinningCompsPage({
         <div className="rounded-xl border border-red-800 bg-red-950/40 px-5 py-4 text-red-400 text-sm">
           <span className="font-semibold">Error:</span> {error}
           <p className="mt-1 text-red-500/70">
-            Make sure the Django backend is running on port 8000.
+            Make sure the backend is running and reachable.
           </p>
         </div>
       ) : data.length === 0 ? (

@@ -1,3 +1,5 @@
+import { backendUrl } from "@/lib/backend";
+
 interface GlobalStats {
   matches_analyzed: number;
   players_tracked: number;
@@ -7,7 +9,7 @@ interface GlobalStats {
 
 async function fetchGlobalStats(): Promise<GlobalStats | null> {
   try {
-    const res = await fetch("http://localhost:8000/api/stats/", {
+    const res = await fetch(backendUrl("/api/stats/"), {
       cache: "no-store",
     });
     if (!res.ok) return null;

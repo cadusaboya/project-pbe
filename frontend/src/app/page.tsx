@@ -1,7 +1,8 @@
 import StatsTable, { UnitStat } from "./components/StatsTable";
+import { backendUrl } from "@/lib/backend";
 
 async function fetchStats(gameVersion?: string): Promise<UnitStat[]> {
-  const url = new URL("http://localhost:8000/api/unit-stats/");
+  const url = new URL(backendUrl("/api/unit-stats/"));
   if (gameVersion) url.searchParams.set("game_version", gameVersion);
 
   const res = await fetch(url.toString(), { cache: "no-store" });
@@ -15,7 +16,7 @@ async function fetchStats(gameVersion?: string): Promise<UnitStat[]> {
 
 async function fetchVersions(): Promise<string[]> {
   try {
-    const res = await fetch("http://localhost:8000/api/versions/", {
+    const res = await fetch(backendUrl("/api/versions/"), {
       cache: "no-store",
     });
     if (!res.ok) return [];
@@ -57,7 +58,7 @@ export default async function Home({
         <div className="rounded-xl border border-red-800 bg-red-950/40 px-5 py-4 text-red-400 text-sm">
           <span className="font-semibold">Error:</span> {error}
           <p className="mt-1 text-red-500/70">
-            Make sure the Django backend is running on port 8000.
+            Make sure the backend is running and reachable.
           </p>
         </div>
       ) : data.length === 0 ? (

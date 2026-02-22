@@ -313,7 +313,7 @@ export default function WinningCompsList({
     } else {
       params.delete("game_version");
     }
-    router.push(`/winning-comps?${params.toString()}`);
+    router.push(`/last-games?${params.toString()}`);
   }
 
   const filtered = useMemo<WinningComp[]>(() => {
@@ -384,3 +384,4 @@ export default function WinningCompsList({
     </div>
   );
 }
+
