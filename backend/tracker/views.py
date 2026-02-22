@@ -1,4 +1,5 @@
 import json
+from collections import defaultdict
 from pathlib import Path
 import datetime
 
@@ -258,6 +259,77 @@ class WinningCompsView(ListAPIView):
             qs = qs.filter(match__game_version=game_version)
 
         return qs[:limit]
+
+
+class UnitStarStatsView(APIView):
+    """
+    GET /api/unit-stats/<unit_name>/star-stats/
+
+    Returns avg placement, top4 rate, win rate and games broken down
+    by star level (1, 2, 3) for a single unit.
+
+    Query params:
+      game_version – optional, filter to a specific version
+    """
+
+    def get(self, request, unit_name: str):
+        qs = UnitUsage.objects.filter(unit__character_id=unit_name)
+
+        game_version = request.query_params.get("game_version")
+        if game_version:
+            qs = qs.filter(participant__match__game_version=game_version)
+
+        # Star stats
+        star_rows = (
+            qs.values("star_level")
+            .annotate(
+                games=Count("id"),
+                total_placement=Sum("participant__placement"),
+                top4_count=Count("id", filter=Q(participant__placement__lte=4)),
+                win_count=Count("id", filter=Q(participant__placement=1)),
+            )
+            .order_by("star_level")
+        )
+
+        star_result = []
+        for row in star_rows:
+            games = row["games"]
+            total = row["total_placement"] or 0
+            star_result.append({
+                "star_level": row["star_level"],
+                "games": games,
+                "avg_placement": round(total / games, 2) if games else 0.0,
+                "top4_rate": round(row["top4_count"] / games, 3) if games else 0.0,
+                "win_rate": round(row["win_count"] / games, 3) if games else 0.0,
+            })
+
+        # Item stats — aggregate per item name from the JSONField list
+        item_agg: dict = defaultdict(lambda: {"games": 0, "total_placement": 0, "top4_count": 0, "win_count": 0})
+        for usage in qs.select_related("participant"):
+            placement = usage.participant.placement
+            for item in (usage.items or []):
+                if not item:
+                    continue
+                item_agg[item]["games"] += 1
+                item_agg[item]["total_placement"] += placement
+                if placement <= 4:
+                    item_agg[item]["top4_count"] += 1
+                if placement == 1:
+                    item_agg[item]["win_count"] += 1
+
+        sorted_items = sorted(item_agg.items(), key=lambda x: x[1]["games"], reverse=True)[:6]
+        item_result = []
+        for item_name, stats in sorted_items:
+            games = stats["games"]
+            item_result.append({
+                "item_name": item_name,
+                "games": games,
+                "avg_placement": round(stats["total_placement"] / games, 2) if games else 0.0,
+                "top4_rate": round(stats["top4_count"] / games, 3) if games else 0.0,
+                "win_rate": round(stats["win_count"] / games, 3) if games else 0.0,
+            })
+
+        return Response({"star_stats": star_result, "item_stats": item_result})
 
 
 class VersionsView(APIView):
