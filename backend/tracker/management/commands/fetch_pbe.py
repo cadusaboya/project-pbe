@@ -21,19 +21,15 @@ import asyncio
 import datetime
 import logging
 import os
-from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
-from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from tracker.models import Match, Player
 from tracker.services.aggregation import recompute_unit_stats
 from tracker.services.match_processor import process_match
 from tracker.services.riot_api import RiotAPIService
-
-LAST_RUN_FILE = Path(settings.BASE_DIR) / ".last_fetch_pbe"
 
 logger = logging.getLogger(__name__)
 
@@ -188,8 +184,6 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f"Done - updated stats for {count} unit(s)."))
         else:
             self.stdout.write(self.style.SUCCESS("Nothing new - stats unchanged."))
-
-        LAST_RUN_FILE.write_text(datetime.datetime.now(datetime.timezone.utc).isoformat())
 
     def _handle_single_match(
         self,

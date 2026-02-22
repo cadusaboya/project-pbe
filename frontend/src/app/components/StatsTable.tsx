@@ -29,10 +29,16 @@ function placementColor(placement: number): string {
   return "text-red-400";
 }
 
-function rateColor(rate: number): string {
-  if (rate >= 0.6) return "text-yellow-400 font-semibold";
-  if (rate >= 0.45) return "text-green-400";
-  if (rate >= 0.3) return "text-tft-text";
+function winRateColor(rate: number): string {
+  if (rate > 0.2) return "text-green-400 font-semibold";
+  if (rate >= 0.15) return "text-yellow-400 font-semibold";
+  if (rate <= 0.05) return "text-tft-muted";
+  return "text-red-400";
+}
+
+function top4RateColor(rate: number): string {
+  if (rate > 0.5) return "text-green-400 font-semibold";
+  if (rate < 0.3) return "text-tft-muted";
   return "text-red-400";
 }
 
@@ -221,12 +227,12 @@ export default function StatsTable({
                     {row.avg_placement.toFixed(2)}
                   </td>
                   <td
-                    className={`px-4 py-3 tabular-nums ${rateColor(row.top4_rate)}`}
+                    className={`px-4 py-3 tabular-nums ${top4RateColor(row.top4_rate)}`}
                   >
                     {(row.top4_rate * 100).toFixed(1)}%
                   </td>
                   <td
-                    className={`px-4 py-3 tabular-nums ${rateColor(row.win_rate)}`}
+                    className={`px-4 py-3 tabular-nums ${winRateColor(row.win_rate)}`}
                   >
                     {(row.win_rate * 100).toFixed(1)}%
                   </td>

@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import datetime
 
 from django.conf import settings
 from django.db.models import Count, Q, Sum
@@ -11,8 +12,6 @@ from .models import AggregatedUnitStat, Match, Participant, Player, Unit, UnitUs
 from .serializers import UnitStatSerializer, WinningCompSerializer
 
 _ITEM_ASSETS_FILE = Path(settings.BASE_DIR) / "item_assets.json"
-
-_LAST_RUN_FILE = Path(settings.BASE_DIR) / ".last_fetch_pbe"
 
 _SORT_MAP = {
     "avg_placement": "avg_placement",
@@ -115,10 +114,24 @@ class StatsView(APIView):
     """GET /api/stats/"""
 
     def get(self, request):
-        try:
-            last_run = _LAST_RUN_FILE.read_text().strip()
-        except FileNotFoundError:
-            last_run = None
+        last_run = None
+        latest_match = Match.objects.order_by("-game_datetime").first()
+        if latest_match:
+            info = (latest_match.raw_json or {}).get("info", {})
+            game_length_s = info.get("game_length") or 0
+            try:
+                game_length_s = max(float(game_length_s), 0.0)
+            except (TypeError, ValueError):
+                game_length_s = 0.0
+
+            game_start = latest_match.game_datetime
+            if game_start.tzinfo is None:
+                game_start = game_start.replace(tzinfo=datetime.timezone.utc)
+
+            game_end = game_start.astimezone(datetime.timezone.utc) + datetime.timedelta(
+                seconds=game_length_s
+            )
+            last_run = game_end.isoformat()
 
         return Response({
             "matches_analyzed": Match.objects.count(),
