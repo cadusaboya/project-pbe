@@ -82,3 +82,19 @@ class AggregatedUnitStat(models.Model):
 
     def __str__(self):
         return f"Stats for {self.unit.character_id}"
+
+
+class Comp(models.Model):
+    name = models.CharField(max_length=120, unique=True)
+    units = models.JSONField(default=list)
+    target_level = models.PositiveSmallIntegerField(default=8)
+    excluded_units = models.JSONField(default=list)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name

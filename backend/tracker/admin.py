@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from .models import (
     AggregatedUnitStat,
+    Comp,
     Match,
     Participant,
     Player,
@@ -49,3 +50,10 @@ class AggregatedUnitStatAdmin(admin.ModelAdmin):
     list_display = ["unit", "games", "avg_placement", "top4_rate", "win_rate", "updated_at"]
     ordering = ["avg_placement"]
     search_fields = ["unit__character_id"]
+
+
+@admin.register(Comp)
+class CompAdmin(admin.ModelAdmin):
+    list_display = ["name", "target_level", "is_active", "updated_at"]
+    list_filter = ["is_active"]
+    search_fields = ["name"]

@@ -1,5 +1,6 @@
 import json
 from collections import defaultdict
+from itertools import combinations
 from pathlib import Path
 import datetime
 
@@ -9,7 +10,7 @@ from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import AggregatedUnitStat, Match, Participant, Player, Unit, UnitUsage
+from .models import AggregatedUnitStat, Comp, Match, Participant, Player, Unit, UnitUsage
 from .serializers import UnitStatSerializer, WinningCompSerializer
 
 _ITEM_ASSETS_FILE = Path(settings.BASE_DIR) / "item_assets.json"
@@ -536,6 +537,275 @@ class ExploreView(APIView):
             "unit_stats": unit_stats,
             "item_stats": item_stats,
         })
+
+
+class HiddenCompsView(APIView):
+    """
+    GET /api/comps/hidden/
+
+    Returns the most common discovered core compositions and their best flex add-ons.
+
+    Query params:
+      game_version â€“ optional version filter
+      limit        â€“ number of core comps to return (default 20)
+      core_size    â€“ core comp size (default 5)
+      flex_size    â€“ flex combo size (default 3)
+      top_flex     â€“ number of flex combos per core (default 3)
+    """
+
+    def get(self, request):
+        game_version = request.query_params.get("game_version")
+        try:
+            limit = max(1, int(request.query_params.get("limit", 20)))
+        except ValueError:
+            limit = 20
+        try:
+            core_size = max(1, int(request.query_params.get("core_size", 5)))
+        except ValueError:
+            core_size = 5
+        try:
+            flex_size = max(1, int(request.query_params.get("flex_size", 3)))
+        except ValueError:
+            flex_size = 3
+        try:
+            top_flex = max(1, int(request.query_params.get("top_flex", 3)))
+        except ValueError:
+            top_flex = 3
+
+        participants = (
+            Participant.objects.select_related("match")
+            .prefetch_related("unit_usages__unit")
+            .order_by("id")
+        )
+        if game_version:
+            participants = participants.filter(match__game_version=game_version)
+
+        boards: list[dict] = []
+        all_units: set[str] = set()
+        for p in participants.iterator(chunk_size=500):
+            units = sorted({
+                uu.unit.character_id
+                for uu in p.unit_usages.all()
+                if uu.unit_id and uu.unit and uu.unit.character_id
+            })
+            if len(units) < core_size:
+                continue
+            unit_set = set(units)
+            all_units |= unit_set
+            boards.append({
+                "match_id": p.match_id,
+                "placement": p.placement,
+                "units": units,
+                "unit_set": unit_set,
+            })
+
+        if not boards:
+            return Response([])
+
+        unit_cost_map = dict(
+            Unit.objects.filter(character_id__in=all_units).values_list("character_id", "cost")
+        )
+
+        core_stats: dict[tuple[str, ...], dict] = defaultdict(
+            lambda: {"count": 0, "total_placement": 0, "matches": set()}
+        )
+        for b in boards:
+            for core in combinations(b["units"], core_size):
+                row = core_stats[core]
+                row["count"] += 1
+                row["total_placement"] += b["placement"]
+                row["matches"].add(b["match_id"])
+
+        ranked_cores = sorted(
+            core_stats.items(),
+            key=lambda kv: (-kv[1]["count"], (kv[1]["total_placement"] / kv[1]["count"]), kv[0]),
+        )[:limit]
+
+        result = []
+        for core_units, core_info in ranked_cores:
+            core_set = set(core_units)
+            flex_stats: dict[tuple[str, ...], dict] = defaultdict(
+                lambda: {"count": 0, "total_placement": 0, "matches": set()}
+            )
+
+            for b in boards:
+                if not core_set.issubset(b["unit_set"]):
+                    continue
+                remaining = sorted(b["unit_set"] - core_set)
+                if len(remaining) < flex_size:
+                    continue
+                for flex in combinations(remaining, flex_size):
+                    row = flex_stats[flex]
+                    row["count"] += 1
+                    row["total_placement"] += b["placement"]
+                    row["matches"].add(b["match_id"])
+
+            ranked_flex = sorted(
+                flex_stats.items(),
+                key=lambda kv: (-kv[1]["count"], (kv[1]["total_placement"] / kv[1]["count"]), kv[0]),
+            )[:top_flex]
+
+            result.append({
+                "core_units": [
+                    {"character_id": u, "cost": unit_cost_map.get(u, 0)}
+                    for u in core_units
+                ],
+                "comps": core_info["count"],
+                "matches": len(core_info["matches"]),
+                "avg_placement": round(core_info["total_placement"] / core_info["count"], 2),
+                "flex_combos": [
+                    {
+                        "units": [
+                            {"character_id": u, "cost": unit_cost_map.get(u, 0)}
+                            for u in flex_units
+                        ],
+                        "comps": info["count"],
+                        "matches": len(info["matches"]),
+                        "avg_placement": round(info["total_placement"] / info["count"], 2),
+                    }
+                    for flex_units, info in ranked_flex
+                ],
+            })
+
+        return Response(result)
+
+
+class CompsView(APIView):
+    """
+    GET /api/comps/
+
+    Returns stats for manually created comps from the Comp table,
+    including best flex add-ons and AVP.
+
+    Query params:
+      game_version â€“ optional version filter
+      limit        â€“ max number of comps to return (default 20)
+      top_flex     â€“ number of flex combos per comp (default 3)
+    """
+
+    def get(self, request):
+        game_version = request.query_params.get("game_version")
+        try:
+            limit = max(1, int(request.query_params.get("limit", 20)))
+        except ValueError:
+            limit = 20
+        try:
+            top_flex = max(1, int(request.query_params.get("top_flex", 3)))
+        except ValueError:
+            top_flex = 3
+
+        comps = list(Comp.objects.filter(is_active=True).order_by("name")[:limit])
+        if not comps:
+            return Response([])
+
+        participants = (
+            Participant.objects.select_related("match")
+            .prefetch_related("unit_usages__unit")
+            .order_by("id")
+        )
+        if game_version:
+            participants = participants.filter(match__game_version=game_version)
+
+        boards: list[dict] = []
+        all_units: set[str] = set()
+        for p in participants.iterator(chunk_size=500):
+            unit_set = {
+                uu.unit.character_id
+                for uu in p.unit_usages.all()
+                if uu.unit_id and uu.unit and uu.unit.character_id
+            }
+            if not unit_set:
+                continue
+            boards.append({
+                "match_id": p.match_id,
+                "placement": p.placement,
+                "unit_set": unit_set,
+            })
+            all_units |= unit_set
+
+        if not boards:
+            return Response([])
+
+        unit_cost_map = dict(
+            Unit.objects.filter(character_id__in=all_units).values_list("character_id", "cost")
+        )
+
+        result = []
+        for comp in comps:
+            raw_units = comp.units if isinstance(comp.units, list) else []
+            core_units = sorted({str(u).strip() for u in raw_units if str(u).strip()})
+            if not core_units:
+                continue
+            core_set = set(core_units)
+            raw_excluded = comp.excluded_units if isinstance(comp.excluded_units, list) else []
+            excluded_set = {str(u).strip() for u in raw_excluded if str(u).strip()}
+
+            target_level = max(1, min(int(comp.target_level or 8), 10))
+            if len(core_units) >= target_level:
+                # Completed board at this level: suggest next +1 until level 10.
+                flex_size = 1 if target_level < 10 else 0
+            else:
+                flex_size = target_level - len(core_units)
+
+            core_count = 0
+            core_total_placement = 0
+            core_matches = set()
+            flex_stats: dict[tuple[str, ...], dict] = defaultdict(
+                lambda: {"count": 0, "total_placement": 0, "matches": set()}
+            )
+
+            for b in boards:
+                if excluded_set and (excluded_set & b["unit_set"]):
+                    continue
+                if not core_set.issubset(b["unit_set"]):
+                    continue
+                core_count += 1
+                core_total_placement += b["placement"]
+                core_matches.add(b["match_id"])
+
+                remaining = sorted(b["unit_set"] - core_set)
+                if flex_size == 0 or len(remaining) < flex_size:
+                    continue
+                for flex in combinations(remaining, flex_size):
+                    row = flex_stats[flex]
+                    row["count"] += 1
+                    row["total_placement"] += b["placement"]
+                    row["matches"].add(b["match_id"])
+
+            if core_count == 0:
+                continue
+
+            ranked_flex = sorted(
+                flex_stats.items(),
+                key=lambda kv: (-kv[1]["count"], (kv[1]["total_placement"] / kv[1]["count"]), kv[0]),
+            )[:top_flex]
+
+            result.append({
+                "name": comp.name,
+                "target_level": target_level,
+                "core_units": [
+                    {"character_id": u, "cost": unit_cost_map.get(u, 0)}
+                    for u in core_units
+                ],
+                "comps": core_count,
+                "matches": len(core_matches),
+                "avg_placement": round(core_total_placement / core_count, 2),
+                "flex_combos": [
+                    {
+                        "units": [
+                            {"character_id": u, "cost": unit_cost_map.get(u, 0)}
+                            for u in flex_units
+                        ],
+                        "comps": info["count"],
+                        "matches": len(info["matches"]),
+                        "avg_placement": round(info["total_placement"] / info["count"], 2),
+                    }
+                    for flex_units, info in ranked_flex
+                ],
+            })
+
+        result.sort(key=lambda x: (-x["comps"], x["avg_placement"], x["name"]))
+        return Response(result[:limit])
 
 
 class VersionsView(APIView):
