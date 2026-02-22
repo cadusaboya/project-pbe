@@ -163,7 +163,7 @@ class Command(BaseCommand):
                     p.get("puuid") for p in match_data.get("info", {}).get("participants", [])
                 }
                 tracked_count = sum(1 for p in participant_puuids if p in puuid_to_player)
-                if tracked_count < 4:
+                if tracked_count < 6:
                     self.stdout.write(f"    {mid} - skipped ({tracked_count}/8 tracked)")
                     continue
 
