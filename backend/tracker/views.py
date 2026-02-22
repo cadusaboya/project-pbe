@@ -1,6 +1,6 @@
 import json
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from itertools import combinations
 from pathlib import Path
 import datetime
@@ -926,10 +926,8 @@ class CompsView(APIView):
         result = []
         for comp in comps:
             raw_units = comp.units if isinstance(comp.units, list) else []
-            core_units = sorted({str(u).strip() for u in raw_units if str(u).strip()})
-            if not core_units:
-                continue
-            core_set = set(core_units)
+            base_units = [str(u).strip() for u in raw_units if str(u).strip()]
+            core_unit_counts: Counter[str] = Counter(base_units)
             raw_excluded = comp.excluded_units if isinstance(comp.excluded_units, list) else []
             excluded_set = {str(u).strip() for u in raw_excluded if str(u).strip()}
             raw_required_traits = comp.required_traits if isinstance(comp.required_traits, list) else []
@@ -955,6 +953,12 @@ class CompsView(APIView):
                 for unit, cnt in raw_required_unit_counts.items()
                 if str(unit).strip()
             }
+            for unit_id, min_count in required_unit_counts.items():
+                core_unit_counts[unit_id] = max(core_unit_counts.get(unit_id, 0), min_count)
+
+            if not core_unit_counts:
+                continue
+            core_units = sorted(core_unit_counts.keys())
             raw_required_breakpoints = (
                 comp.required_trait_breakpoints
                 if isinstance(comp.required_trait_breakpoints, dict)
@@ -986,11 +990,12 @@ class CompsView(APIView):
                     continue
 
             target_level = max(1, min(int(comp.target_level or 8), 10))
-            if len(core_units) >= target_level:
+            core_size = sum(core_unit_counts.values())
+            if core_size >= target_level:
                 # Completed board at this level: suggest next +1 until level 10.
                 flex_size = 1 if target_level < 10 else 0
             else:
-                flex_size = target_level - len(core_units)
+                flex_size = target_level - core_size
 
             core_count = 0
             core_total_placement = 0
@@ -1004,7 +1009,12 @@ class CompsView(APIView):
             for b in boards:
                 if excluded_set and (excluded_set & b["unit_set"]):
                     continue
-                if not core_set.issubset(b["unit_set"]):
+                has_core_units = True
+                for unit_id, min_count in core_unit_counts.items():
+                    if b["unit_count_by_unit"].get(unit_id, 0) < min_count:
+                        has_core_units = False
+                        break
+                if not has_core_units:
                     continue
                 if required_traits_lower:
                     active = {t.lower() for t in b["active_traits"]}
@@ -1066,10 +1076,17 @@ class CompsView(APIView):
                 if b["placement"] == 1:
                     core_win_count += 1
                 core_matches.add(b["match_id"])
-                remaining = sorted(b["unit_set"] - core_set)
-                if flex_size == 0 or len(remaining) < flex_size:
+                remaining_counter = Counter(b["unit_count_by_unit"])
+                for unit_id, used_count in core_unit_counts.items():
+                    if unit_id in remaining_counter:
+                        remaining_counter[unit_id] = max(0, remaining_counter[unit_id] - used_count)
+                remaining_pool = []
+                for unit_id, count in sorted(remaining_counter.items()):
+                    if count > 0:
+                        remaining_pool.extend([unit_id] * count)
+                if flex_size == 0 or len(remaining_pool) < flex_size:
                     continue
-                for flex in combinations(remaining, flex_size):
+                for flex in set(combinations(remaining_pool, flex_size)):
                     row = flex_stats[flex]
                     row["count"] += 1
                     row["total_placement"] += b["placement"]
@@ -1084,13 +1101,13 @@ class CompsView(APIView):
             win_rate = round(core_win_count / core_count, 3) if core_count else 0.0
 
             trait_counts: dict[str, int] = defaultdict(int)
-            for u in core_units:
+            for u, count in core_unit_counts.items():
                 traits = unit_traits_map.get(u) or []
                 for t in traits:
                     name = str(t).strip()
                     if not name:
                         continue
-                    trait_counts[name] += 1
+                    trait_counts[name] += count
             core_traits = [
                 {"name": name, "units": cnt}
                 for name, cnt in sorted(
@@ -1103,12 +1120,13 @@ class CompsView(APIView):
             result.append({
                 "name": comp.name,
                 "target_level": target_level,
-                "core_size": len(core_units),
+                "core_size": core_size,
                 "flex_slots": flex_size,
                 "core_traits": core_traits,
                 "core_units": [
                     {"character_id": u, "cost": unit_cost_map.get(u, 0)}
                     for u in core_units
+                    for _ in range(core_unit_counts[u])
                 ],
                 "comps": core_count,
                 "matches": len(core_matches),

@@ -66,11 +66,6 @@ function avpTextColor(avp: number): string {
   return "text-red-400";
 }
 
-function avpLeftBorder(avp: number): string {
-  if (avp <= 3.5) return "border-l-green-500";
-  if (avp <= 4.5) return "border-l-yellow-500";
-  return "border-l-red-500/70";
-}
 
 function UnitChip({ unit, size = 44 }: { unit: CompUnit; size?: number }) {
   const dim = size === 44 ? "w-11 h-11" : "w-9 h-9";
@@ -138,7 +133,7 @@ function CompCard({ comp }: { comp: CompStat }) {
 
   return (
     <div
-      className={`border border-tft-border border-l-[3px] ${avpLeftBorder(comp.avg_placement)} rounded-xl bg-tft-surface/60 overflow-hidden`}
+      className="border border-tft-border rounded-xl bg-tft-surface/60 overflow-hidden"
     >
       {/* Clickable header */}
       <div
@@ -267,6 +262,14 @@ export default function CompsList({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
+  type SortKey = "avg_placement" | "comps" | "win_rate" | "top4_rate";
+  const [sort, setSort] = useState<SortKey>("avg_placement");
+  const [sortAsc, setSortAsc] = useState(true);
+
+  function handleSort(key: SortKey) {
+    if (sort === key) setSortAsc((v) => !v);
+    else { setSort(key); setSortAsc(key === "avg_placement"); }
+  }
 
   function pushParams(next: URLSearchParams) {
     router.push(`${basePath}?${next.toString()}`);
@@ -298,13 +301,23 @@ export default function CompsList({
   }
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return data;
-    const q = search.trim().toLowerCase();
-    return data.filter((comp) => {
-      if (comp.name && comp.name.toLowerCase().includes(q)) return true;
-      return comp.core_units.some((u) => u.character_id.toLowerCase().includes(q));
+    let rows = data;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      rows = rows.filter((comp) => {
+        if (comp.name && comp.name.toLowerCase().includes(q)) return true;
+        return comp.core_units.some((u) => u.character_id.toLowerCase().includes(q));
+      });
+    }
+    return [...rows].sort((a, b) => {
+      let av: number, bv: number;
+      if (sort === "avg_placement") { av = a.avg_placement; bv = b.avg_placement; }
+      else if (sort === "comps") { av = a.comps; bv = b.comps; }
+      else if (sort === "win_rate") { av = a.win_rate ?? 0; bv = b.win_rate ?? 0; }
+      else { av = a.top4_rate ?? 0; bv = b.top4_rate ?? 0; }
+      return sortAsc ? av - bv : bv - av;
     });
-  }, [data, search]);
+  }, [data, search, sort, sortAsc]);
 
   return (
     <div className="space-y-4">
@@ -361,6 +374,34 @@ export default function CompsList({
           onChange={(e) => setSearch(e.target.value)}
           className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-56"
         />
+
+        {/* Sort buttons */}
+        <div className="flex items-center gap-1">
+          {(
+            [
+              { key: "avg_placement", label: "AVP" },
+              { key: "comps",         label: "Games" },
+              { key: "win_rate",      label: "Win%" },
+              { key: "top4_rate",     label: "Top 4%" },
+            ] as { key: SortKey; label: string }[]
+          ).map(({ key, label }) => {
+            const active = sort === key;
+            const arrow = active ? (sortAsc ? " ↑" : " ↓") : "";
+            return (
+              <button
+                key={key}
+                onClick={() => handleSort(key)}
+                className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
+                  active
+                    ? "bg-tft-accent/20 border border-tft-accent text-tft-text"
+                    : "bg-tft-surface border border-tft-border text-tft-muted hover:text-tft-text hover:border-tft-accent/50"
+                }`}
+              >
+                {label}{arrow}
+              </button>
+            );
+          })}
+        </div>
 
         <span className="text-tft-muted text-sm ml-auto">{filtered.length} comps</span>
       </div>
