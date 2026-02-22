@@ -2,7 +2,6 @@ import { backendUrl } from "@/lib/backend";
 
 interface GlobalStats {
   matches_analyzed: number;
-  players_tracked: number;
   participants_recorded: number;
   last_fetch_at: string | null;
 }
@@ -39,11 +38,7 @@ export default async function StatsBar() {
     <div className="border-b border-tft-border bg-tft-bg/60">
       <div className="max-w-7xl mx-auto px-4 py-2 flex flex-wrap items-center gap-x-6 gap-y-1">
         <Stat label="Matches analyzed" value={stats.matches_analyzed} />
-        <Stat label="Players tracked" value={stats.players_tracked} />
-        <Stat
-          label="Participants recorded"
-          value={stats.participants_recorded}
-        />
+        <Stat label="Comps analyzed" value={stats.participants_recorded} />
         <span className="text-tft-muted text-xs ml-auto">
           {stats.last_fetch_at ? (
             <>
