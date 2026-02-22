@@ -28,6 +28,8 @@ export interface CompStat {
   core_units: CompUnit[];
   comps: number;
   avg_placement: number;
+  win_rate?: number;
+  top4_rate?: number;
   flex_combos: FlexCombo[];
 }
 
@@ -71,7 +73,9 @@ function UnitChip({ unit }: { unit: CompUnit }) {
         width={48}
         height={48}
         className="w-12 h-12 object-cover"
-        onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
+        }}
       />
     </div>
   );
@@ -90,7 +94,9 @@ function FlexUnitChip({ unit }: { unit: CompUnit }) {
         width={48}
         height={48}
         className="w-12 h-12 object-cover"
-        onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
+        }}
       />
     </div>
   );
@@ -99,6 +105,8 @@ function FlexUnitChip({ unit }: { unit: CompUnit }) {
 function CompCard({ comp }: { comp: CompStat }) {
   const [expanded, setExpanded] = useState(false);
   const suggestedFlex = comp.flex_combos[0];
+  const winRate = (comp.win_rate ?? 0) * 100;
+  const top4Rate = (comp.top4_rate ?? 0) * 100;
 
   return (
     <div className="border border-tft-border rounded-xl bg-tft-surface/60 overflow-hidden">
@@ -106,73 +114,72 @@ function CompCard({ comp }: { comp: CompStat }) {
         className="p-4 space-y-3 cursor-pointer select-none hover:bg-tft-hover transition-colors"
         onClick={() => setExpanded((v) => !v)}
       >
-        <div className="flex items-start gap-3">
-          {comp.name ? (
-            <div className="text-2xl font-bold text-tft-text leading-none shrink-0">
-              {comp.name}
-              {comp.target_level ? (
-                <span className="ml-2 text-sm font-medium text-tft-muted align-middle">
-                  Lv {comp.target_level}
-                </span>
-              ) : null}
-            </div>
-          ) : null}
-          {(comp.core_size || comp.flex_slots || (comp.core_traits && comp.core_traits.length > 0)) ? (
-            <div className="text-xs text-tft-muted leading-tight shrink-0">
-              <div>
-                Core {comp.core_size ?? comp.core_units.length}
-                {" | "}
-                Flex {comp.flex_slots ?? 0}
+        <div className="flex items-start gap-4">
+          <div className="w-48 md:w-64 shrink-0 min-h-12">
+            {comp.name ? (
+              <div className="text-2xl font-bold text-tft-text leading-none truncate">{comp.name}</div>
+            ) : null}
+            {comp.target_level || comp.core_size || comp.flex_slots || (comp.core_traits && comp.core_traits.length > 0) ? (
+              <div className="text-xs text-tft-muted leading-tight mt-1">
+                {comp.target_level ? <div>Lv {comp.target_level}</div> : null}
+                {comp.core_size || comp.flex_slots ? (
+                  <div>
+                    Core {comp.core_size ?? comp.core_units.length}
+                    {" | "}
+                    Flex {comp.flex_slots ?? 0}
+                  </div>
+                ) : null}
+                {comp.core_traits && comp.core_traits.length > 0 ? (
+                  <div>
+                    Trait core: {formatTrait(comp.core_traits[0].name)} ({comp.core_traits[0].units})
+                  </div>
+                ) : null}
               </div>
-              {comp.core_traits && comp.core_traits.length > 0 ? (
-                <div>
-                  Trait core: {formatTrait(comp.core_traits[0].name)} ({comp.core_traits[0].units})
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          <div className="flex flex-wrap gap-2">
+            ) : null}
+          </div>
+
+          <div className="flex items-start gap-2 flex-wrap">
             {comp.core_units.map((u) => (
               <UnitChip key={u.character_id} unit={u} />
             ))}
+
+            {suggestedFlex ? (
+              <div className="flex items-start gap-2 shrink-0">
+                <span className="text-tft-muted/60">|</span>
+                <div className="flex flex-col items-center">
+                  <div className="flex gap-1.5">
+                    {suggestedFlex.units.map((u) => (
+                      <FlexUnitChip key={`suggest-${u.character_id}`} unit={u} />
+                    ))}
+                  </div>
+                  <div className="text-[9px] uppercase tracking-wide text-tft-muted mt-0.5 flex flex-col items-center leading-none">
+                    <span>\/</span>
+                    <span className="mt-0.5">Flex</span>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
 
-          {suggestedFlex ? (
-            <div className="flex items-start gap-2 shrink-0">
-              <span className="text-tft-muted/60">|</span>
-              <div className="flex flex-col items-center">
-                <div className="flex gap-1.5">
-                  {suggestedFlex.units.map((u) => (
-                    <FlexUnitChip key={`suggest-${u.character_id}`} unit={u} />
-                  ))}
-                </div>
-                <div className="text-[9px] uppercase tracking-wide text-tft-muted mt-0.5 flex flex-col items-center leading-none">
-                  <span>▼</span>
-                  <span className="mt-0.5">Flex</span>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="ml-auto flex items-end gap-6 shrink-0">
+          <div className="ml-auto flex items-end gap-5 shrink-0">
             <div className="text-right leading-none">
-              <div className="text-2xl font-bold text-tft-text tabular-nums">
-                {comp.comps}
-              </div>
-              <div className="text-[11px] uppercase tracking-wide text-tft-muted mt-1">
-                Frequency
-              </div>
+              <div className="text-2xl font-bold text-tft-text tabular-nums">{comp.comps}</div>
+              <div className="text-[11px] uppercase tracking-wide text-tft-muted mt-1">Frequency</div>
             </div>
             <div className="text-right leading-none">
-              <div className="text-3xl font-extrabold text-tft-gold tabular-nums">
-                {comp.avg_placement.toFixed(2)}
-              </div>
-              <div className="text-[11px] uppercase tracking-wide text-tft-muted mt-1">
-                AVP
-              </div>
+              <div className="text-xl font-bold text-tft-text tabular-nums">{winRate.toFixed(1)}%</div>
+              <div className="text-[11px] uppercase tracking-wide text-tft-muted mt-1">Win Rate</div>
+            </div>
+            <div className="text-right leading-none">
+              <div className="text-xl font-bold text-tft-text tabular-nums">{top4Rate.toFixed(1)}%</div>
+              <div className="text-[11px] uppercase tracking-wide text-tft-muted mt-1">Top 4</div>
+            </div>
+            <div className="text-right leading-none">
+              <div className="text-3xl font-extrabold text-tft-gold tabular-nums">{comp.avg_placement.toFixed(2)}</div>
+              <div className="text-[11px] uppercase tracking-wide text-tft-muted mt-1">AVP</div>
             </div>
           </div>
-          <span className="text-tft-muted text-xs shrink-0">{expanded ? "▲" : "▼"}</span>
+          <span className="text-tft-muted text-xs shrink-0">{expanded ? "^" : "v"}</span>
         </div>
       </div>
 
@@ -194,20 +201,12 @@ function CompCard({ comp }: { comp: CompStat }) {
                 </div>
                 <div className="text-xs text-tft-muted ml-auto flex items-end gap-4">
                   <div className="text-right leading-none">
-                    <div className="text-base font-semibold text-tft-text tabular-nums">
-                      {flex.comps}
-                    </div>
-                    <div className="text-[10px] uppercase tracking-wide text-tft-muted mt-1">
-                      Frequency
-                    </div>
+                    <div className="text-base font-semibold text-tft-text tabular-nums">{flex.comps}</div>
+                    <div className="text-[10px] uppercase tracking-wide text-tft-muted mt-1">Frequency</div>
                   </div>
                   <div className="text-right leading-none">
-                    <div className="text-lg font-bold text-tft-gold tabular-nums">
-                      {flex.avg_placement.toFixed(2)}
-                    </div>
-                    <div className="text-[10px] uppercase tracking-wide text-tft-muted mt-1">
-                      AVP
-                    </div>
+                    <div className="text-lg font-bold text-tft-gold tabular-nums">{flex.avg_placement.toFixed(2)}</div>
+                    <div className="text-[10px] uppercase tracking-wide text-tft-muted mt-1">AVP</div>
                   </div>
                 </div>
               </div>

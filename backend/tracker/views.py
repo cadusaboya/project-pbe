@@ -823,18 +823,28 @@ class CompsView(APIView):
 
     def get(self, request):
         game_version = request.query_params.get("game_version")
-        try:
-            limit = max(1, int(request.query_params.get("limit", 20)))
-        except ValueError:
-            limit = 20
+        limit_raw = request.query_params.get("limit")
+        limit = None
+        if limit_raw is not None:
+            try:
+                limit = max(1, int(limit_raw))
+            except ValueError:
+                limit = None
         try:
             top_flex = max(1, int(request.query_params.get("top_flex", 3)))
         except ValueError:
             top_flex = 3
 
-        comps = list(Comp.objects.filter(is_active=True).order_by("name")[:limit])
+        comps_qs = Comp.objects.filter(is_active=True).order_by("name")
+        if limit is not None:
+            comps_qs = comps_qs[:limit]
+        comps = list(comps_qs)
         if not comps:
             return Response([])
+        comp_units_all: set[str] = set()
+        for comp in comps:
+            raw_units = comp.units if isinstance(comp.units, list) else []
+            comp_units_all |= {str(u).strip() for u in raw_units if str(u).strip()}
 
         participants = (
             Participant.objects.select_related("match")
@@ -898,14 +908,12 @@ class CompsView(APIView):
             })
             all_units |= unit_set
 
-        if not boards:
-            return Response([])
-
+        lookup_units = all_units | comp_units_all
         unit_cost_map = dict(
-            Unit.objects.filter(character_id__in=all_units).values_list("character_id", "cost")
+            Unit.objects.filter(character_id__in=lookup_units).values_list("character_id", "cost")
         )
         unit_traits_map = dict(
-            Unit.objects.filter(character_id__in=all_units).values_list("character_id", "traits")
+            Unit.objects.filter(character_id__in=lookup_units).values_list("character_id", "traits")
         )
 
         result = []
@@ -969,6 +977,8 @@ class CompsView(APIView):
 
             core_count = 0
             core_total_placement = 0
+            core_top4_count = 0
+            core_win_count = 0
             core_matches = set()
             flex_stats: dict[tuple[str, ...], dict] = defaultdict(
                 lambda: {"count": 0, "total_placement": 0, "matches": set()}
@@ -1026,6 +1036,10 @@ class CompsView(APIView):
                         continue
                 core_count += 1
                 core_total_placement += b["placement"]
+                if b["placement"] <= 4:
+                    core_top4_count += 1
+                if b["placement"] == 1:
+                    core_win_count += 1
                 core_matches.add(b["match_id"])
                 remaining = sorted(b["unit_set"] - core_set)
                 if flex_size == 0 or len(remaining) < flex_size:
@@ -1036,13 +1050,13 @@ class CompsView(APIView):
                     row["total_placement"] += b["placement"]
                     row["matches"].add(b["match_id"])
 
-            if core_count == 0:
-                continue
-
             ranked_flex = sorted(
                 flex_stats.items(),
                 key=lambda kv: (-kv[1]["count"], (kv[1]["total_placement"] / kv[1]["count"]), kv[0]),
             )[:top_flex]
+            avg_placement = round(core_total_placement / core_count, 2) if core_count else 0.0
+            top4_rate = round(core_top4_count / core_count, 3) if core_count else 0.0
+            win_rate = round(core_win_count / core_count, 3) if core_count else 0.0
 
             trait_counts: dict[str, int] = defaultdict(int)
             for u in core_units:
@@ -1073,7 +1087,9 @@ class CompsView(APIView):
                 ],
                 "comps": core_count,
                 "matches": len(core_matches),
-                "avg_placement": round(core_total_placement / core_count, 2),
+                "avg_placement": avg_placement,
+                "top4_rate": top4_rate,
+                "win_rate": win_rate,
                 "flex_combos": [
                     {
                         "units": [
@@ -1089,7 +1105,9 @@ class CompsView(APIView):
             })
 
         result.sort(key=lambda x: (-x["comps"], x["avg_placement"], x["name"]))
-        return Response(result[:limit])
+        if limit is not None:
+            return Response(result[:limit])
+        return Response(result)
 
 
 class SearchCompsView(APIView):

@@ -3,7 +3,6 @@ import { backendUrl } from "@/lib/backend";
 
 async function fetchCompStats(gameVersion?: string): Promise<CompStat[]> {
   const url = new URL(backendUrl("/api/comps/"));
-  url.searchParams.set("limit", "20");
   if (gameVersion) url.searchParams.set("game_version", gameVersion);
 
   const res = await fetch(url.toString(), { cache: "no-store" });
