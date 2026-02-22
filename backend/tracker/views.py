@@ -549,7 +549,8 @@ class HiddenCompsView(APIView):
       game_version â€“ optional version filter
       limit        â€“ number of core comps to return (default 20)
       core_size    â€“ core comp size (default 5)
-      flex_size    â€“ flex combo size (default 3)
+      target_level â€“ optional override for board level target; if omitted,
+                     backend infers the most common completion level per core
       top_flex     â€“ number of flex combos per core (default 3)
     """
 
@@ -563,10 +564,13 @@ class HiddenCompsView(APIView):
             core_size = max(1, int(request.query_params.get("core_size", 5)))
         except ValueError:
             core_size = 5
-        try:
-            flex_size = max(1, int(request.query_params.get("flex_size", 3)))
-        except ValueError:
-            flex_size = 3
+        target_level_override_raw = request.query_params.get("target_level")
+        target_level_override = None
+        if target_level_override_raw is not None:
+            try:
+                target_level_override = max(1, min(10, int(target_level_override_raw)))
+            except ValueError:
+                target_level_override = None
         try:
             top_flex = max(1, int(request.query_params.get("top_flex", 3)))
         except ValueError:
@@ -595,6 +599,7 @@ class HiddenCompsView(APIView):
             boards.append({
                 "match_id": p.match_id,
                 "placement": p.placement,
+                "level": p.level,
                 "units": units,
                 "unit_set": unit_set,
             })
@@ -605,9 +610,12 @@ class HiddenCompsView(APIView):
         unit_cost_map = dict(
             Unit.objects.filter(character_id__in=all_units).values_list("character_id", "cost")
         )
+        unit_traits_map = dict(
+            Unit.objects.filter(character_id__in=all_units).values_list("character_id", "traits")
+        )
 
         core_stats: dict[tuple[str, ...], dict] = defaultdict(
-            lambda: {"count": 0, "total_placement": 0, "matches": set()}
+            lambda: {"count": 0, "total_placement": 0, "matches": set(), "level_counts": defaultdict(int)}
         )
         for b in boards:
             for core in combinations(b["units"], core_size):
@@ -615,6 +623,7 @@ class HiddenCompsView(APIView):
                 row["count"] += 1
                 row["total_placement"] += b["placement"]
                 row["matches"].add(b["match_id"])
+                row["level_counts"][b["level"]] += 1
 
         ranked_cores = sorted(
             core_stats.items(),
@@ -624,6 +633,27 @@ class HiddenCompsView(APIView):
         result = []
         for core_units, core_info in ranked_cores:
             core_set = set(core_units)
+            if target_level_override is not None:
+                target_level = target_level_override
+            else:
+                # Prefer late-game levels when available.
+                late_levels = {
+                    lvl: cnt
+                    for lvl, cnt in core_info["level_counts"].items()
+                    if lvl in (8, 9, 10)
+                }
+                level_counts = late_levels if late_levels else core_info["level_counts"]
+                target_level = sorted(
+                    level_counts.items(),
+                    key=lambda kv: (-kv[1], -kv[0]),
+                )[0][0]
+                target_level = max(core_size, min(10, int(target_level)))
+
+            if core_size >= target_level:
+                flex_size = 1 if target_level < 10 else 0
+            else:
+                flex_size = target_level - core_size
+
             flex_stats: dict[tuple[str, ...], dict] = defaultdict(
                 lambda: {"count": 0, "total_placement": 0, "matches": set()}
             )
@@ -645,7 +675,28 @@ class HiddenCompsView(APIView):
                 key=lambda kv: (-kv[1]["count"], (kv[1]["total_placement"] / kv[1]["count"]), kv[0]),
             )[:top_flex]
 
+            trait_counts: dict[str, int] = defaultdict(int)
+            for u in core_units:
+                traits = unit_traits_map.get(u) or []
+                for t in traits:
+                    name = str(t).strip()
+                    if not name:
+                        continue
+                    trait_counts[name] += 1
+            core_traits = [
+                {"name": name, "units": cnt}
+                for name, cnt in sorted(
+                    trait_counts.items(),
+                    key=lambda kv: (-kv[1], kv[0]),
+                )
+                if cnt >= 2
+            ][:3]
+
             result.append({
+                "target_level": target_level,
+                "core_size": len(core_units),
+                "flex_slots": flex_size,
+                "core_traits": core_traits,
                 "core_units": [
                     {"character_id": u, "cost": unit_cost_map.get(u, 0)}
                     for u in core_units
@@ -760,6 +811,9 @@ class CompsView(APIView):
         unit_cost_map = dict(
             Unit.objects.filter(character_id__in=all_units).values_list("character_id", "cost")
         )
+        unit_traits_map = dict(
+            Unit.objects.filter(character_id__in=all_units).values_list("character_id", "traits")
+        )
 
         result = []
         for comp in comps:
@@ -840,9 +894,29 @@ class CompsView(APIView):
                 key=lambda kv: (-kv[1]["count"], (kv[1]["total_placement"] / kv[1]["count"]), kv[0]),
             )[:top_flex]
 
+            trait_counts: dict[str, int] = defaultdict(int)
+            for u in core_units:
+                traits = unit_traits_map.get(u) or []
+                for t in traits:
+                    name = str(t).strip()
+                    if not name:
+                        continue
+                    trait_counts[name] += 1
+            core_traits = [
+                {"name": name, "units": cnt}
+                for name, cnt in sorted(
+                    trait_counts.items(),
+                    key=lambda kv: (-kv[1], kv[0]),
+                )
+                if cnt >= 2
+            ][:3]
+
             result.append({
                 "name": comp.name,
                 "target_level": target_level,
+                "core_size": len(core_units),
+                "flex_slots": flex_size,
+                "core_traits": core_traits,
                 "core_units": [
                     {"character_id": u, "cost": unit_cost_map.get(u, 0)}
                     for u in core_units

@@ -14,9 +14,17 @@ interface FlexCombo {
   avg_placement: number;
 }
 
+interface CoreTrait {
+  name: string;
+  units: number;
+}
+
 export interface CompStat {
   name?: string;
   target_level?: number;
+  core_size?: number;
+  flex_slots?: number;
+  core_traits?: CoreTrait[];
   core_units: CompUnit[];
   comps: number;
   avg_placement: number;
@@ -38,6 +46,10 @@ function costBorderColor(cost: number): string {
 
 function formatUnit(name: string): string {
   return name.replace(/^TFT\d+_/, "");
+}
+
+function formatTrait(name: string): string {
+  return name.replace(/^TFT\d+_/, "").replace(/^Set\d+_/, "");
 }
 
 function unitImageUrl(characterId: string): string {
@@ -102,6 +114,20 @@ function CompCard({ comp }: { comp: CompStat }) {
                 <span className="ml-2 text-sm font-medium text-tft-muted align-middle">
                   Lv {comp.target_level}
                 </span>
+              ) : null}
+            </div>
+          ) : null}
+          {(comp.core_size || comp.flex_slots || (comp.core_traits && comp.core_traits.length > 0)) ? (
+            <div className="text-xs text-tft-muted leading-tight shrink-0">
+              <div>
+                Core {comp.core_size ?? comp.core_units.length}
+                {" | "}
+                Flex {comp.flex_slots ?? 0}
+              </div>
+              {comp.core_traits && comp.core_traits.length > 0 ? (
+                <div>
+                  Trait core: {formatTrait(comp.core_traits[0].name)} ({comp.core_traits[0].units})
+                </div>
               ) : null}
             </div>
           ) : null}
