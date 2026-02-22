@@ -1,0 +1,241 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+
+export interface UnitStat {
+  unit_name: string;
+  games: number;
+  avg_placement: number;
+  top4_rate: number;
+  win_rate: number;
+}
+
+type SortKey = keyof UnitStat;
+type SortDir = "asc" | "desc";
+
+const COLUMNS: { key: SortKey; label: string; defaultDir: SortDir }[] = [
+  { key: "unit_name", label: "Unit", defaultDir: "asc" },
+  { key: "games", label: "Games", defaultDir: "desc" },
+  { key: "avg_placement", label: "Avg Place", defaultDir: "asc" },
+  { key: "top4_rate", label: "Top 4 %", defaultDir: "desc" },
+  { key: "win_rate", label: "Win %", defaultDir: "desc" },
+];
+
+function placementColor(placement: number): string {
+  if (placement <= 2) return "text-yellow-400 font-semibold";
+  if (placement <= 4) return "text-green-400";
+  if (placement <= 6) return "text-tft-text";
+  return "text-red-400";
+}
+
+function rateColor(rate: number): string {
+  if (rate >= 0.6) return "text-yellow-400 font-semibold";
+  if (rate >= 0.45) return "text-green-400";
+  if (rate >= 0.3) return "text-tft-text";
+  return "text-red-400";
+}
+
+function formatUnit(name: string): string {
+  // Strip TFT set prefix e.g. "TFT14_Ahri" → "Ahri"
+  return name.replace(/^TFT\d+_/, "");
+}
+
+function unitImageUrl(characterId: string): string {
+  const lower = characterId.toLowerCase(); // e.g. "tft16_ahri"
+  const setNum = lower.match(/^tft(\d+)_/)?.[1] ?? "16";
+  return `https://raw.communitydragon.org/pbe/game/assets/characters/${lower}/hud/${lower}_square.tft_set${setNum}.png`;
+}
+
+function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+  if (!active)
+    return (
+      <span className="ml-1 text-tft-muted opacity-40 select-none">↕</span>
+    );
+  return (
+    <span className="ml-1 text-tft-gold select-none">
+      {dir === "asc" ? "↑" : "↓"}
+    </span>
+  );
+}
+
+export default function StatsTable({
+  data,
+  versions,
+  selectedVersion,
+}: {
+  data: UnitStat[];
+  versions: string[];
+  selectedVersion: string;
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [sortKey, setSortKey] = useState<SortKey>("avg_placement");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [search, setSearch] = useState("");
+  const [minGames, setMinGames] = useState("");
+
+  function handleVersionChange(v: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (v) {
+      params.set("game_version", v);
+    } else {
+      params.delete("game_version");
+    }
+    router.push(`/?${params.toString()}`);
+  }
+
+  const handleSort = (key: SortKey, defaultDir: SortDir) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(defaultDir);
+    }
+  };
+
+  const filtered = useMemo(() => {
+    let rows = [...data];
+
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      rows = rows.filter((r) => r.unit_name.toLowerCase().includes(q));
+    }
+
+    const min = parseInt(minGames, 10);
+    if (!isNaN(min) && min > 0) {
+      rows = rows.filter((r) => r.games >= min);
+    }
+
+    rows.sort((a, b) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      if (typeof av === "string" && typeof bv === "string") {
+        return sortDir === "asc"
+          ? av.localeCompare(bv)
+          : bv.localeCompare(av);
+      }
+      const an = av as number;
+      const bn = bv as number;
+      return sortDir === "asc" ? an - bn : bn - an;
+    });
+
+    return rows;
+  }, [data, search, minGames, sortKey, sortDir]);
+
+  return (
+    <div className="space-y-4">
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 items-center">
+        {versions.length > 0 && (
+          <select
+            value={selectedVersion}
+            onChange={(e) => handleVersionChange(e.target.value)}
+            className="bg-tft-surface border border-tft-border text-tft-text rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent"
+          >
+            <option value="">All versions</option>
+            {versions.map((v) => (
+              <option key={v} value={v}>{v}</option>
+            ))}
+          </select>
+        )}
+        <input
+          type="text"
+          placeholder="Search unit..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-48"
+        />
+        <input
+          type="number"
+          placeholder="Min games"
+          value={minGames}
+          onChange={(e) => setMinGames(e.target.value)}
+          className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-32"
+          min={0}
+        />
+        <span className="text-tft-muted text-sm ml-auto">
+          {filtered.length} units
+        </span>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto rounded-xl border border-tft-border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-tft-surface border-b border-tft-border">
+              {COLUMNS.map((col) => (
+                <th
+                  key={col.key}
+                  onClick={() => handleSort(col.key, col.defaultDir)}
+                  className={`
+                    px-4 py-3 text-left font-semibold cursor-pointer select-none
+                    text-tft-muted hover:text-tft-text transition-colors
+                    ${sortKey === col.key ? "text-tft-gold" : ""}
+                    ${col.key === "unit_name" ? "w-48" : ""}
+                  `}
+                >
+                  {col.label}
+                  <SortIcon active={sortKey === col.key} dir={sortDir} />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="px-4 py-12 text-center text-tft-muted"
+                >
+                  No units found.
+                </td>
+              </tr>
+            ) : (
+              filtered.map((row, i) => (
+                <tr
+                  key={row.unit_name}
+                  className={`
+                    border-b border-tft-border last:border-0 transition-colors
+                    hover:bg-tft-hover
+                    ${i % 2 === 0 ? "bg-tft-bg" : "bg-tft-surface/40"}
+                  `}
+                >
+                  <td className="px-4 py-3 font-medium text-tft-text">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={unitImageUrl(row.unit_name)}
+                      alt={formatUnit(row.unit_name)}
+                      width={32}
+                      height={32}
+                      className="rounded-md w-8 h-8 object-cover"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                  </td>
+                  <td className="px-4 py-3 text-tft-text tabular-nums">
+                    {row.games}
+                  </td>
+                  <td
+                    className={`px-4 py-3 tabular-nums ${placementColor(row.avg_placement)}`}
+                  >
+                    {row.avg_placement.toFixed(2)}
+                  </td>
+                  <td
+                    className={`px-4 py-3 tabular-nums ${rateColor(row.top4_rate)}`}
+                  >
+                    {(row.top4_rate * 100).toFixed(1)}%
+                  </td>
+                  <td
+                    className={`px-4 py-3 tabular-nums ${rateColor(row.win_rate)}`}
+                  >
+                    {(row.win_rate * 100).toFixed(1)}%
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
