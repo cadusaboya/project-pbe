@@ -29,6 +29,57 @@ _SORT_MAP = {
 }
 
 
+def _unit_slot_weight(character_id: str) -> int:
+    """Board slot weight rules for special units."""
+    name = str(character_id or "").strip().lower()
+    if not name:
+        return 1
+    if "atakhan" in name or name.endswith("_galio"):
+        return 0
+    if "baron" in name:
+        return 2
+    return 1
+
+
+def _slots_used(units: list[str] | tuple[str, ...]) -> int:
+    return sum(_unit_slot_weight(u) for u in units)
+
+
+def _weighted_flex_combos(unit_pool: list[str], target_slots: int) -> set[tuple[str, ...]]:
+    """
+    Return unique combos (sorted tuple) from unit_pool whose total slot weight
+    matches target_slots. unit_pool may contain duplicates.
+    """
+    if target_slots < 0:
+        return set()
+    if target_slots == 0:
+        return {tuple()}
+
+    pool = list(unit_pool)
+    combos: set[tuple[str, ...]] = set()
+
+    def backtrack(idx: int, picked: list[str], slots: int):
+        if slots == target_slots:
+            combos.add(tuple(sorted(picked)))
+            return
+        if idx >= len(pool) or slots > target_slots:
+            return
+
+        # Option 1: skip current unit
+        backtrack(idx + 1, picked, slots)
+
+        # Option 2: include current unit
+        unit_id = pool[idx]
+        w = _unit_slot_weight(unit_id)
+        if slots + w <= target_slots:
+            picked.append(unit_id)
+            backtrack(idx + 1, picked, slots + w)
+            picked.pop()
+
+    backtrack(0, [], 0)
+    return combos
+
+
 class TraitDataView(APIView):
     """
     GET /api/traits/
@@ -719,7 +770,7 @@ class HiddenCompsView(APIView):
         result = []
         for core_units, core_info in ranked_cores:
             core_set = set(core_units)
-            core_size_current = len(core_units)
+            core_size_current = _slots_used(core_units)
             if target_level_override is not None:
                 target_level = target_level_override
             else:
@@ -749,9 +800,7 @@ class HiddenCompsView(APIView):
                 if not core_set.issubset(b["unit_set"]):
                     continue
                 remaining = sorted(b["unit_set"] - core_set)
-                if len(remaining) < flex_size:
-                    continue
-                for flex in combinations(remaining, flex_size):
+                for flex in _weighted_flex_combos(remaining, flex_size):
                     row = flex_stats[flex]
                     row["count"] += 1
                     row["total_placement"] += b["placement"]
@@ -990,7 +1039,10 @@ class CompsView(APIView):
                     continue
 
             target_level = max(1, min(int(comp.target_level or 9), 10))
-            core_size = sum(core_unit_counts.values())
+            core_size = sum(
+                _unit_slot_weight(unit_id) * count
+                for unit_id, count in core_unit_counts.items()
+            )
             if core_size >= target_level:
                 # Completed board at this level: suggest next +1 until level 10.
                 flex_size = 1 if target_level < 10 else 0
@@ -1084,9 +1136,9 @@ class CompsView(APIView):
                 for unit_id, count in sorted(remaining_counter.items()):
                     if count > 0:
                         remaining_pool.extend([unit_id] * count)
-                if flex_size == 0 or len(remaining_pool) < flex_size:
+                if flex_size == 0:
                     continue
-                for flex in set(combinations(remaining_pool, flex_size)):
+                for flex in _weighted_flex_combos(remaining_pool, flex_size):
                     row = flex_stats[flex]
                     row["count"] += 1
                     row["total_placement"] += b["placement"]
