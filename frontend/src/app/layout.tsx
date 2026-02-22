@@ -45,6 +45,12 @@ export default function RootLayout({
                 Unit Search
               </Link>
               <Link
+                href="/comps"
+                className="px-3 py-1.5 rounded-md text-sm font-medium text-tft-muted hover:text-tft-text hover:bg-tft-hover transition-colors"
+              >
+                Comps
+              </Link>
+              <Link
                 href="/items"
                 className="px-3 py-1.5 rounded-md text-sm font-medium text-tft-muted hover:text-tft-text hover:bg-tft-hover transition-colors"
               >

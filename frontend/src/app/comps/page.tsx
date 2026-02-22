@@ -68,6 +68,7 @@ export default async function CompsPage({
           versions={versions}
           selectedVersion={gameVersion ?? ""}
           basePath="/comps"
+          showCompMeta={false}
         />
       )}
     </div>

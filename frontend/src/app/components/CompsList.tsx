@@ -224,6 +224,7 @@ export default function CompsList({
   versions,
   selectedVersion,
   basePath = "/comps",
+  showCompMeta = true,
   showHiddenFilters = false,
   selectedCoreSizes = "4,5,6",
   selectedMinOccurrences = "100",
@@ -232,6 +233,7 @@ export default function CompsList({
   versions: string[];
   selectedVersion: string;
   basePath?: string;
+  showCompMeta?: boolean;
   showHiddenFilters?: boolean;
   selectedCoreSizes?: string;
   selectedMinOccurrences?: string;
@@ -345,7 +347,16 @@ export default function CompsList({
       ) : (
         <div className="grid gap-4">
           {filtered.map((comp, i) => (
-            <CompCard key={`${i}-${comp.core_units.map((u) => u.character_id).join("|")}`} comp={comp} />
+            <CompCard
+              key={`${i}-${comp.core_units.map((u) => u.character_id).join("|")}`}
+              comp={{
+                ...comp,
+                target_level: showCompMeta ? comp.target_level : undefined,
+                core_size: showCompMeta ? comp.core_size : undefined,
+                flex_slots: showCompMeta ? comp.flex_slots : undefined,
+                core_traits: showCompMeta ? comp.core_traits : undefined,
+              }}
+            />
           ))}
         </div>
       )}
