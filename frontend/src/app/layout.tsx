@@ -6,7 +6,7 @@ import StatsBar from "./components/StatsBar";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "TFT PBE Tracker",
+  title: "Project PBE Stats",
   description: "Unit statistics tracker for TFT PBE matches",
 };
 
@@ -22,7 +22,7 @@ export default function RootLayout({
           <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-6">
             <div className="flex items-center gap-3">
               <span className="text-tft-gold text-2xl font-bold tracking-tight">
-                Project PBE Tracker
+                Project PBE Stats
               </span>
             </div>
             <nav className="flex items-center gap-1">

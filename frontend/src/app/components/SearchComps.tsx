@@ -533,24 +533,24 @@ function ResultCard({
                 key={i}
                 className={`py-1.5 ${i < arr.length - 1 ? "border-b border-tft-border/40" : ""} ${isCurrentPlayer ? "bg-tft-accent/5 rounded" : ""}`}
               >
-                <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
                   <span className={`w-5 text-sm text-right shrink-0 ${placementStyle(participant.placement)}`}>
                     #{participant.placement}
                   </span>
                   <span className={`text-sm w-36 truncate shrink-0 ${isCurrentPlayer ? "text-tft-accent font-semibold" : "text-tft-text"}`}>
                     {displayPlayerName(participant.name)}
                   </span>
-                  <div className="flex flex-wrap gap-1 mt-1.5 mb-1.5">
-                    {participant.units
-                      .slice()
-                      .sort((a, b) => b.cost - a.cost || b.star_level - a.star_level)
-                      .map((unit, j) => (
-                        <UnitChipSmall key={j} unit={unit} itemAssets={itemAssets} />
-                      ))}
+                  <div className="flex flex-col gap-1.5">
+                    <TraitChips units={participant.units} traitData={traitData} />
+                    <div className="flex flex-wrap gap-1">
+                      {participant.units
+                        .slice()
+                        .sort((a, b) => b.cost - a.cost || b.star_level - a.star_level)
+                        .map((unit, j) => (
+                          <UnitChipSmall key={j} unit={unit} itemAssets={itemAssets} />
+                        ))}
+                    </div>
                   </div>
-                </div>
-                <div className="ml-8 mt-1.5">
-                  <TraitChips units={participant.units} traitData={traitData} />
                 </div>
               </div>
             );
