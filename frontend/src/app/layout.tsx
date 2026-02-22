@@ -33,6 +33,12 @@ export default function RootLayout({
                 Unit Stats
               </Link>
               <Link
+                href="/items"
+                className="px-3 py-1.5 rounded-md text-sm font-medium text-tft-muted hover:text-tft-text hover:bg-tft-hover transition-colors"
+              >
+                Items
+              </Link>
+              <Link
                 href="/last-games"
                 className="px-3 py-1.5 rounded-md text-sm font-medium text-tft-muted hover:text-tft-text hover:bg-tft-hover transition-colors"
               >
