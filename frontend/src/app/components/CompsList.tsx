@@ -224,21 +224,49 @@ export default function CompsList({
   versions,
   selectedVersion,
   basePath = "/comps",
+  showHiddenFilters = false,
+  selectedCoreSizes = "4,5,6",
+  selectedMinOccurrences = "100",
 }: {
   data: CompStat[];
   versions: string[];
   selectedVersion: string;
   basePath?: string;
+  showHiddenFilters?: boolean;
+  selectedCoreSizes?: string;
+  selectedMinOccurrences?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
 
+  function pushParams(next: URLSearchParams) {
+    router.push(`${basePath}?${next.toString()}`);
+  }
+
   function handleVersionChange(v: string) {
     const params = new URLSearchParams(searchParams.toString());
     if (v) params.set("game_version", v);
     else params.delete("game_version");
-    router.push(`${basePath}?${params.toString()}`);
+    pushParams(params);
+  }
+
+  function handleCoreSizesChange(v: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (v) params.set("core_sizes", v);
+    else params.delete("core_sizes");
+    pushParams(params);
+  }
+
+  function handleMinOccurrencesChange(v: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    const parsed = parseInt(v, 10);
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      params.set("min_occurrences", String(parsed));
+    } else {
+      params.delete("min_occurrences");
+    }
+    pushParams(params);
   }
 
   const filtered = useMemo(() => {
@@ -264,6 +292,33 @@ export default function CompsList({
               <option key={v} value={v}>{v}</option>
             ))}
           </select>
+        )}
+
+        {showHiddenFilters && (
+          <select
+            value={selectedCoreSizes}
+            onChange={(e) => handleCoreSizesChange(e.target.value)}
+            className="bg-tft-surface border border-tft-border text-tft-text rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent"
+          >
+            <option value="4,5,6">Core 4/5/6</option>
+            <option value="4">Core 4</option>
+            <option value="5">Core 5</option>
+            <option value="6">Core 6</option>
+            <option value="4,5">Core 4/5</option>
+            <option value="5,6">Core 5/6</option>
+          </select>
+        )}
+
+        {showHiddenFilters && (
+          <input
+            type="number"
+            min={1}
+            value={selectedMinOccurrences}
+            onChange={(e) => handleMinOccurrencesChange(e.target.value)}
+            className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-36"
+            placeholder="Min occurrences"
+            title="Min occurrences"
+          />
         )}
 
         <input

@@ -1,10 +1,16 @@
 import CompsList, { CompStat } from "../../components/CompsList";
 import { backendUrl } from "@/lib/backend";
 
-async function fetchHiddenCompStats(gameVersion?: string): Promise<CompStat[]> {
+async function fetchHiddenCompStats(
+  gameVersion?: string,
+  coreSizes?: string,
+  minOccurrences?: string,
+): Promise<CompStat[]> {
   const url = new URL(backendUrl("/api/comps/hidden/"));
   url.searchParams.set("limit", "20");
   if (gameVersion) url.searchParams.set("game_version", gameVersion);
+  if (coreSizes) url.searchParams.set("core_sizes", coreSizes);
+  if (minOccurrences) url.searchParams.set("min_occurrences", minOccurrences);
 
   const res = await fetch(url.toString(), { cache: "no-store" });
   if (!res.ok) {
@@ -26,16 +32,20 @@ async function fetchVersions(): Promise<string[]> {
 export default async function HiddenCompsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ game_version?: string }>;
+  searchParams: Promise<{ game_version?: string; core_sizes?: string; min_occurrences?: string }>;
 }) {
-  const { game_version: gameVersion } = await searchParams;
+  const {
+    game_version: gameVersion,
+    core_sizes: coreSizes = "4,5,6",
+    min_occurrences: minOccurrences = "100",
+  } = await searchParams;
   let data: CompStat[] = [];
   let versions: string[] = [];
   let error: string | null = null;
 
   try {
     [data, versions] = await Promise.all([
-      fetchHiddenCompStats(gameVersion),
+      fetchHiddenCompStats(gameVersion, coreSizes, minOccurrences),
       fetchVersions(),
     ]);
   } catch (e) {
@@ -68,6 +78,9 @@ export default async function HiddenCompsPage({
           versions={versions}
           selectedVersion={gameVersion ?? ""}
           basePath="/comps/hidden"
+          showHiddenFilters
+          selectedCoreSizes={coreSizes}
+          selectedMinOccurrences={minOccurrences}
         />
       )}
     </div>

@@ -548,7 +548,8 @@ class HiddenCompsView(APIView):
     Query params:
       game_version â€“ optional version filter
       limit        â€“ number of core comps to return (default 20)
-      core_size    â€“ core comp size (default 5)
+      core_sizes   â€“ comma-separated core sizes to analyze (default: 4,5,6)
+      min_occurrences â€“ minimum frequency for a core to be considered (default: 100)
       target_level â€“ optional override for board level target; if omitted,
                      backend infers the most common completion level per core
       top_flex     â€“ number of flex combos per core (default 3)
@@ -560,10 +561,25 @@ class HiddenCompsView(APIView):
             limit = max(1, int(request.query_params.get("limit", 20)))
         except ValueError:
             limit = 20
+        core_sizes_raw = (request.query_params.get("core_sizes") or "4,5,6").strip()
+        core_sizes = []
+        for part in core_sizes_raw.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                size = int(part)
+            except ValueError:
+                continue
+            if 1 <= size <= 10 and size not in core_sizes:
+                core_sizes.append(size)
+        if not core_sizes:
+            core_sizes = [5]
+        core_sizes.sort()
         try:
-            core_size = max(1, int(request.query_params.get("core_size", 5)))
+            min_occurrences = max(1, int(request.query_params.get("min_occurrences", 100)))
         except ValueError:
-            core_size = 5
+            min_occurrences = 100
         target_level_override_raw = request.query_params.get("target_level")
         target_level_override = None
         if target_level_override_raw is not None:
@@ -592,7 +608,7 @@ class HiddenCompsView(APIView):
                 for uu in p.unit_usages.all()
                 if uu.unit_id and uu.unit and uu.unit.character_id
             })
-            if len(units) < core_size:
+            if len(units) < core_sizes[0]:
                 continue
             unit_set = set(units)
             all_units |= unit_set
@@ -618,21 +634,30 @@ class HiddenCompsView(APIView):
             lambda: {"count": 0, "total_placement": 0, "matches": set(), "level_counts": defaultdict(int)}
         )
         for b in boards:
-            for core in combinations(b["units"], core_size):
-                row = core_stats[core]
-                row["count"] += 1
-                row["total_placement"] += b["placement"]
-                row["matches"].add(b["match_id"])
-                row["level_counts"][b["level"]] += 1
+            units_len = len(b["units"])
+            for size in core_sizes:
+                if size > units_len:
+                    break
+                for core in combinations(b["units"], size):
+                    row = core_stats[core]
+                    row["count"] += 1
+                    row["total_placement"] += b["placement"]
+                    row["matches"].add(b["match_id"])
+                    row["level_counts"][b["level"]] += 1
 
         ranked_cores = sorted(
-            core_stats.items(),
+            (
+                (core, info)
+                for core, info in core_stats.items()
+                if info["count"] >= min_occurrences
+            ),
             key=lambda kv: (-kv[1]["count"], (kv[1]["total_placement"] / kv[1]["count"]), kv[0]),
         )[:limit]
 
         result = []
         for core_units, core_info in ranked_cores:
             core_set = set(core_units)
+            core_size_current = len(core_units)
             if target_level_override is not None:
                 target_level = target_level_override
             else:
@@ -647,12 +672,12 @@ class HiddenCompsView(APIView):
                     level_counts.items(),
                     key=lambda kv: (-kv[1], -kv[0]),
                 )[0][0]
-                target_level = max(core_size, min(10, int(target_level)))
+                target_level = max(core_size_current, min(10, int(target_level)))
 
-            if core_size >= target_level:
+            if core_size_current >= target_level:
                 flex_size = 1 if target_level < 10 else 0
             else:
-                flex_size = target_level - core_size
+                flex_size = target_level - core_size_current
 
             flex_stats: dict[tuple[str, ...], dict] = defaultdict(
                 lambda: {"count": 0, "total_placement": 0, "matches": set()}
@@ -694,7 +719,7 @@ class HiddenCompsView(APIView):
 
             result.append({
                 "target_level": target_level,
-                "core_size": len(core_units),
+                "core_size": core_size_current,
                 "flex_slots": flex_size,
                 "core_traits": core_traits,
                 "core_units": [
