@@ -80,8 +80,10 @@ function ChampionSelector({
 }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -105,6 +107,15 @@ function ChampionSelector({
       .slice(0, 24);
   }, [units, search]);
 
+  // Reset highlight when results change
+  useEffect(() => { setHighlightedIndex(0); }, [filtered]);
+
+  // Scroll highlighted item into view
+  useEffect(() => {
+    const item = listRef.current?.children[highlightedIndex] as HTMLElement | undefined;
+    item?.scrollIntoView({ block: "nearest" });
+  }, [highlightedIndex]);
+
   function handleOpen() {
     setOpen(true);
     setTimeout(() => inputRef.current?.focus(), 0);
@@ -114,6 +125,21 @@ function ChampionSelector({
     onSelect(unit);
     setSearch("");
     setOpen(false);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.min(i + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (filtered[highlightedIndex]) handleSelect(filtered[highlightedIndex]);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
   }
 
   return (
@@ -163,16 +189,19 @@ function ChampionSelector({
               type="text"
               placeholder="Search champion..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); }}
+              onKeyDown={handleKeyDown}
               className="w-full bg-tft-bg border border-tft-border text-tft-text placeholder-tft-muted rounded px-2 py-1.5 text-sm focus:outline-none focus:border-tft-accent"
             />
           </div>
-          <div className="max-h-64 overflow-y-auto">
-            {filtered.map((unit) => (
+          <div ref={listRef} className="max-h-64 overflow-y-auto">
+            {filtered.map((unit, i) => (
               <button
                 key={unit.unit_name}
                 onClick={() => handleSelect(unit)}
-                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-tft-hover text-left transition-colors"
+                className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
+                  i === highlightedIndex ? "bg-tft-hover" : "hover:bg-tft-hover"
+                }`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -491,7 +520,7 @@ export default function ItemsExplorer({
                     </th>
                     {(
                       [
-                        { key: "games", label: "Games" },
+                        { key: "games", label: "Frequency" },
                         { key: "avg_placement", label: "Avg Place" },
                         { key: "delta", label: "Delta" },
                         { key: "top4_rate", label: "Top 4%" },

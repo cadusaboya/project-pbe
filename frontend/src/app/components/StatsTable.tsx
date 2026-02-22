@@ -39,7 +39,7 @@ type SortDir = "asc" | "desc";
 
 const COLUMNS: { key: SortKey; label: string; defaultDir: SortDir }[] = [
   { key: "unit_name", label: "Unit", defaultDir: "asc" },
-  { key: "games", label: "Games", defaultDir: "desc" },
+  { key: "games", label: "Frequency", defaultDir: "desc" },
   { key: "avg_placement", label: "Avg Place", defaultDir: "asc" },
   { key: "top4_rate", label: "Top 4 %", defaultDir: "desc" },
   { key: "win_rate", label: "Win %", defaultDir: "desc" },
@@ -122,7 +122,7 @@ function StarStatsTable({ stats }: { stats: StarStat[] }) {
       <thead>
         <tr className="text-tft-muted text-xs">
           <th className="text-left font-medium pr-8 pb-1.5">Stars</th>
-          <th className="text-right font-medium pr-8 pb-1.5">Games</th>
+          <th className="text-right font-medium pr-8 pb-1.5">Frequency</th>
           <th className="text-right font-medium pr-8 pb-1.5">Avg Place</th>
           <th className="text-right font-medium pr-8 pb-1.5">Top 4 %</th>
           <th className="text-right font-medium pb-1.5">Win %</th>
@@ -162,7 +162,7 @@ function ItemStatsTable({ stats, itemAssets }: { stats: ItemStat[]; itemAssets: 
       <thead>
         <tr className="text-tft-muted text-xs">
           <th className="text-left font-medium pr-8 pb-1.5">Item</th>
-          <th className="text-right font-medium pr-8 pb-1.5">Games</th>
+          <th className="text-right font-medium pr-8 pb-1.5">Frequency</th>
           <th className="text-right font-medium pr-8 pb-1.5">Avg Place</th>
           <th className="text-right font-medium pr-8 pb-1.5">Top 4 %</th>
           <th className="text-right font-medium pb-1.5">Win %</th>

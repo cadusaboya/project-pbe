@@ -4,7 +4,7 @@ from pathlib import Path
 import datetime
 
 from django.conf import settings
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Prefetch, Q, Sum
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -414,6 +414,127 @@ class ItemStatsView(APIView):
             "base_games": base_games,
             "base_avg_placement": base_avg,
             "items": items,
+        })
+
+
+class ExploreView(APIView):
+    """
+    GET /api/explore/
+
+    Filters participants by comp conditions and returns per-unit and per-item
+    placement stats for matching comps.
+
+    Query params (all repeatable):
+      game_version          – optional version filter
+      require_unit          – unit character_id that MUST appear in comp
+      ban_unit              – unit character_id that must NOT appear in comp
+      require_item_on_unit  – "unit_id::item_id" — unit must carry this item
+      exclude_item          – item_id that must not appear on ANY unit in comp
+    """
+
+    def get(self, request):
+        game_version = request.query_params.get("game_version")
+        require_units = set(request.query_params.getlist("require_unit"))
+        ban_units = set(request.query_params.getlist("ban_unit"))
+        require_items_raw = request.query_params.getlist("require_item_on_unit")
+        exclude_items = set(request.query_params.getlist("exclude_item"))
+
+        # Parse "unit_id::item_id" strings
+        require_items: list[tuple[str, str]] = []
+        for raw in require_items_raw:
+            if "::" in raw:
+                unit_id, item_id = raw.split("::", 1)
+                require_items.append((unit_id, item_id))
+
+        qs = Participant.objects.all()
+        if game_version:
+            qs = qs.filter(match__game_version=game_version)
+        qs = qs.prefetch_related(
+            Prefetch("unit_usages", queryset=UnitUsage.objects.select_related("unit"))
+        )
+
+        # Build Python-friendly data for each participant
+        participants = []
+        for p in qs:
+            unit_map: dict[str, set] = {}
+            for uu in p.unit_usages.all():
+                unit_map[uu.unit.character_id] = set(uu.items or [])
+            participants.append({
+                "placement": p.placement,
+                "unit_set": set(unit_map.keys()),
+                "unit_items": unit_map,
+            })
+
+        def matches(p_data: dict) -> bool:
+            unit_set = p_data["unit_set"]
+            unit_items = p_data["unit_items"]
+            if not require_units.issubset(unit_set):
+                return False
+            if ban_units & unit_set:
+                return False
+            for unit_id, item_id in require_items:
+                if unit_id not in unit_items or item_id not in unit_items[unit_id]:
+                    return False
+            if exclude_items:
+                all_items: set = set()
+                for item_set in unit_items.values():
+                    all_items |= item_set
+                if all_items & exclude_items:
+                    return False
+            return True
+
+        filtered = [p for p in participants if matches(p)]
+
+        base_games = len(filtered)
+        base_avg = round(sum(p["placement"] for p in filtered) / base_games, 2) if base_games else 0.0
+
+        # Per-unit stats across filtered comps
+        unit_agg: dict = defaultdict(lambda: {"games": 0, "total": 0})
+        for p in filtered:
+            for unit_id in p["unit_set"]:
+                unit_agg[unit_id]["games"] += 1
+                unit_agg[unit_id]["total"] += p["placement"]
+
+        unit_stats = []
+        for unit_id, agg in unit_agg.items():
+            g = agg["games"]
+            avg_p = round(agg["total"] / g, 2) if g else 0.0
+            unit_stats.append({
+                "unit_name": unit_id,
+                "games": g,
+                "avg_placement": avg_p,
+                "delta": round(avg_p - base_avg, 2),
+            })
+        unit_stats.sort(key=lambda x: -x["games"])
+
+        # Per (unit, item) stats across filtered comps
+        item_agg: dict = defaultdict(lambda: {"games": 0, "total": 0})
+        for p in filtered:
+            for unit_id, items in p["unit_items"].items():
+                for item in items:
+                    if not item:
+                        continue
+                    item_agg[(unit_id, item)]["games"] += 1
+                    item_agg[(unit_id, item)]["total"] += p["placement"]
+
+        item_stats = []
+        for (unit_id, item_id), agg in item_agg.items():
+            g = agg["games"]
+            avg_p = round(agg["total"] / g, 2) if g else 0.0
+            item_stats.append({
+                "unit_name": unit_id,
+                "item_name": item_id,
+                "games": g,
+                "avg_placement": avg_p,
+                "delta": round(avg_p - base_avg, 2),
+            })
+        item_stats.sort(key=lambda x: -x["games"])
+
+        return Response({
+            "base_games": base_games,
+            "base_avg_placement": base_avg,
+            "unit_stats": unit_stats,
+            "item_stats": item_stats,
         })
 
 

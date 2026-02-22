@@ -39,6 +39,12 @@ export default function RootLayout({
                 Items
               </Link>
               <Link
+                href="/explore"
+                className="px-3 py-1.5 rounded-md text-sm font-medium text-tft-muted hover:text-tft-text hover:bg-tft-hover transition-colors"
+              >
+                Data Explorer
+              </Link>
+              <Link
                 href="/last-games"
                 className="px-3 py-1.5 rounded-md text-sm font-medium text-tft-muted hover:text-tft-text hover:bg-tft-hover transition-colors"
               >
