@@ -69,6 +69,24 @@ class Command(BaseCommand):
                 "Example: --require-items 'MissFortune:3,Swain:2'"
             ),
         )
+        parser.add_argument(
+            "--require-trait-breakpoints",
+            type=str,
+            default="",
+            help=(
+                "Comma-separated trait:min_units rules. "
+                "Example: --require-trait-breakpoints 'Ionia:7,Noxus:4'"
+            ),
+        )
+        parser.add_argument(
+            "--max-trait-counts",
+            type=str,
+            default="",
+            help=(
+                "Comma-separated trait:max_units rules. "
+                "Example: --max-trait-counts 'Noxus:3'"
+            ),
+        )
 
     def handle(self, *args, **options):
         name = options["name"].strip()
@@ -79,6 +97,8 @@ class Command(BaseCommand):
         exclude_raw = (options.get("exclude") or "").strip()
         require_traits_raw = (options.get("require_traits") or "").strip()
         require_items_raw = (options.get("require_items") or "").strip()
+        require_trait_breakpoints_raw = (options.get("require_trait_breakpoints") or "").strip()
+        max_trait_counts_raw = (options.get("max_trait_counts") or "").strip()
 
         if not name:
             raise CommandError("--name cannot be empty.")
@@ -147,6 +167,44 @@ class Command(BaseCommand):
                     ) from exc
                 required_unit_item_counts[unit_norm] = min_count
 
+        required_trait_breakpoints: dict[str, int] = {}
+        if require_trait_breakpoints_raw:
+            for raw_rule in [r.strip() for r in require_trait_breakpoints_raw.split(",") if r.strip()]:
+                if ":" not in raw_rule:
+                    raise CommandError(
+                        f"Invalid require-trait-breakpoints rule '{raw_rule}'. Use Trait:Count format."
+                    )
+                raw_trait, raw_count = raw_rule.split(":", 1)
+                trait_name = raw_trait.strip()
+                if not trait_name:
+                    raise CommandError(f"Trait name cannot be empty in '{raw_rule}'.")
+                try:
+                    min_units = max(1, int(raw_count.strip()))
+                except ValueError as exc:
+                    raise CommandError(
+                        f"Invalid breakpoint in rule '{raw_rule}'. Must be integer."
+                    ) from exc
+                required_trait_breakpoints[trait_name] = min_units
+
+        max_trait_counts: dict[str, int] = {}
+        if max_trait_counts_raw:
+            for raw_rule in [r.strip() for r in max_trait_counts_raw.split(",") if r.strip()]:
+                if ":" not in raw_rule:
+                    raise CommandError(
+                        f"Invalid max-trait-counts rule '{raw_rule}'. Use Trait:Count format."
+                    )
+                raw_trait, raw_count = raw_rule.split(":", 1)
+                trait_name = raw_trait.strip()
+                if not trait_name:
+                    raise CommandError(f"Trait name cannot be empty in '{raw_rule}'.")
+                try:
+                    max_units = max(0, int(raw_count.strip()))
+                except ValueError as exc:
+                    raise CommandError(
+                        f"Invalid max count in rule '{raw_rule}'. Must be integer."
+                    ) from exc
+                max_trait_counts[trait_name] = max_units
+
         comp, created = Comp.objects.update_or_create(
             name=name,
             defaults={
@@ -155,6 +213,8 @@ class Command(BaseCommand):
                 "excluded_units": excluded_units,
                 "required_traits": required_traits,
                 "required_unit_item_counts": required_unit_item_counts,
+                "required_trait_breakpoints": required_trait_breakpoints,
+                "max_trait_counts": max_trait_counts,
                 "is_active": is_active,
             },
         )
@@ -172,6 +232,16 @@ class Command(BaseCommand):
                 f"{k}:{v}" for k, v in comp.required_unit_item_counts.items()
             )
             self.stdout.write(f"Required items: {pretty}")
+        if comp.required_trait_breakpoints:
+            pretty = ", ".join(
+                f"{k}:{v}" for k, v in comp.required_trait_breakpoints.items()
+            )
+            self.stdout.write(f"Required trait breakpoints: {pretty}")
+        if comp.max_trait_counts:
+            pretty = ", ".join(
+                f"{k}:{v}" for k, v in comp.max_trait_counts.items()
+            )
+            self.stdout.write(f"Max trait counts: {pretty}")
         self.stdout.write(f"Active: {comp.is_active}")
 
         if unresolved:

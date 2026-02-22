@@ -863,6 +863,7 @@ class CompsView(APIView):
                 item_count_by_unit[uu.unit.character_id] = len(uu.items or [])
 
             active_traits = set()
+            trait_unit_counts: dict[str, int] = {}
             match_map = match_participant_cache.get(p.match_id)
             if match_map is None:
                 participants_data = (p.match.raw_json or {}).get("info", {}).get("participants", [])
@@ -881,6 +882,10 @@ class CompsView(APIView):
                         name = str(t.get("name", "")).strip()
                         if name:
                             active_traits.add(name)
+                            try:
+                                trait_unit_counts[name] = max(int(num_units), trait_unit_counts.get(name, 0))
+                            except (TypeError, ValueError):
+                                trait_unit_counts[name] = max(0, trait_unit_counts.get(name, 0))
 
             boards.append({
                 "match_id": p.match_id,
@@ -889,6 +894,7 @@ class CompsView(APIView):
                 "unit_set": unit_set,
                 "item_count_by_unit": item_count_by_unit,
                 "active_traits": active_traits,
+                "trait_unit_counts": trait_unit_counts,
             })
             all_units |= unit_set
 
@@ -924,6 +930,35 @@ class CompsView(APIView):
                 for unit, cnt in raw_required_items.items()
                 if str(unit).strip()
             }
+            raw_required_breakpoints = (
+                comp.required_trait_breakpoints
+                if isinstance(comp.required_trait_breakpoints, dict)
+                else {}
+            )
+            required_trait_breakpoints = {}
+            for trait, cnt in raw_required_breakpoints.items():
+                trait_name = str(trait).strip()
+                if not trait_name:
+                    continue
+                try:
+                    required_trait_breakpoints[trait_name] = max(1, int(cnt))
+                except (TypeError, ValueError):
+                    continue
+
+            raw_max_trait_counts = (
+                comp.max_trait_counts
+                if isinstance(comp.max_trait_counts, dict)
+                else {}
+            )
+            max_trait_counts = {}
+            for trait, cnt in raw_max_trait_counts.items():
+                trait_name = str(trait).strip()
+                if not trait_name:
+                    continue
+                try:
+                    max_trait_counts[trait_name] = max(0, int(cnt))
+                except (TypeError, ValueError):
+                    continue
 
             target_level = max(1, min(int(comp.target_level or 8), 10))
             if len(core_units) >= target_level:
@@ -960,6 +995,34 @@ class CompsView(APIView):
                             ok_items = False
                             break
                     if not ok_items:
+                        continue
+                if required_trait_breakpoints:
+                    trait_counts = b["trait_unit_counts"]
+                    ok_breakpoints = True
+                    for req_trait, min_units in required_trait_breakpoints.items():
+                        req_lower = req_trait.lower()
+                        matched_units = 0
+                        for trait_name, units_count in trait_counts.items():
+                            if req_lower in trait_name.lower():
+                                matched_units = max(matched_units, units_count)
+                        if matched_units < min_units:
+                            ok_breakpoints = False
+                            break
+                    if not ok_breakpoints:
+                        continue
+                if max_trait_counts:
+                    trait_counts = b["trait_unit_counts"]
+                    ok_max_counts = True
+                    for req_trait, max_units in max_trait_counts.items():
+                        req_lower = req_trait.lower()
+                        matched_units = 0
+                        for trait_name, units_count in trait_counts.items():
+                            if req_lower in trait_name.lower():
+                                matched_units = max(matched_units, units_count)
+                        if matched_units > max_units:
+                            ok_max_counts = False
+                            break
+                    if not ok_max_counts:
                         continue
                 core_count += 1
                 core_total_placement += b["placement"]
