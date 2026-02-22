@@ -18,15 +18,29 @@ async function fetchGlobalStats(): Promise<GlobalStats | null> {
   }
 }
 
-function formatDateTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString("en-US", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function formatRelativeUtc(iso: string): string {
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const diffMs = Math.max(0, now - then);
+
+  const minuteMs = 60 * 1000;
+  const hourMs = 60 * minuteMs;
+  const dayMs = 24 * hourMs;
+
+  if (diffMs < minuteMs) return "just now";
+
+  if (diffMs < hourMs) {
+    const minutes = Math.floor(diffMs / minuteMs);
+    return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  }
+
+  if (diffMs < dayMs) {
+    const hours = Math.floor(diffMs / hourMs);
+    return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  }
+
+  const days = Math.floor(diffMs / dayMs);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
 export default async function StatsBar() {
@@ -44,7 +58,7 @@ export default async function StatsBar() {
             <>
               Last run:{" "}
               <span className="text-tft-text">
-                {formatDateTime(stats.last_fetch_at)}
+                {formatRelativeUtc(stats.last_fetch_at)}
               </span>
             </>
           ) : (

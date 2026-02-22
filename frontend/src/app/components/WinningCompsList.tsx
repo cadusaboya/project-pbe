@@ -81,6 +81,10 @@ function formatDate(iso: string): string {
   return `${Math.floor(diff / 86400)} days ago`;
 }
 
+function displayPlayerName(name: string): string {
+  return name.split("#")[0].trim();
+}
+
 // cost 1=gray, 2=green, 3=blue, 4=purple, 5/7=gold
 const COST_COLORS: Record<number, string> = {
   1: "border-gray-500",
@@ -205,7 +209,9 @@ function CompCard({
       >
         <div className="flex items-start justify-between gap-2">
           <div>
-            <span className="text-tft-gold font-semibold">{comp.winner}</span>
+            <span className="text-tft-gold font-semibold">
+              #1 {displayPlayerName(comp.winner)}
+            </span>
             <p className="text-tft-muted text-xs mt-0.5 flex items-center gap-2">
               {formatDate(comp.game_datetime)}
               {comp.game_version && (
@@ -268,7 +274,7 @@ function CompCard({
                   #{participant.placement}
                 </span>
                 <span className="text-tft-text text-sm w-40 truncate shrink-0">
-                  {participant.name}
+                  {displayPlayerName(participant.name)}
                 </span>
                 <div className="flex flex-wrap gap-1">
                   {participant.units
@@ -321,7 +327,9 @@ export default function WinningCompsList({
 
     if (search.trim()) {
       const q = search.trim().toLowerCase();
-      rows = rows.filter((r) => r.winner.toLowerCase().includes(q));
+      rows = rows.filter((r) =>
+        displayPlayerName(r.winner).toLowerCase().includes(q)
+      );
     }
 
     if (unitFilter.trim()) {

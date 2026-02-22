@@ -119,7 +119,7 @@ class Command(BaseCommand):
         )
         self.stdout.write(
             f"Version switch at {switch_dt_utc.isoformat()} UTC "
-            f"(before: '{GAME_VERSION_NO_THEX}', after: '{GAME_VERSION_WITH_THEX}')\n"
+            f"(before: '{GAME_VERSION_WITH_THEX}', after: '{GAME_VERSION_NO_THEX}')\n"
         )
 
         total_stored = 0
@@ -252,8 +252,8 @@ class Command(BaseCommand):
         )
         game_end_utc = game_start_utc + datetime.timedelta(seconds=max(float(game_length_s), 0.0))
         if game_end_utc >= switch_dt_utc:
-            return GAME_VERSION_WITH_THEX
-        return GAME_VERSION_NO_THEX
+            return GAME_VERSION_NO_THEX
+        return GAME_VERSION_WITH_THEX
 
     async def _fetch_match_ids_for_player(
         self,
