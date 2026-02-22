@@ -1031,6 +1031,7 @@ class CompsView(APIView):
                 for unit, cnt in raw_required_unit_counts.items()
                 if str(unit).strip()
             }
+            explicit_required_unit_counts = dict(required_unit_counts)
             for unit_id, min_count in required_unit_counts.items():
                 core_unit_counts[unit_id] = max(core_unit_counts.get(unit_id, 0), min_count)
             raw_required_unit_star_levels = (
@@ -1100,12 +1101,19 @@ class CompsView(APIView):
             for b in boards:
                 if excluded_set and (excluded_set & b["unit_set"]):
                     continue
-                has_core_units = True
+                missing_core_units: list[str] = []
                 for unit_id, min_count in core_unit_counts.items():
-                    if b["unit_count_by_unit"].get(unit_id, 0) < min_count:
-                        has_core_units = False
-                        break
-                if not has_core_units:
+                    present = b["unit_count_by_unit"].get(unit_id, 0)
+                    if present < min_count:
+                        missing_core_units.extend([unit_id] * (min_count - present))
+                has_core_units = len(missing_core_units) == 0
+                near_core_for_flex = (
+                    not has_core_units
+                    and flex_size > 0
+                    and core_size >= target_level
+                    and len(missing_core_units) <= flex_size
+                )
+                if not has_core_units and not near_core_for_flex:
                     continue
                 if required_traits_lower:
                     ok_traits = True
@@ -1123,9 +1131,9 @@ class CompsView(APIView):
                             break
                     if not ok_items:
                         continue
-                if required_unit_counts:
+                if explicit_required_unit_counts:
                     ok_unit_counts = True
-                    for unit_id, min_count in required_unit_counts.items():
+                    for unit_id, min_count in explicit_required_unit_counts.items():
                         if b["unit_count_by_unit"].get(unit_id, 0) < min_count:
                             ok_unit_counts = False
                             break
@@ -1159,13 +1167,14 @@ class CompsView(APIView):
                             break
                     if not ok_max_counts:
                         continue
-                core_count += 1
-                core_total_placement += b["placement"]
-                if b["placement"] <= 4:
-                    core_top4_count += 1
-                if b["placement"] == 1:
-                    core_win_count += 1
-                core_matches.add(b["match_id"])
+                if has_core_units:
+                    core_count += 1
+                    core_total_placement += b["placement"]
+                    if b["placement"] <= 4:
+                        core_top4_count += 1
+                    if b["placement"] == 1:
+                        core_win_count += 1
+                    core_matches.add(b["match_id"])
                 remaining_counter = Counter(b["unit_count_by_unit"])
                 for unit_id, used_count in core_unit_counts.items():
                     if unit_id in remaining_counter:
@@ -1174,6 +1183,10 @@ class CompsView(APIView):
                 for unit_id, count in sorted(remaining_counter.items()):
                     if count > 0:
                         remaining_pool.extend([unit_id] * count)
+                if near_core_for_flex and missing_core_units:
+                    # Count "8 of 9"-style boards toward flex by treating
+                    # missing core units as flex candidates.
+                    remaining_pool.extend(missing_core_units)
                 if flex_size == 0:
                     continue
                 for flex in _weighted_flex_combos(remaining_pool, flex_size):
