@@ -917,6 +917,7 @@ class CompsView(APIView):
 
             item_count_by_unit = {}
             unit_count_by_unit = {}
+            unit_max_star_by_unit = {}
             for uu in p.unit_usages.all():
                 if not uu.unit_id or not uu.unit or not uu.unit.character_id:
                     continue
@@ -926,6 +927,10 @@ class CompsView(APIView):
                     len(uu.items or []),
                 )
                 unit_count_by_unit[char_id] = unit_count_by_unit.get(char_id, 0) + 1
+                unit_max_star_by_unit[char_id] = max(
+                    unit_max_star_by_unit.get(char_id, 0),
+                    int(uu.star_level or 0),
+                )
 
             active_traits = set()
             trait_unit_counts: dict[str, int] = {}
@@ -959,6 +964,7 @@ class CompsView(APIView):
                 "unit_set": unit_set,
                 "item_count_by_unit": item_count_by_unit,
                 "unit_count_by_unit": unit_count_by_unit,
+                "unit_max_star_by_unit": unit_max_star_by_unit,
                 "active_traits": active_traits,
                 "trait_unit_counts": trait_unit_counts,
             })
@@ -1027,6 +1033,16 @@ class CompsView(APIView):
             }
             for unit_id, min_count in required_unit_counts.items():
                 core_unit_counts[unit_id] = max(core_unit_counts.get(unit_id, 0), min_count)
+            raw_required_unit_star_levels = (
+                comp.required_unit_star_levels
+                if isinstance(comp.required_unit_star_levels, dict)
+                else {}
+            )
+            required_unit_star_levels = {
+                str(unit).strip(): max(1, min(int(star), 3))
+                for unit, star in raw_required_unit_star_levels.items()
+                if str(unit).strip()
+            }
 
             if not core_unit_counts:
                 continue
@@ -1114,6 +1130,14 @@ class CompsView(APIView):
                             ok_unit_counts = False
                             break
                     if not ok_unit_counts:
+                        continue
+                if required_unit_star_levels:
+                    ok_stars = True
+                    for unit_id, min_star in required_unit_star_levels.items():
+                        if b["unit_max_star_by_unit"].get(unit_id, 0) < min_star:
+                            ok_stars = False
+                            break
+                    if not ok_stars:
                         continue
                 if required_trait_breakpoints:
                     ok_breakpoints = True

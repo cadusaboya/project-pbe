@@ -1,3 +1,5 @@
+import re
+
 from django.core.management.base import BaseCommand, CommandError
 
 from tracker.models import Comp, Unit
@@ -22,7 +24,8 @@ class Command(BaseCommand):
             required=True,
             help=(
                 "Comma-separated units. Accepts short names or full IDs. "
-                "Example: --units 'Kaisa,ChoGath,KogMaw,RiftHerald,Swain,Volibear'"
+                "Can also set min star with Unit*Star (or Unit:Star). "
+                "Example: --units 'Kaisa*2,ChoGath,KogMaw,RiftHerald,Swain,Volibear'"
             ),
         )
         parser.add_argument(
@@ -79,6 +82,15 @@ class Command(BaseCommand):
             ),
         )
         parser.add_argument(
+            "--require-unit-stars",
+            type=str,
+            default="",
+            help=(
+                "Comma-separated unit:min_star rules (1-3). "
+                "Example: --require-unit-stars 'Seraphine:2,Azir:2'"
+            ),
+        )
+        parser.add_argument(
             "--require-trait-breakpoints",
             type=str,
             default="",
@@ -107,6 +119,7 @@ class Command(BaseCommand):
         require_traits_raw = (options.get("require_traits") or "").strip()
         require_items_raw = (options.get("require_items") or "").strip()
         require_unit_counts_raw = (options.get("require_unit_counts") or "").strip()
+        require_unit_stars_raw = (options.get("require_unit_stars") or "").strip()
         require_trait_breakpoints_raw = (options.get("require_trait_breakpoints") or "").strip()
         max_trait_counts_raw = (options.get("max_trait_counts") or "").strip()
 
@@ -127,11 +140,18 @@ class Command(BaseCommand):
         }
 
         normalized: list[str] = []
+        required_unit_star_levels: dict[str, int] = {}
         unresolved: list[str] = []
         for token in raw_parts:
-            candidate = self._normalize_token(token, prefix)
+            raw_unit, star_from_unit = self._parse_unit_token(token)
+            candidate = self._normalize_token(raw_unit, prefix)
             resolved = existing_units.get(candidate.lower(), candidate)
             normalized.append(resolved)
+            if star_from_unit is not None:
+                required_unit_star_levels[resolved] = max(
+                    required_unit_star_levels.get(resolved, 0),
+                    star_from_unit,
+                )
             if resolved.lower() not in existing_units:
                 unresolved.append(token)
 
@@ -209,6 +229,25 @@ class Command(BaseCommand):
                     ) from exc
                 required_unit_counts[unit_norm] = min_count
 
+        if require_unit_stars_raw:
+            for raw_rule in [r.strip() for r in require_unit_stars_raw.split(",") if r.strip()]:
+                if ":" not in raw_rule:
+                    raise CommandError(
+                        f"Invalid require-unit-stars rule '{raw_rule}'. Use Unit:Star format."
+                    )
+                raw_unit, raw_star = raw_rule.split(":", 1)
+                unit_norm = self._normalize_token(raw_unit.strip(), prefix)
+                try:
+                    min_star = max(1, min(int(raw_star.strip()), 3))
+                except ValueError as exc:
+                    raise CommandError(
+                        f"Invalid star level in rule '{raw_rule}'. Must be integer 1-3."
+                    ) from exc
+                required_unit_star_levels[unit_norm] = max(
+                    required_unit_star_levels.get(unit_norm, 0),
+                    min_star,
+                )
+
         if require_trait_breakpoints_raw:
             for raw_rule in [r.strip() for r in require_trait_breakpoints_raw.split(",") if r.strip()]:
                 if ":" not in raw_rule:
@@ -254,6 +293,7 @@ class Command(BaseCommand):
                 "excluded_units": excluded_units,
                 "required_traits": required_traits,
                 "required_unit_counts": required_unit_counts,
+                "required_unit_star_levels": required_unit_star_levels,
                 "required_unit_item_counts": required_unit_item_counts,
                 "required_trait_breakpoints": required_trait_breakpoints,
                 "max_trait_counts": max_trait_counts,
@@ -279,6 +319,11 @@ class Command(BaseCommand):
                 f"{k}:{v}" for k, v in comp.required_unit_counts.items()
             )
             self.stdout.write(f"Required unit counts: {pretty}")
+        if comp.required_unit_star_levels:
+            pretty = ", ".join(
+                f"{k}:{v}" for k, v in comp.required_unit_star_levels.items()
+            )
+            self.stdout.write(f"Required unit stars: {pretty}")
         if comp.required_trait_breakpoints:
             pretty = ", ".join(
                 f"{k}:{v}" for k, v in comp.required_trait_breakpoints.items()
@@ -312,3 +357,16 @@ class Command(BaseCommand):
             return t
 
         return f"{prefix}{t}"
+
+    def _parse_unit_token(self, token: str) -> tuple[str, int | None]:
+        t = token.strip()
+        if not t:
+            return t, None
+        match = re.match(r"^(.+?)(?:[:*xX](\d))$", t)
+        if not match:
+            return t, None
+        unit_part, star_part = match.group(1).strip(), match.group(2)
+        if not unit_part:
+            raise CommandError(f"Invalid unit token '{token}'.")
+        star = max(1, min(int(star_part), 3))
+        return unit_part, star

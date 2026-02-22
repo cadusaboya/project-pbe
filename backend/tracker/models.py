@@ -93,6 +93,7 @@ class Comp(models.Model):
     excluded_units = models.JSONField(default=list)
     required_traits = models.JSONField(default=list)
     required_unit_counts = models.JSONField(default=dict)
+    required_unit_star_levels = models.JSONField(default=dict)
     required_unit_item_counts = models.JSONField(default=dict)
     required_trait_breakpoints = models.JSONField(default=dict)
     max_trait_counts = models.JSONField(default=dict)
