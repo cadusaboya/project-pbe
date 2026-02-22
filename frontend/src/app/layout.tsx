@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import StatsBar from "./components/StatsBar";
 import "./globals.css";
 
@@ -44,6 +45,7 @@ export default function RootLayout({
           <StatsBar />
         </Suspense>
         <main className="max-w-7xl mx-auto px-4 py-8">{children}</main>
+        <Analytics />
       </body>
     </html>
   );
