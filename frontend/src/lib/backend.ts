@@ -1,7 +1,7 @@
 const DEFAULT_BACKEND_URL =
   process.env.NODE_ENV === "development"
     ? "http://localhost:8000"
-    : "https://project-pbe-production.up.railway.app:8080";
+    : "https://project-pbe-production.up.railway.app";
 
 const RAW_BACKEND_URL =
   process.env.BACKEND_URL ??

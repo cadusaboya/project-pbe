@@ -1,6 +1,6 @@
 import os
-import re
 from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlparse
 
 from dotenv import load_dotenv
 
@@ -69,24 +69,30 @@ WSGI_APPLICATION = "tft_tracker.wsgi.application"
 # ---------------------------------------------------------------------------
 _DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 
-if _DATABASE_URL and _DATABASE_URL.startswith("postgresql"):
-    _m = re.match(
-        r"postgresql://(?P<user>[^:]+):(?P<password>[^@]+)@(?P<host>[^:]+):(?P<port>\d+)/(?P<name>.+)",
-        _DATABASE_URL,
-    )
-    if not _m:
+if _DATABASE_URL and _DATABASE_URL.startswith(("postgresql://", "postgres://")):
+    parsed = urlparse(_DATABASE_URL)
+    db_name = parsed.path.lstrip("/")
+
+    if not parsed.hostname or not db_name:
         raise ValueError(
             "DATABASE_URL must follow the pattern: "
             "postgresql://user:password@host:port/dbname"
         )
+
+    options = {}
+    query = parse_qs(parsed.query)
+    if "sslmode" in query and query["sslmode"]:
+        options["sslmode"] = query["sslmode"][0]
+
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": _m.group("name"),
-            "USER": _m.group("user"),
-            "PASSWORD": _m.group("password"),
-            "HOST": _m.group("host"),
-            "PORT": _m.group("port"),
+            "NAME": db_name,
+            "USER": unquote(parsed.username or ""),
+            "PASSWORD": unquote(parsed.password or ""),
+            "HOST": parsed.hostname,
+            "PORT": str(parsed.port or 5432),
+            "OPTIONS": options,
         }
     }
 else:
