@@ -867,10 +867,16 @@ class CompsView(APIView):
                 continue
 
             item_count_by_unit = {}
+            unit_count_by_unit = {}
             for uu in p.unit_usages.all():
                 if not uu.unit_id or not uu.unit or not uu.unit.character_id:
                     continue
-                item_count_by_unit[uu.unit.character_id] = len(uu.items or [])
+                char_id = uu.unit.character_id
+                item_count_by_unit[char_id] = max(
+                    item_count_by_unit.get(char_id, 0),
+                    len(uu.items or []),
+                )
+                unit_count_by_unit[char_id] = unit_count_by_unit.get(char_id, 0) + 1
 
             active_traits = set()
             trait_unit_counts: dict[str, int] = {}
@@ -903,6 +909,7 @@ class CompsView(APIView):
                 "level": p.level,
                 "unit_set": unit_set,
                 "item_count_by_unit": item_count_by_unit,
+                "unit_count_by_unit": unit_count_by_unit,
                 "active_traits": active_traits,
                 "trait_unit_counts": trait_unit_counts,
             })
@@ -936,6 +943,16 @@ class CompsView(APIView):
             required_item_counts = {
                 str(unit).strip(): max(1, int(cnt))
                 for unit, cnt in raw_required_items.items()
+                if str(unit).strip()
+            }
+            raw_required_unit_counts = (
+                comp.required_unit_counts
+                if isinstance(comp.required_unit_counts, dict)
+                else {}
+            )
+            required_unit_counts = {
+                str(unit).strip(): max(1, int(cnt))
+                for unit, cnt in raw_required_unit_counts.items()
                 if str(unit).strip()
             }
             raw_required_breakpoints = (
@@ -1005,6 +1022,14 @@ class CompsView(APIView):
                             ok_items = False
                             break
                     if not ok_items:
+                        continue
+                if required_unit_counts:
+                    ok_unit_counts = True
+                    for unit_id, min_count in required_unit_counts.items():
+                        if b["unit_count_by_unit"].get(unit_id, 0) < min_count:
+                            ok_unit_counts = False
+                            break
+                    if not ok_unit_counts:
                         continue
                 if required_trait_breakpoints:
                     trait_counts = b["trait_unit_counts"]

@@ -60,19 +60,32 @@ function unitImageUrl(characterId: string): string {
   return `https://raw.communitydragon.org/pbe/game/assets/characters/${lower}/hud/${lower}_square.tft_set${setNum}.png`;
 }
 
-function UnitChip({ unit }: { unit: CompUnit }) {
+function avpTextColor(avp: number): string {
+  if (avp <= 3.5) return "text-green-400";
+  if (avp <= 4.5) return "text-yellow-400";
+  return "text-red-400";
+}
+
+function avpLeftBorder(avp: number): string {
+  if (avp <= 3.5) return "border-l-green-500";
+  if (avp <= 4.5) return "border-l-yellow-500";
+  return "border-l-red-500/70";
+}
+
+function UnitChip({ unit, size = 44 }: { unit: CompUnit; size?: number }) {
+  const dim = size === 44 ? "w-11 h-11" : "w-9 h-9";
   return (
     <div
-      className={`w-12 h-12 rounded-lg border-2 ${costBorderColor(unit.cost)} overflow-hidden`}
+      className={`${dim} rounded-lg border-2 ${costBorderColor(unit.cost)} overflow-hidden shrink-0`}
       title={formatUnit(unit.character_id)}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={unitImageUrl(unit.character_id)}
         alt={formatUnit(unit.character_id)}
-        width={48}
-        height={48}
-        className="w-12 h-12 object-cover"
+        width={size}
+        height={size}
+        className={`${dim} object-cover`}
         onError={(e) => {
           (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
         }}
@@ -81,24 +94,32 @@ function UnitChip({ unit }: { unit: CompUnit }) {
   );
 }
 
-function FlexUnitChip({ unit }: { unit: CompUnit }) {
+function StatBlock({
+  value,
+  label,
+  valueClass = "text-tft-text",
+  large = false,
+}: {
+  value: string;
+  label: string;
+  valueClass?: string;
+  large?: boolean;
+}) {
   return (
-    <div
-      className={`w-12 h-12 rounded-lg border-2 ${costBorderColor(unit.cost)} overflow-hidden`}
-      title={formatUnit(unit.character_id)}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={unitImageUrl(unit.character_id)}
-        alt={formatUnit(unit.character_id)}
-        width={48}
-        height={48}
-        className="w-12 h-12 object-cover"
-        onError={(e) => {
-          (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
-        }}
-      />
+    <div className="text-right leading-none shrink-0">
+      <div className={`${large ? "text-2xl font-extrabold" : "text-sm font-semibold"} tabular-nums ${valueClass}`}>
+        {value}
+      </div>
+      <div className="text-[10px] uppercase tracking-wide text-tft-muted mt-1">{label}</div>
     </div>
+  );
+}
+
+function MetaTag({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-tft-border bg-tft-surface text-[11px] text-tft-muted leading-none">
+      {children}
+    </span>
   );
 }
 
@@ -108,109 +129,115 @@ function CompCard({ comp }: { comp: CompStat }) {
   const winRate = (comp.win_rate ?? 0) * 100;
   const top4Rate = (comp.top4_rate ?? 0) * 100;
 
+  const hasMeta =
+    comp.name ||
+    comp.target_level ||
+    comp.core_size ||
+    comp.flex_slots ||
+    (comp.core_traits && comp.core_traits.length > 0);
+
   return (
-    <div className="border border-tft-border rounded-xl bg-tft-surface/60 overflow-hidden">
+    <div
+      className={`border border-tft-border border-l-[3px] ${avpLeftBorder(comp.avg_placement)} rounded-xl bg-tft-surface/60 overflow-hidden`}
+    >
+      {/* Clickable header */}
       <div
-        className="p-4 space-y-3 cursor-pointer select-none hover:bg-tft-hover transition-colors"
+        className="px-4 py-3.5 cursor-pointer select-none hover:bg-tft-hover transition-colors"
         onClick={() => setExpanded((v) => !v)}
       >
-        <div className="flex items-start gap-4">
-          <div className="w-48 md:w-64 shrink-0 min-h-12">
-            {comp.name ? (
-              <div className="text-2xl font-bold text-tft-text leading-none truncate">{comp.name}</div>
-            ) : null}
-            {comp.target_level || comp.core_size || comp.flex_slots || (comp.core_traits && comp.core_traits.length > 0) ? (
-              <div className="text-xs text-tft-muted leading-tight mt-1">
-                {comp.target_level ? <div>Lv {comp.target_level}</div> : null}
-                {comp.core_size || comp.flex_slots ? (
-                  <div>
-                    Core {comp.core_size ?? comp.core_units.length}
-                    {" | "}
-                    Flex {comp.flex_slots ?? 0}
-                  </div>
-                ) : null}
-                {comp.core_traits && comp.core_traits.length > 0 ? (
-                  <div>
-                    Trait core: {formatTrait(comp.core_traits[0].name)} ({comp.core_traits[0].units})
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+        {/* Row 1: name + meta tags */}
+        {hasMeta && (
+          <div className="flex items-center gap-2 flex-wrap mb-2.5">
+            {comp.name && (
+              <span className="text-base font-bold text-tft-text leading-none">{comp.name}</span>
+            )}
+            {comp.target_level && <MetaTag>Lv {comp.target_level}</MetaTag>}
+            {(comp.core_size != null || comp.flex_slots != null) && (
+              <MetaTag>
+                Core {comp.core_size ?? comp.core_units.length}
+                {comp.flex_slots != null ? ` + ${comp.flex_slots} flex` : ""}
+              </MetaTag>
+            )}
+            {comp.core_traits?.map((t) => (
+              <MetaTag key={t.name}>
+                {formatTrait(t.name)} {t.units}
+              </MetaTag>
+            ))}
           </div>
+        )}
 
-          <div className="flex items-start gap-2 flex-wrap">
+        {/* Row 2: units + stats */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Core units */}
+          <div className="flex items-center gap-1.5 flex-wrap">
             {comp.core_units.map((u) => (
               <UnitChip key={u.character_id} unit={u} />
             ))}
+          </div>
 
-            {suggestedFlex ? (
-              <div className="flex items-start gap-2 shrink-0">
-                <span className="text-tft-muted/60">|</span>
-                <div className="flex flex-col items-center">
-                  <div className="flex gap-1.5">
-                    {suggestedFlex.units.map((u) => (
-                      <FlexUnitChip key={`suggest-${u.character_id}`} unit={u} />
-                    ))}
-                  </div>
-                  <div className="text-[9px] uppercase tracking-wide text-tft-muted mt-0.5 flex flex-col items-center leading-none">
-                    <span>\/</span>
-                    <span className="mt-0.5">Flex</span>
-                  </div>
-                </div>
+          {/* Flex suggestion */}
+          {suggestedFlex && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex flex-col items-center px-0.5 select-none">
+                <span className="text-tft-muted/50 text-base leading-none">+</span>
+                <span className="text-[8px] uppercase tracking-widest text-tft-muted/40 leading-none mt-0.5">
+                  flex
+                </span>
               </div>
-            ) : null}
-          </div>
+              {suggestedFlex.units.map((u) => (
+                <UnitChip key={`suggest-${u.character_id}`} unit={u} />
+              ))}
+            </div>
+          )}
 
-          <div className="ml-auto flex items-end gap-5 shrink-0">
-            <div className="text-right leading-none">
-              <div className="text-2xl font-bold text-tft-text tabular-nums">{comp.comps}</div>
-              <div className="text-[11px] uppercase tracking-wide text-tft-muted mt-1">Frequency</div>
-            </div>
-            <div className="text-right leading-none">
-              <div className="text-xl font-bold text-tft-text tabular-nums">{winRate.toFixed(1)}%</div>
-              <div className="text-[11px] uppercase tracking-wide text-tft-muted mt-1">Win Rate</div>
-            </div>
-            <div className="text-right leading-none">
-              <div className="text-xl font-bold text-tft-text tabular-nums">{top4Rate.toFixed(1)}%</div>
-              <div className="text-[11px] uppercase tracking-wide text-tft-muted mt-1">Top 4</div>
-            </div>
-            <div className="text-right leading-none">
-              <div className="text-3xl font-extrabold text-tft-gold tabular-nums">{comp.avg_placement.toFixed(2)}</div>
-              <div className="text-[11px] uppercase tracking-wide text-tft-muted mt-1">AVP</div>
-            </div>
+          {/* Stats pushed to the right */}
+          <div className="ml-auto flex items-center gap-5 shrink-0">
+            <StatBlock value={String(comp.comps)} label="Games" />
+            <StatBlock value={`${winRate.toFixed(1)}%`} label="Win%" />
+            <StatBlock value={`${top4Rate.toFixed(1)}%`} label="Top 4%" />
+            <StatBlock
+              value={comp.avg_placement.toFixed(2)}
+              label="AVP"
+              valueClass={avpTextColor(comp.avg_placement)}
+              large
+            />
+            <span className="text-tft-muted text-[11px] w-3 shrink-0">
+              {expanded ? "▲" : "▼"}
+            </span>
           </div>
-          <span className="text-tft-muted text-xs shrink-0">{expanded ? "^" : "v"}</span>
         </div>
       </div>
 
+      {/* Expanded: flex combos */}
       {expanded && (
-        <div className="border-t border-tft-border px-4 py-3 space-y-2">
+        <div className="border-t border-tft-border bg-black/20">
           {comp.flex_combos.length === 0 ? (
-            <p className="text-tft-muted text-sm">No flex triples found for this core.</p>
+            <p className="px-4 py-4 text-tft-muted text-sm">
+              No flex combos found for this core.
+            </p>
           ) : (
-            comp.flex_combos.map((flex, idx) => (
-              <div
-                key={idx}
-                className="flex items-center gap-3 py-1.5 border-b border-tft-border/40 last:border-0"
-              >
-                <span className="text-tft-muted text-sm w-16 shrink-0">Flex #{idx + 1}</span>
-                <div className="flex gap-1.5 shrink-0">
-                  {flex.units.map((u) => (
-                    <UnitChip key={`${idx}-${u.character_id}`} unit={u} />
-                  ))}
-                </div>
-                <div className="text-xs text-tft-muted ml-auto flex items-end gap-4">
-                  <div className="text-right leading-none">
-                    <div className="text-base font-semibold text-tft-text tabular-nums">{flex.comps}</div>
-                    <div className="text-[10px] uppercase tracking-wide text-tft-muted mt-1">Frequency</div>
+            <div className="divide-y divide-tft-border/40">
+              {comp.flex_combos.map((flex, idx) => (
+                <div key={idx} className="px-4 py-2.5 flex items-center gap-3">
+                  <span className="text-[11px] text-tft-muted w-14 shrink-0 tabular-nums">
+                    #{idx + 1}
+                  </span>
+                  <div className="flex gap-1.5">
+                    {flex.units.map((u) => (
+                      <UnitChip key={`${idx}-${u.character_id}`} unit={u} size={36} />
+                    ))}
                   </div>
-                  <div className="text-right leading-none">
-                    <div className="text-lg font-bold text-tft-gold tabular-nums">{flex.avg_placement.toFixed(2)}</div>
-                    <div className="text-[10px] uppercase tracking-wide text-tft-muted mt-1">AVP</div>
+                  <div className="ml-auto flex items-center gap-4 shrink-0">
+                    <StatBlock value={String(flex.comps)} label="Games" />
+                    <StatBlock
+                      value={flex.avg_placement.toFixed(2)}
+                      label="AVP"
+                      valueClass={avpTextColor(flex.avg_placement)}
+                    />
                   </div>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
       )}
@@ -281,6 +308,7 @@ export default function CompsList({
 
   return (
     <div className="space-y-4">
+      {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
         {versions.length > 0 && (
           <select
@@ -334,17 +362,16 @@ export default function CompsList({
           className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-56"
         />
 
-        <span className="text-tft-muted text-sm ml-auto">
-          {filtered.length} comps
-        </span>
+        <span className="text-tft-muted text-sm ml-auto">{filtered.length} comps</span>
       </div>
 
+      {/* List */}
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-tft-border bg-tft-surface/40 px-5 py-12 text-center text-tft-muted text-sm">
           No compositions found.
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-3">
           {filtered.map((comp, i) => (
             <CompCard
               key={`${i}-${comp.core_units.map((u) => u.character_id).join("|")}`}

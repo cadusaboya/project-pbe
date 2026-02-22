@@ -92,6 +92,7 @@ class Comp(models.Model):
     target_level = models.PositiveSmallIntegerField(default=8)
     excluded_units = models.JSONField(default=list)
     required_traits = models.JSONField(default=list)
+    required_unit_counts = models.JSONField(default=dict)
     required_unit_item_counts = models.JSONField(default=dict)
     required_trait_breakpoints = models.JSONField(default=dict)
     max_trait_counts = models.JSONField(default=dict)
