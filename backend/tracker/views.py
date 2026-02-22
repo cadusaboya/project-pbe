@@ -989,7 +989,7 @@ class CompsView(APIView):
                 except (TypeError, ValueError):
                     continue
 
-            target_level = max(1, min(int(comp.target_level or 8), 10))
+            target_level = max(1, min(int(comp.target_level or 9), 10))
             core_size = sum(core_unit_counts.values())
             if core_size >= target_level:
                 # Completed board at this level: suggest next +1 until level 10.

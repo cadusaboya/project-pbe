@@ -39,8 +39,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--level",
             type=int,
-            default=8,
-            help="Target board level for this comp (default: 8).",
+            default=9,
+            help="Target board level for this comp (default: 9).",
         )
         parser.add_argument(
             "--exclude",

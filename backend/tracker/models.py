@@ -89,7 +89,7 @@ class AggregatedUnitStat(models.Model):
 class Comp(models.Model):
     name = models.CharField(max_length=120, unique=True)
     units = models.JSONField(default=list)
-    target_level = models.PositiveSmallIntegerField(default=8)
+    target_level = models.PositiveSmallIntegerField(default=9)
     excluded_units = models.JSONField(default=list)
     required_traits = models.JSONField(default=list)
     required_unit_counts = models.JSONField(default=dict)
