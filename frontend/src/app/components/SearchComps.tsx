@@ -123,15 +123,16 @@ interface TraitState {
 interface TierStyle {
   chip: string;
   num: string;
+  iconColor: string;
 }
 
 // tier 0=unique, 1=bronze, 2=silver, 3=gold, 4=chromatic
 const TRAIT_TIER_STYLES: Record<number, TierStyle> = {
-  0: { chip: "bg-zinc-900/50 border-zinc-600/60",      num: "text-zinc-400"   },
-  1: { chip: "bg-amber-950/40 border-amber-700/60",    num: "text-amber-600"  },
-  2: { chip: "bg-slate-800/40 border-slate-400/60",    num: "text-slate-300"  },
-  3: { chip: "bg-yellow-950/40 border-yellow-600/60",  num: "text-yellow-500" },
-  4: { chip: "bg-violet-950/40 border-violet-500/60",  num: "text-violet-400" },
+  0: { chip: "bg-red-950/40 border-red-700/60",       num: "text-red-500",    iconColor: "#ef4444" },
+  1: { chip: "bg-amber-950/40 border-amber-700/60",   num: "text-amber-600",  iconColor: "#d97706" },
+  2: { chip: "bg-slate-800/40 border-slate-400/60",   num: "text-slate-300",  iconColor: "#cbd5e1" },
+  3: { chip: "bg-yellow-950/40 border-yellow-600/60", num: "text-yellow-500", iconColor: "#eab308" },
+  4: { chip: "bg-violet-950/40 border-violet-500/60", num: "text-violet-400", iconColor: "#a78bfa" },
 };
 
 function computeTraits(
@@ -409,14 +410,19 @@ function TraitChips({
             title={`${t.name} ${suffix} — breakpoints ${t.breakpoints.join("/")}`}
           >
             {t.icon && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={t.icon}
-                alt={t.name}
-                width={16}
-                height={16}
-                className="w-4 h-4 object-contain shrink-0 opacity-80"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              <span
+                className="w-4 h-4 shrink-0 inline-block"
+                style={{
+                  backgroundColor: style.iconColor,
+                  WebkitMaskImage: `url(${t.icon})`,
+                  maskImage: `url(${t.icon})`,
+                  WebkitMaskSize: "contain",
+                  maskSize: "contain",
+                  WebkitMaskRepeat: "no-repeat",
+                  maskRepeat: "no-repeat",
+                  WebkitMaskPosition: "center",
+                  maskPosition: "center",
+                }}
               />
             )}
             <span className={style.num}>{activeBp}</span>
