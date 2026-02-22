@@ -83,10 +83,12 @@ export default function StatsTable({
   data,
   versions,
   selectedVersion,
+  matchesAnalyzed,
 }: {
   data: UnitStat[];
   versions: string[];
   selectedVersion: string;
+  matchesAnalyzed: number;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -197,7 +199,7 @@ export default function StatsTable({
           <option value="5">Tier 5</option>
         </select>
         <span className="text-tft-muted text-sm ml-auto">
-          {filtered.length} units
+          {matchesAnalyzed.toLocaleString("en-US")} games analyzed
         </span>
       </div>
 

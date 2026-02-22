@@ -114,8 +114,13 @@ class StatsView(APIView):
     """GET /api/stats/"""
 
     def get(self, request):
+        game_version = request.query_params.get("game_version")
+        match_qs = Match.objects.all()
+        if game_version:
+            match_qs = match_qs.filter(game_version=game_version)
+
         last_run = None
-        latest_match = Match.objects.order_by("-game_datetime").first()
+        latest_match = match_qs.order_by("-game_datetime").first()
         if latest_match:
             info = (latest_match.raw_json or {}).get("info", {})
             game_length_s = info.get("game_length") or 0
@@ -134,7 +139,7 @@ class StatsView(APIView):
             last_run = game_end.isoformat()
 
         return Response({
-            "matches_analyzed": Match.objects.count(),
+            "matches_analyzed": match_qs.count(),
             "players_tracked": Player.objects.filter(puuid__isnull=False).exclude(puuid="").count(),
             "participants_recorded": Participant.objects.count(),
             "last_fetch_at": last_run,

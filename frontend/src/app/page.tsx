@@ -26,6 +26,19 @@ async function fetchVersions(): Promise<string[]> {
   }
 }
 
+async function fetchMatchesAnalyzed(gameVersion?: string): Promise<number> {
+  try {
+    const url = new URL(backendUrl("/api/stats/"));
+    if (gameVersion) url.searchParams.set("game_version", gameVersion);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return Number(data.matches_analyzed ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
 export default async function Home({
   searchParams,
 }: {
@@ -34,12 +47,14 @@ export default async function Home({
   const { game_version: gameVersion } = await searchParams;
   let data: UnitStat[] = [];
   let versions: string[] = [];
+  let matchesAnalyzed = 0;
   let error: string | null = null;
 
   try {
-    [data, versions] = await Promise.all([
+    [data, versions, matchesAnalyzed] = await Promise.all([
       fetchStats(gameVersion),
       fetchVersions(),
+      fetchMatchesAnalyzed(gameVersion),
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";
@@ -74,6 +89,7 @@ export default async function Home({
           data={data}
           versions={versions}
           selectedVersion={gameVersion ?? ""}
+          matchesAnalyzed={matchesAnalyzed}
         />
       )}
     </div>
