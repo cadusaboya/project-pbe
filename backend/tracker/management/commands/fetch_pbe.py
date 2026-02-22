@@ -38,6 +38,9 @@ GAME_VERSION_NO_THEX = "16.6 A - No THex Items"
 DEFAULT_SWITCH_DATE = "2026-02-21"
 DEFAULT_SWITCH_TIME = "21:10"
 DEFAULT_SWITCH_TZ = "America/Cuiaba"
+DEFAULT_FETCH_CUTOFF_DATE = "2026-02-21"
+DEFAULT_FETCH_CUTOFF_TIME = "12:00"
+DEFAULT_FETCH_CUTOFF_TZ = "America/Cuiaba"
 
 
 class Command(BaseCommand):
@@ -62,6 +65,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         switch_dt_utc = self._build_switch_datetime_utc()
+        fetch_cutoff_utc = self._build_fetch_cutoff_datetime_utc()
         api_key = os.environ.get("RIOT_API_KEY", "").strip()
         if not api_key:
             self.stderr.write(
@@ -85,6 +89,7 @@ class Command(BaseCommand):
                 match_id,
                 puuid_to_player,
                 switch_dt_utc,
+                fetch_cutoff_utc,
             )
             return
 
@@ -97,21 +102,10 @@ class Command(BaseCommand):
         else:
             players = all_players
 
-        now_utc = datetime.datetime.now(datetime.timezone.utc)
-        today_utc = now_utc.date()
-        yesterday_utc = today_utc - datetime.timedelta(days=1)
-        fetch_since_ms = int(
-            datetime.datetime(
-                yesterday_utc.year,
-                yesterday_utc.month,
-                yesterday_utc.day,
-                tzinfo=datetime.timezone.utc,
-            ).timestamp()
-            * 1000
-        )
+        fetch_since_ms = int(fetch_cutoff_utc.timestamp() * 1000)
 
         self.stdout.write(
-            f"Processing {len(players)} players - matches on/after {yesterday_utc.isoformat()} UTC\n"
+            f"Processing {len(players)} players - matches on/after {fetch_cutoff_utc.isoformat()} UTC\n"
         )
         self.stdout.write(
             f"Version switch at {switch_dt_utc.isoformat()} UTC "
@@ -148,11 +142,11 @@ class Command(BaseCommand):
                     continue
 
                 game_ms = match_data.get("info", {}).get("game_datetime", 0)
-                game_date = datetime.datetime.fromtimestamp(
+                game_start_utc = datetime.datetime.fromtimestamp(
                     game_ms / 1000, tz=datetime.timezone.utc
-                ).date()
-                if game_date < yesterday_utc:
-                    self.stdout.write(f"    {mid} - old ({game_date}), stopping")
+                )
+                if game_start_utc < fetch_cutoff_utc:
+                    self.stdout.write(f"    {mid} - old ({game_start_utc.isoformat()}), stopping")
                     break
 
                 participant_puuids = {
@@ -170,7 +164,7 @@ class Command(BaseCommand):
                     )
                     if process_match(match_data, puuid_to_player, game_version=game_version):
                         total_stored += 1
-                        self.stdout.write(f"    {mid} - stored ({game_date}, {game_version})")
+                        self.stdout.write(f"    {mid} - stored ({game_start_utc.date()}, {game_version})")
                     else:
                         self.stdout.write(f"    {mid} - already existed")
                 except Exception as exc:
@@ -191,11 +185,24 @@ class Command(BaseCommand):
         match_id,
         puuid_to_player,
         switch_dt_utc: datetime.datetime,
+        fetch_cutoff_utc: datetime.datetime,
     ):
         self.stdout.write(f"Fetching specific match: {match_id}")
         match_data = asyncio.run(self._fetch_single_match_async(api_key, match_id))
         if match_data is None:
             self.stderr.write(self.style.ERROR(f"{match_id} - fetch failed"))
+            return
+        game_ms = match_data.get("info", {}).get("game_datetime", 0)
+        game_start_utc = datetime.datetime.fromtimestamp(
+            game_ms / 1000, tz=datetime.timezone.utc
+        )
+        if game_start_utc < fetch_cutoff_utc:
+            self.stderr.write(
+                self.style.ERROR(
+                    f"{match_id} - old ({game_start_utc.isoformat()}), cutoff is "
+                    f"{fetch_cutoff_utc.isoformat()} UTC"
+                )
+            )
             return
         try:
             game_version = self._resolve_game_version(
@@ -228,6 +235,23 @@ class Command(BaseCommand):
         )
         local_switch = naive_switch.replace(tzinfo=tz)
         return local_switch.astimezone(datetime.timezone.utc)
+
+    def _build_fetch_cutoff_datetime_utc(self) -> datetime.datetime:
+        cutoff_date = os.environ.get("PBE_QUEUE_CUTOFF_DATE", DEFAULT_FETCH_CUTOFF_DATE).strip()
+        cutoff_time = os.environ.get("PBE_QUEUE_CUTOFF_TIME", DEFAULT_FETCH_CUTOFF_TIME).strip()
+        tz_name = os.environ.get("PBE_QUEUE_CUTOFF_TZ", DEFAULT_FETCH_CUTOFF_TZ).strip()
+
+        try:
+            tz = ZoneInfo(tz_name)
+        except ZoneInfoNotFoundError:
+            logger.warning("Invalid timezone '%s'. Falling back to UTC.", tz_name)
+            tz = datetime.timezone.utc
+
+        naive_cutoff = datetime.datetime.strptime(
+            f"{cutoff_date} {cutoff_time}", "%Y-%m-%d %H:%M"
+        )
+        local_cutoff = naive_cutoff.replace(tzinfo=tz)
+        return local_cutoff.astimezone(datetime.timezone.utc)
 
     def _resolve_game_version(
         self,

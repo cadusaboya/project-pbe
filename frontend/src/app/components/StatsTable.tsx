@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 export interface UnitStat {
   unit_name: string;
+  cost: number;
   games: number;
   avg_placement: number;
   top4_rate: number;
@@ -21,6 +22,19 @@ const COLUMNS: { key: SortKey; label: string; defaultDir: SortDir }[] = [
   { key: "top4_rate", label: "Top 4 %", defaultDir: "desc" },
   { key: "win_rate", label: "Win %", defaultDir: "desc" },
 ];
+
+const COST_COLORS: Record<number, string> = {
+  1: "border-gray-500",
+  2: "border-green-600",
+  3: "border-blue-500",
+  4: "border-purple-500",
+  5: "border-yellow-400",
+  7: "border-yellow-400",
+};
+
+function costBorderColor(cost: number): string {
+  return COST_COLORS[cost] ?? "border-gray-500";
+}
 
 function placementColor(placement: number): string {
   if (placement <= 2) return "text-yellow-400 font-semibold";
@@ -80,6 +94,7 @@ export default function StatsTable({
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [search, setSearch] = useState("");
   const [minGames, setMinGames] = useState("");
+  const [tierFilter, setTierFilter] = useState("");
 
   function handleVersionChange(v: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -113,6 +128,15 @@ export default function StatsTable({
       rows = rows.filter((r) => r.games >= min);
     }
 
+    const tier = parseInt(tierFilter, 10);
+    if (!isNaN(tier) && tier > 0) {
+      if (tier === 5) {
+        rows = rows.filter((r) => r.cost >= 5);
+      } else {
+        rows = rows.filter((r) => r.cost === tier);
+      }
+    }
+
     rows.sort((a, b) => {
       const av = a[sortKey];
       const bv = b[sortKey];
@@ -127,7 +151,7 @@ export default function StatsTable({
     });
 
     return rows;
-  }, [data, search, minGames, sortKey, sortDir]);
+  }, [data, search, minGames, tierFilter, sortKey, sortDir]);
 
   return (
     <div className="space-y-4">
@@ -160,6 +184,18 @@ export default function StatsTable({
           className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-32"
           min={0}
         />
+        <select
+          value={tierFilter}
+          onChange={(e) => setTierFilter(e.target.value)}
+          className="bg-tft-surface border border-tft-border text-tft-text rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent"
+        >
+          <option value="">All tiers</option>
+          <option value="1">Tier 1</option>
+          <option value="2">Tier 2</option>
+          <option value="3">Tier 3</option>
+          <option value="4">Tier 4</option>
+          <option value="5">Tier 5</option>
+        </select>
         <span className="text-tft-muted text-sm ml-auto">
           {filtered.length} units
         </span>
@@ -212,9 +248,9 @@ export default function StatsTable({
                     <img
                       src={unitImageUrl(row.unit_name)}
                       alt={formatUnit(row.unit_name)}
-                      width={32}
-                      height={32}
-                      className="rounded-md w-8 h-8 object-cover"
+                      width={40}
+                      height={40}
+                      className={`w-10 h-10 object-cover rounded-lg border-2 ${costBorderColor(row.cost)}`}
                       onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                     />
                   </td>
