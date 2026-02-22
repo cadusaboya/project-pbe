@@ -971,6 +971,29 @@ class CompsView(APIView):
         unit_traits_map = dict(
             Unit.objects.filter(character_id__in=lookup_units).values_list("character_id", "traits")
         )
+        for b in boards:
+            derived_trait_counts: dict[str, int] = defaultdict(int)
+            for unit_id, count in b["unit_count_by_unit"].items():
+                traits = unit_traits_map.get(unit_id) or []
+                for t in traits:
+                    name = str(t).strip()
+                    if not name:
+                        continue
+                    derived_trait_counts[name] += count
+            b["derived_trait_counts"] = dict(derived_trait_counts)
+
+        def _max_trait_units(board: dict, req_lower: str) -> int:
+            matched_units = 0
+            for trait_name, units_count in board["trait_unit_counts"].items():
+                if req_lower in trait_name.lower():
+                    matched_units = max(matched_units, units_count)
+            # Fallback when participant trait payload does not include the trait
+            # but unit metadata still has it.
+            if matched_units == 0:
+                for trait_name, units_count in board.get("derived_trait_counts", {}).items():
+                    if req_lower in trait_name.lower():
+                        matched_units = max(matched_units, units_count)
+            return matched_units
 
         result = []
         for comp in comps:
@@ -1069,10 +1092,9 @@ class CompsView(APIView):
                 if not has_core_units:
                     continue
                 if required_traits_lower:
-                    active = {t.lower() for t in b["active_traits"]}
                     ok_traits = True
                     for req in required_traits_lower:
-                        if not any(req in trait for trait in active):
+                        if _max_trait_units(b, req) <= 0:
                             ok_traits = False
                             break
                     if not ok_traits:
@@ -1094,28 +1116,20 @@ class CompsView(APIView):
                     if not ok_unit_counts:
                         continue
                 if required_trait_breakpoints:
-                    trait_counts = b["trait_unit_counts"]
                     ok_breakpoints = True
                     for req_trait, min_units in required_trait_breakpoints.items():
                         req_lower = req_trait.lower()
-                        matched_units = 0
-                        for trait_name, units_count in trait_counts.items():
-                            if req_lower in trait_name.lower():
-                                matched_units = max(matched_units, units_count)
+                        matched_units = _max_trait_units(b, req_lower)
                         if matched_units < min_units:
                             ok_breakpoints = False
                             break
                     if not ok_breakpoints:
                         continue
                 if max_trait_counts:
-                    trait_counts = b["trait_unit_counts"]
                     ok_max_counts = True
                     for req_trait, max_units in max_trait_counts.items():
                         req_lower = req_trait.lower()
-                        matched_units = 0
-                        for trait_name, units_count in trait_counts.items():
-                            if req_lower in trait_name.lower():
-                                matched_units = max(matched_units, units_count)
+                        matched_units = _max_trait_units(b, req_lower)
                         if matched_units > max_units:
                             ok_max_counts = False
                             break

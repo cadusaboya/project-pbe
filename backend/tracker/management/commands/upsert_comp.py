@@ -56,8 +56,8 @@ class Command(BaseCommand):
             type=str,
             default="",
             help=(
-                "Comma-separated required active traits. "
-                "Example: --require-traits 'Bilgewater,Sniper'"
+                "Comma-separated trait rules. Accepts Trait or Trait:MinUnits. "
+                "Example: --require-traits 'Bilgewater,Sniper,Disruptor:2'"
             ),
         )
         parser.add_argument(
@@ -157,8 +157,23 @@ class Command(BaseCommand):
                 excluded_units.append(u)
 
         required_traits: list[str] = []
+        required_trait_breakpoints: dict[str, int] = {}
         if require_traits_raw:
-            required_traits = [t.strip() for t in require_traits_raw.split(",") if t.strip()]
+            for raw_rule in [r.strip() for r in require_traits_raw.split(",") if r.strip()]:
+                if ":" in raw_rule:
+                    raw_trait, raw_count = raw_rule.split(":", 1)
+                    trait_name = raw_trait.strip()
+                    if not trait_name:
+                        raise CommandError(f"Trait name cannot be empty in '{raw_rule}'.")
+                    try:
+                        min_units = max(1, int(raw_count.strip()))
+                    except ValueError as exc:
+                        raise CommandError(
+                            f"Invalid trait count in rule '{raw_rule}'. Must be integer."
+                        ) from exc
+                    required_trait_breakpoints[trait_name] = min_units
+                else:
+                    required_traits.append(raw_rule)
 
         required_unit_item_counts: dict[str, int] = {}
         if require_items_raw:
@@ -194,7 +209,6 @@ class Command(BaseCommand):
                     ) from exc
                 required_unit_counts[unit_norm] = min_count
 
-        required_trait_breakpoints: dict[str, int] = {}
         if require_trait_breakpoints_raw:
             for raw_rule in [r.strip() for r in require_trait_breakpoints_raw.split(",") if r.strip()]:
                 if ":" not in raw_rule:
