@@ -117,11 +117,13 @@ function UnitPicker({
   units,
   value,
   onChange,
+  onCommit,
   placeholder = "Select unit...",
 }: {
   units: UnitStat[];
   value: string;
   onChange: (v: string) => void;
+  onCommit?: (v: string) => void;
   placeholder?: string;
 }) {
   const [search, setSearch] = useState("");
@@ -160,7 +162,7 @@ function UnitPicker({
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "ArrowDown") { e.preventDefault(); setHighlightedIndex((i) => Math.min(i + 1, filtered.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setHighlightedIndex((i) => Math.max(i - 1, 0)); }
-    else if (e.key === "Enter") { e.preventDefault(); if (filtered[highlightedIndex]) { onChange(filtered[highlightedIndex].unit_name); setSearch(""); setOpen(false); } }
+    else if (e.key === "Enter") { e.preventDefault(); if (filtered[highlightedIndex]) { const v = filtered[highlightedIndex].unit_name; onChange(v); setSearch(""); setOpen(false); onCommit?.(v); } }
     else if (e.key === "Escape") { setOpen(false); }
   }
 
@@ -217,11 +219,13 @@ function ItemPicker({
   itemAssets,
   value,
   onChange,
+  onCommit,
   placeholder = "Select item...",
 }: {
   itemAssets: Record<string, string>;
   value: string;
   onChange: (v: string) => void;
+  onCommit?: (v: string) => void;
   placeholder?: string;
 }) {
   const [search, setSearch] = useState("");
@@ -258,7 +262,7 @@ function ItemPicker({
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "ArrowDown") { e.preventDefault(); setHighlightedIndex((i) => Math.min(i + 1, filtered.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setHighlightedIndex((i) => Math.max(i - 1, 0)); }
-    else if (e.key === "Enter") { e.preventDefault(); if (filtered[highlightedIndex]) { onChange(filtered[highlightedIndex]); setSearch(""); setOpen(false); } }
+    else if (e.key === "Enter") { e.preventDefault(); if (filtered[highlightedIndex]) { const v = filtered[highlightedIndex]; onChange(v); setSearch(""); setOpen(false); onCommit?.(v); } }
     else if (e.key === "Escape") { setOpen(false); }
   }
 
@@ -391,6 +395,25 @@ export default function DataExplorer({
     router.push(`/explore?${p.toString()}`);
   }
 
+  function handleUnitCommit(v: string) {
+    if (pendingType === "require_unit" || pendingType === "ban_unit") {
+      setConditions((prev) => [...prev, { id: uid(), type: pendingType, unit: v }]);
+      setPendingUnit("");
+    }
+    // require_item_on_unit: just set unit, user still needs to pick item
+  }
+
+  function handleItemCommit(v: string) {
+    if (pendingType === "exclude_item") {
+      setConditions((prev) => [...prev, { id: uid(), type: "exclude_item", item: v }]);
+      setPendingItem("");
+    } else if (pendingType === "require_item_on_unit" && pendingUnit) {
+      setConditions((prev) => [...prev, { id: uid(), type: "require_item_on_unit", unit: pendingUnit, item: v }]);
+      setPendingUnit("");
+      setPendingItem("");
+    }
+  }
+
   function addCondition() {
     const needsUnit = pendingType !== "exclude_item";
     const needsItem = pendingType === "require_item_on_unit" || pendingType === "exclude_item";
@@ -503,12 +526,12 @@ export default function DataExplorer({
 
           {/* Unit picker */}
           {needsUnit && (
-            <UnitPicker units={units} value={pendingUnit} onChange={setPendingUnit} />
+            <UnitPicker units={units} value={pendingUnit} onChange={setPendingUnit} onCommit={handleUnitCommit} />
           )}
 
           {/* Item picker */}
           {needsItem && (
-            <ItemPicker itemAssets={itemAssets} value={pendingItem} onChange={setPendingItem} />
+            <ItemPicker itemAssets={itemAssets} value={pendingItem} onChange={setPendingItem} onCommit={handleItemCommit} />
           )}
 
           <button

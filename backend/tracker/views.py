@@ -1,9 +1,11 @@
 import json
+import time
 from collections import defaultdict
 from itertools import combinations
 from pathlib import Path
 import datetime
 
+import httpx
 from django.conf import settings
 from django.db.models import Count, Prefetch, Q, Sum
 from rest_framework.generics import ListAPIView
@@ -14,6 +16,10 @@ from .models import AggregatedUnitStat, Comp, Match, Participant, Player, Unit, 
 from .serializers import UnitStatSerializer, WinningCompSerializer
 
 _ITEM_ASSETS_FILE = Path(settings.BASE_DIR) / "item_assets.json"
+_CDRAGON_TFT_URL = "https://raw.communitydragon.org/pbe/cdragon/tft/en_us.json"
+_TRAIT_CACHE: dict | None = None
+_TRAIT_CACHE_TS: float = 0.0
+_TRAIT_CACHE_TTL = 3600.0  # seconds
 
 _SORT_MAP = {
     "avg_placement": "avg_placement",
@@ -21,6 +27,62 @@ _SORT_MAP = {
     "win_rate": "-win_rate",
     "top4_rate": "-top4_rate",
 }
+
+
+class TraitDataView(APIView):
+    """
+    GET /api/traits/
+
+    Returns trait breakpoints and CDragon icon URLs for all TFT traits.
+    Response: { "TraitName": { "breakpoints": [2, 4, 6], "icon": "https://..." }, ... }
+
+    Result is cached in-process for 1 hour.
+    """
+
+    def get(self, request):
+        global _TRAIT_CACHE, _TRAIT_CACHE_TS
+
+        now = time.time()
+        if _TRAIT_CACHE is not None and (now - _TRAIT_CACHE_TS) < _TRAIT_CACHE_TTL:
+            return Response(_TRAIT_CACHE)
+
+        try:
+            with httpx.Client(timeout=120) as client:
+                resp = client.get(_CDRAGON_TFT_URL)
+                resp.raise_for_status()
+                data = resp.json()
+
+            traits: dict = {}
+            for set_entry in data.get("sets", {}).values():
+                for trait in set_entry.get("traits", []):
+                    name = trait.get("name")
+                    if not name:
+                        continue
+                    breakpoints = [
+                        e["minUnits"]
+                        for e in (trait.get("effects") or [])
+                        if e.get("minUnits", 0) > 0
+                    ]
+                    if not breakpoints:
+                        continue
+                    raw_icon = trait.get("icon", "")
+                    icon = ""
+                    if raw_icon:
+                        icon = (
+                            "https://raw.communitydragon.org/pbe/game/"
+                            + raw_icon.replace("ASSETS/", "assets/")
+                                      .replace(".tex", ".png")
+                                      .lower()
+                        )
+                    traits[name] = {"breakpoints": breakpoints, "icon": icon}
+
+            _TRAIT_CACHE = traits
+            _TRAIT_CACHE_TS = now
+        except Exception:
+            if _TRAIT_CACHE is None:
+                _TRAIT_CACHE = {}
+
+        return Response(_TRAIT_CACHE)
 
 
 class UnitStatsView(ListAPIView):
@@ -965,6 +1027,70 @@ class CompsView(APIView):
 
         result.sort(key=lambda x: (-x["comps"], x["avg_placement"], x["name"]))
         return Response(result[:limit])
+
+
+class SearchCompsView(APIView):
+    """
+    GET /api/search-comps/
+
+    Returns all participants whose comp contains ALL specified units.
+
+    Query params:
+      unit         – repeatable; case-insensitive substring on character_id
+      game_version – optional version filter
+      limit        – max results (default 200, max 500)
+      sort         – recency (default) | placement
+    """
+
+    def get(self, request):
+        units = [u.strip() for u in request.query_params.getlist("unit") if u.strip()]
+        game_version = request.query_params.get("game_version")
+        try:
+            limit = max(1, min(500, int(request.query_params.get("limit", 200))))
+        except ValueError:
+            limit = 200
+        sort = request.query_params.get("sort", "recency")
+
+        qs = Participant.objects.select_related("match", "player").prefetch_related(
+            Prefetch("unit_usages", queryset=UnitUsage.objects.select_related("unit"))
+        )
+        if game_version:
+            qs = qs.filter(match__game_version=game_version)
+
+        for unit_text in units:
+            qs = qs.filter(unit_usages__unit__character_id__icontains=unit_text)
+        qs = qs.distinct()
+
+        if sort == "placement":
+            qs = qs.order_by("placement", "-match__game_datetime")
+        else:
+            qs = qs.order_by("-match__game_datetime")
+
+        result = []
+        for p in qs[:limit]:
+            player_name = str(p.player) if p.player else p.puuid[:12]
+            units_out = []
+            for uu in p.unit_usages.all():
+                if not uu.unit_id or not uu.unit:
+                    continue
+                units_out.append({
+                    "character_id": uu.unit.character_id,
+                    "star_level": uu.star_level,
+                    "cost": uu.unit.cost,
+                    "traits": uu.unit.traits,
+                    "items": uu.items or [],
+                })
+            result.append({
+                "match_id": p.match.match_id,
+                "game_datetime": p.match.game_datetime,
+                "game_version": p.match.game_version,
+                "placement": p.placement,
+                "level": p.level,
+                "player": player_name,
+                "units": units_out,
+            })
+
+        return Response(result)
 
 
 class VersionsView(APIView):

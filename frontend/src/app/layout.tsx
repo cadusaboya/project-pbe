@@ -27,10 +27,22 @@ export default function RootLayout({
             </div>
             <nav className="flex items-center gap-1">
               <Link
-                href="/"
+                href="/games-feed"
+                className="px-3 py-1.5 rounded-md text-sm font-medium text-tft-muted hover:text-tft-text hover:bg-tft-hover transition-colors"
+              >
+                Games Feed
+              </Link>
+              <Link
+                href="/unit-stats"
                 className="px-3 py-1.5 rounded-md text-sm font-medium text-tft-muted hover:text-tft-text hover:bg-tft-hover transition-colors"
               >
                 Unit Stats
+              </Link>
+              <Link
+                href="/search"
+                className="px-3 py-1.5 rounded-md text-sm font-medium text-tft-muted hover:text-tft-text hover:bg-tft-hover transition-colors"
+              >
+                Unit Search
               </Link>
               <Link
                 href="/items"
@@ -43,18 +55,6 @@ export default function RootLayout({
                 className="px-3 py-1.5 rounded-md text-sm font-medium text-tft-muted hover:text-tft-text hover:bg-tft-hover transition-colors"
               >
                 Data Explorer
-              </Link>
-              <Link
-                href="/last-games"
-                className="px-3 py-1.5 rounded-md text-sm font-medium text-tft-muted hover:text-tft-text hover:bg-tft-hover transition-colors"
-              >
-                Games
-              </Link>
-              <Link
-                href="/comps"
-                className="px-3 py-1.5 rounded-md text-sm font-medium text-tft-muted hover:text-tft-text hover:bg-tft-hover transition-colors"
-              >
-                Comps
               </Link>
             </nav>
             <a

@@ -85,6 +85,117 @@ function displayPlayerName(name: string): string {
   return name.split("#")[0].trim();
 }
 
+// ── Trait helpers ─────────────────────────────────────────────────────────────
+
+export interface TraitInfo {
+  breakpoints: number[];
+  icon: string;
+}
+
+interface TraitState {
+  name: string;
+  count: number;
+  /** 0=unique, 1=bronze, 2=silver, 3=gold, 4=chromatic */
+  tier: number;
+  breakpoints: number[];
+  icon: string;
+  isUnique: boolean;
+}
+
+interface TierStyle {
+  chip: string;       // chip background + border (Tailwind)
+  num: string;        // number text color (Tailwind)
+  iconColor: string;  // exact hex — same hue as border/num, used as icon mask color
+}
+
+// tier 0=unique, 1=bronze, 2=silver, 3=gold, 4=chromatic
+// iconColor hex values match the Tailwind num/border colors exactly
+const TRAIT_TIER_STYLES: Record<number, TierStyle> = {
+  0: { chip: "bg-red-950/40 border-red-700/60",       num: "text-red-500",    iconColor: "#ef4444" }, // unique
+  1: { chip: "bg-amber-950/40 border-amber-700/60",   num: "text-amber-600",  iconColor: "#d97706" }, // bronze
+  2: { chip: "bg-slate-800/40 border-slate-400/60",   num: "text-slate-300",  iconColor: "#cbd5e1" }, // silver
+  3: { chip: "bg-yellow-950/40 border-yellow-600/60", num: "text-yellow-500", iconColor: "#eab308" }, // gold
+  4: { chip: "bg-violet-950/40 border-violet-500/60", num: "text-violet-400", iconColor: "#a78bfa" }, // chromatic
+};
+
+function computeTraits(
+  units: WinningUnit[],
+  traitData: Record<string, TraitInfo>
+): TraitState[] {
+  const counts: Record<string, number> = {};
+  for (const unit of units) {
+    for (const trait of unit.traits) {
+      counts[trait] = (counts[trait] ?? 0) + 1;
+    }
+  }
+  const result: TraitState[] = [];
+  for (const [name, count] of Object.entries(counts)) {
+    const info = traitData[name];
+    const breakpoints = info?.breakpoints ?? [];
+    const icon = info?.icon ?? "";
+    let tier = 0;
+    for (let i = 0; i < breakpoints.length; i++) {
+      if (count >= breakpoints[i]) tier = i + 1;
+    }
+    if (tier > 0) {
+      // Traits with only one breakpoint at 1 are "unique" — style separately
+      const isUnique = breakpoints.length === 1 && breakpoints[0] === 1;
+      result.push({ name, count, tier: isUnique ? 0 : tier, breakpoints, icon, isUnique });
+    }
+  }
+  // Sort: higher tier first, then count; unique (tier=0) go last
+  return result.sort((a, b) => {
+    if (a.isUnique !== b.isUnique) return a.isUnique ? 1 : -1;
+    return b.tier - a.tier || b.count - a.count;
+  });
+}
+
+function TraitChips({
+  units,
+  traitData,
+}: {
+  units: WinningUnit[];
+  traitData: Record<string, TraitInfo>;
+}) {
+  const traits = computeTraits(units, traitData);
+  if (traits.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {traits.map((t) => {
+        const style = TRAIT_TIER_STYLES[t.tier] ?? TRAIT_TIER_STYLES[1];
+        const activeBp = t.isUnique ? t.breakpoints[0] : t.breakpoints[t.tier - 1];
+        const nextBp = t.isUnique ? undefined : t.breakpoints[t.tier];
+        const suffix = nextBp != null ? `${t.count}/${nextBp}` : `${t.count}`;
+        return (
+          <span
+            key={t.name}
+            className={`inline-flex items-center gap-0.5 pl-0.5 pr-1.5 h-6 rounded border text-xs font-bold ${style.chip}`}
+            title={`${t.name} ${suffix} — breakpoints ${t.breakpoints.join("/")}`}
+          >
+            {t.icon && (
+              <span
+                className="w-4 h-4 shrink-0 inline-block"
+                style={{
+                  backgroundColor: style.iconColor,
+                  WebkitMaskImage: `url(${t.icon})`,
+                  maskImage: `url(${t.icon})`,
+                  WebkitMaskSize: "contain",
+                  maskSize: "contain",
+                  WebkitMaskRepeat: "no-repeat",
+                  maskRepeat: "no-repeat",
+                  WebkitMaskPosition: "center",
+                  maskPosition: "center",
+                }}
+              />
+            )}
+            <span className={style.num}>{activeBp}</span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 // cost 1=gray, 2=green, 3=blue, 4=purple, 5/7=gold
 const COST_COLORS: Record<number, string> = {
   1: "border-gray-500",
@@ -174,9 +285,11 @@ function UnitChip({
 function CompCard({
   comp,
   itemAssets,
+  traitData,
 }: {
   comp: WinningComp;
   itemAssets: Record<string, string>;
+  traitData: Record<string, TraitInfo>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [lobby, setLobby] = useState<LobbyParticipant[] | null>(null);
@@ -212,14 +325,15 @@ function CompCard({
             <span className="text-tft-gold font-semibold">
               #1 {displayPlayerName(comp.winner)}
             </span>
-            <p className="text-tft-muted text-xs mt-0.5 flex items-center gap-2">
+            <div className="text-tft-muted text-xs mt-0.5 flex flex-wrap items-center gap-1.5">
               {formatDate(comp.game_datetime)}
               {comp.game_version && (
                 <span className="px-1.5 py-0.5 rounded bg-tft-surface border border-tft-border text-tft-muted">
                   {comp.game_version}
                 </span>
               )}
-            </p>
+              <TraitChips units={comp.units} traitData={traitData} />
+            </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <a
@@ -264,29 +378,34 @@ function CompCard({
             lobby.filter((p) => p.placement !== 1).map((participant, i, arr) => (
               <div
                 key={i}
-                className={`flex items-center gap-3 py-1.5 ${
+                className={`py-1.5 ${
                   i < arr.length - 1 ? "border-b border-tft-border/40" : ""
                 }`}
               >
-                <span
-                  className={`w-5 text-sm text-right shrink-0 ${placementStyle(participant.placement)}`}
-                >
-                  #{participant.placement}
-                </span>
-                <span className="text-tft-text text-sm w-40 truncate shrink-0">
-                  {displayPlayerName(participant.name)}
-                </span>
-                <div className="flex flex-wrap gap-1">
-                  {participant.units
-                    .slice()
-                    .sort((a, b) => b.cost - a.cost || b.star_level - a.star_level)
-                    .map((unit, j) => (
-                      <UnitChip
-                        key={j}
-                        unit={unit}
-                        itemAssets={itemAssets}
-                      />
-                    ))}
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`w-5 text-sm text-right shrink-0 ${placementStyle(participant.placement)}`}
+                  >
+                    #{participant.placement}
+                  </span>
+                  <span className="text-tft-text text-sm w-40 truncate shrink-0">
+                    {displayPlayerName(participant.name)}
+                  </span>
+                  <div className="flex flex-col gap-1.5">
+                    <TraitChips units={participant.units} traitData={traitData} />
+                    <div className="flex flex-wrap gap-1">
+                      {participant.units
+                        .slice()
+                        .sort((a, b) => b.cost - a.cost || b.star_level - a.star_level)
+                        .map((unit, j) => (
+                          <UnitChip
+                            key={j}
+                            unit={unit}
+                            itemAssets={itemAssets}
+                          />
+                        ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -301,11 +420,13 @@ export default function WinningCompsList({
   itemAssets,
   versions,
   selectedVersion,
+  traitData,
 }: {
   data: WinningComp[];
   itemAssets: Record<string, string>;
   versions: string[];
   selectedVersion: string;
+  traitData: Record<string, TraitInfo>;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -385,7 +506,7 @@ export default function WinningCompsList({
       ) : (
         <div className="grid gap-4">
           {filtered.map((comp) => (
-            <CompCard key={comp.match_id} comp={comp} itemAssets={itemAssets} />
+            <CompCard key={comp.match_id} comp={comp} itemAssets={itemAssets} traitData={traitData} />
           ))}
         </div>
       )}

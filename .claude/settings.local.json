@@ -13,7 +13,8 @@
       "Bash(for dir in /c/Users/carlo/Desktop/Coding/ProjectPBE/backend/tracker /c/Users/carlo/Desktop/Coding/ProjectPBE/backend/tft_tracker)",
       "Bash(do echo \"=== Checking $dir ===\" grep -r \"português\\\\|não\\\\|sim\\\\|código\\\\|descrição\\\\|função\" \"$dir\" --include=\"*.py\")",
       "Bash(done)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(curl:*)"
     ]
   }
 }
