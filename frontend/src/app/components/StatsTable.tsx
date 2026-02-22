@@ -266,7 +266,8 @@ export default function StatsTable({
 
     setExpandedUnit(unitName);
 
-    if (detailCache[unitName]) return;
+    const cacheKey = `${unitName}__${selectedVersion}`;
+    if (detailCache[cacheKey]) return;
 
     setLoadingUnit(unitName);
     try {
@@ -275,12 +276,12 @@ export default function StatsTable({
       const res = await fetch(url);
       if (res.ok) {
         const data: UnitDetailStats = await res.json();
-        setDetailCache((prev) => ({ ...prev, [unitName]: data }));
+        setDetailCache((prev) => ({ ...prev, [cacheKey]: data }));
       } else {
-        setDetailCache((prev) => ({ ...prev, [unitName]: { star_stats: [], item_stats: [] } }));
+        setDetailCache((prev) => ({ ...prev, [cacheKey]: { star_stats: [], item_stats: [] } }));
       }
     } catch {
-      setDetailCache((prev) => ({ ...prev, [unitName]: { star_stats: [], item_stats: [] } }));
+      setDetailCache((prev) => ({ ...prev, [cacheKey]: { star_stats: [], item_stats: [] } }));
     } finally {
       setLoadingUnit(null);
     }
@@ -410,7 +411,7 @@ export default function StatsTable({
               filtered.map((row, i) => {
                 const isExpanded = expandedUnit === row.unit_name;
                 const isLoading = loadingUnit === row.unit_name;
-                const detail = detailCache[row.unit_name];
+                const detail = detailCache[`${row.unit_name}__${selectedVersion}`];
 
                 return (
                   <Fragment key={row.unit_name}>
