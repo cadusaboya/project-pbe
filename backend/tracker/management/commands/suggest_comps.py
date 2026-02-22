@@ -46,6 +46,19 @@ class Command(BaseCommand):
             help="Minimum 'always units' size (default: 5).",
         )
         parser.add_argument(
+            "--core-size-mode",
+            type=str,
+            default="auto",
+            choices=["auto", "fixed"],
+            help="auto = adapt core sizes (4/5/6); fixed = use provided core sizes only.",
+        )
+        parser.add_argument(
+            "--core-sizes",
+            type=str,
+            default="5",
+            help="Comma-separated core sizes for fixed mode (default: 5). Example: 4,5,6",
+        )
+        parser.add_argument(
             "--levels",
             type=str,
             default="8,9,10",
@@ -58,6 +71,8 @@ class Command(BaseCommand):
         min_occ = max(1, int(options["min_occurrences"]))
         min_core_size = max(1, int(options["min_core_size"]))
         levels = self._parse_levels(options.get("levels") or "8,9,10")
+        core_size_mode = (options.get("core_size_mode") or "auto").strip().lower()
+        fixed_core_sizes = self._parse_sizes(options.get("core_sizes") or "5")
 
         boards = self._load_boards(game_version=game_version)
         if not boards:
@@ -75,6 +90,8 @@ class Command(BaseCommand):
                 level=level,
                 min_core_size=min_core_size,
                 min_occ=min_occ,
+                core_size_mode=core_size_mode,
+                fixed_core_sizes=fixed_core_sizes,
             )
             candidates.extend(level_candidates)
 
@@ -111,6 +128,20 @@ class Command(BaseCommand):
                 levels.append(value)
         return levels or [8, 9, 10]
 
+    def _parse_sizes(self, raw: str) -> list[int]:
+        sizes: list[int] = []
+        for part in raw.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                value = int(part)
+            except ValueError:
+                continue
+            if 1 <= value <= 10 and value not in sizes:
+                sizes.append(value)
+        return sizes or [5]
+
     def _load_boards(self, game_version: str) -> list[Board]:
         qs = Participant.objects.prefetch_related("unit_usages__unit").order_by("id")
         if game_version:
@@ -134,19 +165,60 @@ class Command(BaseCommand):
         level: int,
         min_core_size: int,
         min_occ: int,
+        core_size_mode: str,
+        fixed_core_sizes: list[int],
     ) -> list[dict]:
         eligible = [b for b in boards if len(b.units) >= level]
         if not eligible:
             return []
 
-        core_counts: dict[tuple[str, ...], dict] = defaultdict(lambda: {"count": 0, "placement_sum": 0})
-        max_core_size = max(min_core_size, level - 1)
+        core_counts: dict[tuple[str, ...], dict] = defaultdict(
+            lambda: {"count": 0, "placement_sum": 0}
+        )
+
+        if core_size_mode == "fixed":
+            allowed_sizes = sorted({s for s in fixed_core_sizes if min_core_size <= s < level})
+            if not allowed_sizes:
+                return []
+        else:
+            # Auto mode: start with 5 as baseline, include 6 if strong, fallback to 4 if 5 collapses.
+            probe_sizes = [s for s in (4, 5, 6) if min_core_size <= s < level]
+            if not probe_sizes:
+                return []
+
+            probe_best: dict[int, int] = {}
+            for size in probe_sizes:
+                local_counts: Counter[tuple[str, ...]] = Counter()
+                for b in eligible:
+                    ordered_units = tuple(sorted(b.units))
+                    for core in combinations(ordered_units, size):
+                        local_counts[core] += 1
+                probe_best[size] = max(local_counts.values()) if local_counts else 0
+
+            best4 = probe_best.get(4, 0)
+            best5 = probe_best.get(5, 0)
+            best6 = probe_best.get(6, 0)
+
+            allowed = set()
+            if best5 >= min_occ:
+                allowed.add(5)
+            # "6 is obvious": support close to 5 support.
+            if best6 >= min_occ and (best5 == 0 or best6 >= int(best5 * 0.80)):
+                allowed.add(6)
+            # "5 drops too much": 4 is significantly stronger than 5.
+            if best4 >= min_occ and (best5 == 0 or best5 < int(best4 * 0.60)):
+                allowed.add(4)
+            # Safety fallback
+            if not allowed:
+                for s in (5, 4, 6):
+                    if s in probe_best and probe_best[s] > 0 and s < level:
+                        allowed.add(s)
+                        break
+            allowed_sizes = sorted(allowed)
 
         for b in eligible:
             ordered_units = tuple(sorted(b.units))
-            for size in range(min_core_size, max_core_size + 1):
-                if size >= level:
-                    break
+            for size in allowed_sizes:
                 for core in combinations(ordered_units, size):
                     stats = core_counts[core]
                     stats["count"] += 1

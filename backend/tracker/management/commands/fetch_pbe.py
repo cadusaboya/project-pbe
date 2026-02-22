@@ -66,6 +66,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         switch_dt_utc = self._build_switch_datetime_utc()
         fetch_cutoff_utc = self._build_fetch_cutoff_datetime_utc()
+        cooldown_seconds = self._get_player_cooldown_seconds()
         api_key = os.environ.get("RIOT_API_KEY", "").strip()
         if not api_key:
             self.stderr.write(
@@ -107,6 +108,8 @@ class Command(BaseCommand):
         self.stdout.write(
             f"Processing {len(players)} players - matches on/after {fetch_cutoff_utc.isoformat()} UTC\n"
         )
+        if cooldown_seconds > 0:
+            self.stdout.write(f"Per-player poll cooldown: {cooldown_seconds}s\n")
         self.stdout.write(
             f"Version switch at {switch_dt_utc.isoformat()} UTC "
             f"(before: '{GAME_VERSION_WITH_THEX}', after: '{GAME_VERSION_NO_THEX}')\n"
@@ -116,29 +119,62 @@ class Command(BaseCommand):
 
         for i, player in enumerate(players, 1):
             label = f"[{i}/{len(players)}] {player}"
+            now_utc = datetime.datetime.now(datetime.timezone.utc)
+            if (
+                cooldown_seconds > 0
+                and player.last_polled_at
+                and (now_utc - player.last_polled_at).total_seconds() < cooldown_seconds
+            ):
+                self.stdout.write(f"  {label} - cooldown active, skipping API poll")
+                continue
+
             match_ids = asyncio.run(
                 self._fetch_match_ids_for_player(api_key, player.puuid, fetch_since_ms)
             )
 
             if not match_ids:
                 self.stdout.write(f"  {label} - no matches today, skipping")
+                player.last_polled_at = now_utc
+                player.save(update_fields=["last_polled_at"])
                 continue
+
+            if player.last_seen_match_id and player.last_seen_match_id in match_ids:
+                cut = match_ids.index(player.last_seen_match_id)
+                candidate_ids = match_ids[:cut]
+            else:
+                candidate_ids = match_ids
 
             existing: set[str] = set(
-                Match.objects.filter(match_id__in=match_ids).values_list("match_id", flat=True)
+                Match.objects.filter(match_id__in=candidate_ids).values_list("match_id", flat=True)
             )
-            new_ids = [mid for mid in match_ids if mid not in existing]
+            new_ids = [mid for mid in candidate_ids if mid not in existing]
 
-            if not new_ids:
-                self.stdout.write(f"  {label} - {len(match_ids)} match(es), all already stored")
+            if not candidate_ids:
+                self.stdout.write(f"  {label} - no new IDs since checkpoint")
+                player.last_seen_match_id = match_ids[0]
+                player.last_polled_at = now_utc
+                player.save(update_fields=["last_seen_match_id", "last_polled_at"])
                 continue
 
-            self.stdout.write(f"  {label} - {len(match_ids)} match(es), {len(new_ids)} to check")
+            if not new_ids:
+                self.stdout.write(
+                    f"  {label} - {len(candidate_ids)} candidate match(es), all already stored"
+                )
+                player.last_seen_match_id = match_ids[0]
+                player.last_polled_at = now_utc
+                player.save(update_fields=["last_seen_match_id", "last_polled_at"])
+                continue
+
+            self.stdout.write(
+                f"  {label} - {len(candidate_ids)} candidate match(es), {len(new_ids)} to check"
+            )
+            had_fetch_fail = False
 
             for mid in new_ids:
                 match_data = asyncio.run(self._fetch_single_match_async(api_key, mid))
                 if match_data is None:
                     self.stdout.write(f"    {mid} - fetch failed, skipping")
+                    had_fetch_fail = True
                     continue
 
                 game_ms = match_data.get("info", {}).get("game_datetime", 0)
@@ -169,6 +205,13 @@ class Command(BaseCommand):
                         self.stdout.write(f"    {mid} - already existed")
                 except Exception as exc:
                     logger.error("Error processing %s: %s", mid, exc, exc_info=True)
+
+            player.last_polled_at = now_utc
+            if not had_fetch_fail:
+                player.last_seen_match_id = match_ids[0]
+                player.save(update_fields=["last_polled_at", "last_seen_match_id"])
+            else:
+                player.save(update_fields=["last_polled_at"])
 
         self.stdout.write(f"\nStored {total_stored} new match(es) in total.")
 
@@ -252,6 +295,13 @@ class Command(BaseCommand):
         )
         local_cutoff = naive_cutoff.replace(tzinfo=tz)
         return local_cutoff.astimezone(datetime.timezone.utc)
+
+    def _get_player_cooldown_seconds(self) -> int:
+        raw = os.environ.get("FETCH_PBE_PLAYER_COOLDOWN_SECONDS", "0").strip()
+        try:
+            return max(0, int(raw))
+        except ValueError:
+            return 0
 
     def _resolve_game_version(
         self,

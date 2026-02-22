@@ -5,6 +5,8 @@ class Player(models.Model):
     game_name = models.CharField(max_length=100)
     tag_line = models.CharField(max_length=50)
     puuid = models.CharField(max_length=200, unique=True, blank=True, null=True)
+    last_seen_match_id = models.CharField(max_length=100, blank=True, null=True)
+    last_polled_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         unique_together = [("game_name", "tag_line")]

@@ -13,8 +13,8 @@ from .models import (
 
 @admin.register(Player)
 class PlayerAdmin(admin.ModelAdmin):
-    list_display = ["game_name", "tag_line", "puuid"]
-    search_fields = ["game_name", "tag_line", "puuid"]
+    list_display = ["game_name", "tag_line", "puuid", "last_seen_match_id", "last_polled_at"]
+    search_fields = ["game_name", "tag_line", "puuid", "last_seen_match_id"]
 
 
 @admin.register(Match)
