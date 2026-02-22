@@ -65,8 +65,28 @@ function UnitChip({ unit }: { unit: CompUnit }) {
   );
 }
 
+function FlexUnitChip({ unit }: { unit: CompUnit }) {
+  return (
+    <div
+      className={`w-12 h-12 rounded-lg border-2 ${costBorderColor(unit.cost)} overflow-hidden`}
+      title={formatUnit(unit.character_id)}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={unitImageUrl(unit.character_id)}
+        alt={formatUnit(unit.character_id)}
+        width={48}
+        height={48}
+        className="w-12 h-12 object-cover"
+        onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
+      />
+    </div>
+  );
+}
+
 function CompCard({ comp }: { comp: CompStat }) {
   const [expanded, setExpanded] = useState(false);
+  const suggestedFlex = comp.flex_combos[0];
 
   return (
     <div className="border border-tft-border rounded-xl bg-tft-surface/60 overflow-hidden">
@@ -74,7 +94,7 @@ function CompCard({ comp }: { comp: CompStat }) {
         className="p-4 space-y-3 cursor-pointer select-none hover:bg-tft-hover transition-colors"
         onClick={() => setExpanded((v) => !v)}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-start gap-3">
           {comp.name ? (
             <div className="text-2xl font-bold text-tft-text leading-none shrink-0">
               {comp.name}
@@ -90,6 +110,23 @@ function CompCard({ comp }: { comp: CompStat }) {
               <UnitChip key={u.character_id} unit={u} />
             ))}
           </div>
+
+          {suggestedFlex ? (
+            <div className="flex items-start gap-2 shrink-0">
+              <span className="text-tft-muted/60">|</span>
+              <div className="flex flex-col items-center">
+                <div className="flex gap-1.5">
+                  {suggestedFlex.units.map((u) => (
+                    <FlexUnitChip key={`suggest-${u.character_id}`} unit={u} />
+                  ))}
+                </div>
+                <div className="text-[9px] uppercase tracking-wide text-tft-muted mt-0.5 flex flex-col items-center leading-none">
+                  <span>▼</span>
+                  <span className="mt-0.5">Flex</span>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="ml-auto flex items-end gap-6 shrink-0">
             <div className="text-right leading-none">
