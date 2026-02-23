@@ -9,7 +9,7 @@ interface GlobalStats {
 async function fetchGlobalStats(): Promise<GlobalStats | null> {
   try {
     const res = await fetch(backendUrl("/api/stats/"), {
-      cache: "no-store",
+      next: { revalidate: 60 },
     });
     if (!res.ok) return null;
     return res.json();

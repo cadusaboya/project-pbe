@@ -17,8 +17,8 @@ class Player(models.Model):
 
 class Match(models.Model):
     match_id = models.CharField(max_length=100, primary_key=True)
-    game_datetime = models.DateTimeField()
-    game_version = models.CharField(max_length=100, default="16.6 PBE Alpha - No Items THex")
+    game_datetime = models.DateTimeField(db_index=True)
+    game_version = models.CharField(max_length=100, default="16.6 PBE Alpha - No Items THex", db_index=True)
     raw_json = models.JSONField()
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -38,12 +38,15 @@ class Participant(models.Model):
         related_name="participations",
     )
     puuid = models.CharField(max_length=200)
-    placement = models.IntegerField()
-    level = models.IntegerField()
+    placement = models.IntegerField(db_index=True)
+    level = models.IntegerField(db_index=True)
     gold_left = models.IntegerField()
 
     class Meta:
         unique_together = [("match", "puuid")]
+        indexes = [
+            models.Index(fields=["match", "player"], name="idx_participant_match_player"),
+        ]
 
     def __str__(self):
         return f"{self.match_id} – {self.puuid[:12]}… (#{self.placement})"
@@ -63,7 +66,7 @@ class UnitUsage(models.Model):
         Participant, on_delete=models.CASCADE, related_name="unit_usages"
     )
     unit = models.ForeignKey(Unit, on_delete=models.CASCADE, related_name="usages")
-    star_level = models.IntegerField(default=1)
+    star_level = models.IntegerField(default=1, db_index=True)
     rarity = models.IntegerField(default=0)
     items = models.JSONField(default=list)
 

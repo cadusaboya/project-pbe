@@ -8,6 +8,11 @@ const DEFAULT_BACKEND_URL =
 const BACKEND_URL = process.env.BACKEND_URL ?? DEFAULT_BACKEND_URL;
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "raw.communitydragon.org" },
+    ],
+  },
   async rewrites() {
     return [
       {

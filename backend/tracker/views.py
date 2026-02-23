@@ -22,6 +22,21 @@ _TRAIT_CACHE: dict | None = None
 _TRAIT_CACHE_TS: float = 0.0
 _TRAIT_CACHE_TTL = 3600.0  # seconds
 
+# In-memory caches for data that rarely changes
+_ITEM_ASSETS_CACHE: dict | None = None
+_ITEM_NAMES_CACHE: dict | None = None
+_VERSIONS_CACHE: list | None = None
+_VERSIONS_CACHE_TS: float = 0.0
+_PLAYERS_CACHE: list | None = None
+_PLAYERS_CACHE_TS: float = 0.0
+_CACHE_TTL_SHORT = 300.0  # 5 minutes
+
+
+def _cc(response: Response, max_age: int) -> Response:
+    """Set Cache-Control header on a DRF Response."""
+    response["Cache-Control"] = f"public, max-age={max_age}"
+    return response
+
 _SORT_MAP = {
     "avg_placement": "avg_placement",
     "games": "-games",
@@ -96,7 +111,7 @@ class TraitDataView(APIView):
 
         now = time.time()
         if _TRAIT_CACHE is not None and (now - _TRAIT_CACHE_TS) < _TRAIT_CACHE_TTL:
-            return Response(_TRAIT_CACHE)
+            return _cc(Response(_TRAIT_CACHE), 300)
 
         try:
             with httpx.Client(timeout=120) as client:
@@ -135,7 +150,7 @@ class TraitDataView(APIView):
             if _TRAIT_CACHE is None:
                 _TRAIT_CACHE = {}
 
-        return Response(_TRAIT_CACHE)
+        return _cc(Response(_TRAIT_CACHE), 300)
 
 
 class UnitStatsView(ListAPIView):
@@ -255,27 +270,30 @@ class StatsView(APIView):
             )
             last_run = game_end.isoformat()
 
-        return Response({
+        return _cc(Response({
             "matches_analyzed": match_qs.count(),
             "players_tracked": Player.objects.filter(puuid__isnull=False).exclude(puuid="").count(),
             "participants_recorded": Participant.objects.count(),
             "last_fetch_at": last_run,
-        })
+        }), 60)
 
 
 class ItemAssetsView(APIView):
     """GET /api/item-assets/ — returns {assets: {id: url}, names: {id: display_name}}."""
 
     def get(self, request):
-        try:
-            assets = json.loads(_ITEM_ASSETS_FILE.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            assets = {}
-        try:
-            names = json.loads(_ITEM_NAMES_FILE.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            names = {}
-        return Response({"assets": assets, "names": names})
+        global _ITEM_ASSETS_CACHE, _ITEM_NAMES_CACHE
+        if _ITEM_ASSETS_CACHE is None:
+            try:
+                _ITEM_ASSETS_CACHE = json.loads(_ITEM_ASSETS_FILE.read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                _ITEM_ASSETS_CACHE = {}
+        if _ITEM_NAMES_CACHE is None:
+            try:
+                _ITEM_NAMES_CACHE = json.loads(_ITEM_NAMES_FILE.read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                _ITEM_NAMES_CACHE = {}
+        return _cc(Response({"assets": _ITEM_ASSETS_CACHE, "names": _ITEM_NAMES_CACHE}), 300)
 
 
 class MatchLobbyView(APIView):
@@ -346,7 +364,7 @@ class MatchLobbyView(APIView):
             })
 
         result.sort(key=lambda x: x["placement"])
-        return Response(result)
+        return _cc(Response(result), 60)
 
 
 class WinningCompsView(ListAPIView):
@@ -449,7 +467,7 @@ class UnitStarStatsView(APIView):
                 "win_rate": round(stats["win_count"] / games, 3) if games else 0.0,
             })
 
-        return Response({"star_stats": star_result, "item_stats": item_result})
+        return _cc(Response({"star_stats": star_result, "item_stats": item_result}), 60)
 
 
 class ItemStatsView(APIView):
@@ -529,12 +547,12 @@ class ItemStatsView(APIView):
 
         items.sort(key=lambda x: x["avg_placement"])
 
-        return Response({
+        return _cc(Response({
             "unit": unit_name,
             "base_games": base_games,
             "base_avg_placement": base_avg,
             "items": items,
-        })
+        }), 60)
 
 
 class ExploreView(APIView):
@@ -852,7 +870,7 @@ class ExploreView(APIView):
             })
         item_stats.sort(key=lambda x: -x["games"])
 
-        return Response({
+        return _cc(Response({
             "base_games": base_games,
             "base_avg_placement": base_avg,
             "base_top4_rate": base_top4_rate,
@@ -860,7 +878,7 @@ class ExploreView(APIView):
             "unit_stats": unit_stats,
             "unit_count_stats": unit_count_stats,
             "item_stats": item_stats,
-        })
+        }), 30)
 
 
 class HiddenCompsView(APIView):
@@ -945,7 +963,7 @@ class HiddenCompsView(APIView):
             })
 
         if not boards:
-            return Response([])
+            return _cc(Response([]), 60)
 
         unit_cost_map = dict(
             Unit.objects.filter(character_id__in=all_units).values_list("character_id", "cost")
@@ -1065,7 +1083,7 @@ class HiddenCompsView(APIView):
                 ],
             })
 
-        return Response(result)
+        return _cc(Response(result), 60)
 
 
 class CompsView(APIView):
@@ -1472,8 +1490,8 @@ class CompsView(APIView):
 
         result.sort(key=lambda x: (-x["comps"], x["avg_placement"], x["name"]))
         if limit is not None:
-            return Response(result[:limit])
-        return Response(result)
+            return _cc(Response(result[:limit]), 60)
+        return _cc(Response(result), 60)
 
 
 class SearchCompsView(APIView):
@@ -1537,7 +1555,7 @@ class SearchCompsView(APIView):
                 "units": units_out,
             })
 
-        return Response(result)
+        return _cc(Response(result), 30)
 
 
 class PlayerProfileView(APIView):
@@ -1647,7 +1665,7 @@ class PlayerProfileView(APIView):
                 "units": units_out,
             })
 
-        return Response({
+        return _cc(Response({
             "player": {"game_name": player.game_name, "tag_line": player.tag_line},
             "total_games": total_games,
             "avg_placement": round(total_placement / total_games, 2),
@@ -1656,7 +1674,7 @@ class PlayerProfileView(APIView):
             "last_20": last_20,
             "top_units": top_units[:15],
             "match_history": match_history,
-        })
+        }), 60)
 
 
 class PlayerListView(APIView):
@@ -1667,6 +1685,10 @@ class PlayerListView(APIView):
     """
 
     def get(self, request):
+        global _PLAYERS_CACHE, _PLAYERS_CACHE_TS
+        now = time.time()
+        if _PLAYERS_CACHE is not None and (now - _PLAYERS_CACHE_TS) < _CACHE_TTL_SHORT:
+            return _cc(Response(_PLAYERS_CACHE), 300)
         players = Player.objects.filter(puuid__isnull=False).exclude(puuid="")
         result = []
         for p in players:
@@ -1675,7 +1697,9 @@ class PlayerListView(APIView):
                 "tag_line": p.tag_line,
             })
         result.sort(key=lambda x: x["game_name"].lower())
-        return Response(result)
+        _PLAYERS_CACHE = result
+        _PLAYERS_CACHE_TS = now
+        return _cc(Response(result), 300)
 
 
 class PlayerStatsView(APIView):
@@ -1754,16 +1778,22 @@ class PlayerStatsView(APIView):
         else:
             result.sort(key=lambda x: x["avg_placement"])
 
-        return Response(result)
+        return _cc(Response(result), 60)
 
 
 class VersionsView(APIView):
     """GET /api/versions/ — list distinct game versions stored in DB."""
 
     def get(self, request):
-        versions = (
+        global _VERSIONS_CACHE, _VERSIONS_CACHE_TS
+        now = time.time()
+        if _VERSIONS_CACHE is not None and (now - _VERSIONS_CACHE_TS) < _CACHE_TTL_SHORT:
+            return _cc(Response(_VERSIONS_CACHE), 300)
+        versions = list(
             Match.objects.values_list("game_version", flat=True)
             .distinct()
             .order_by("game_version")
         )
-        return Response(list(versions))
+        _VERSIONS_CACHE = versions
+        _VERSIONS_CACHE_TS = now
+        return _cc(Response(versions), 300)

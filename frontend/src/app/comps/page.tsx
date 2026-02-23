@@ -5,7 +5,7 @@ async function fetchCompStats(gameVersion?: string): Promise<CompStat[]> {
   const url = new URL(backendUrl("/api/comps/"));
   if (gameVersion) url.searchParams.set("game_version", gameVersion);
 
-  const res = await fetch(url.toString(), { cache: "no-store" });
+  const res = await fetch(url.toString(), { next: { revalidate: 60 } });
   if (!res.ok) {
     throw new Error(`Failed to fetch composition stats: ${res.status}`);
   }
@@ -14,7 +14,7 @@ async function fetchCompStats(gameVersion?: string): Promise<CompStat[]> {
 
 async function fetchVersions(): Promise<string[]> {
   try {
-    const res = await fetch(backendUrl("/api/versions/"), { cache: "no-store" });
+    const res = await fetch(backendUrl("/api/versions/"), { next: { revalidate: 60 } });
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -24,7 +24,7 @@ async function fetchVersions(): Promise<string[]> {
 
 async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), { cache: "no-store" });
+    const res = await fetch(backendUrl("/api/traits/"), { next: { revalidate: 60 } });
     if (!res.ok) return {};
     return res.json();
   } catch {
