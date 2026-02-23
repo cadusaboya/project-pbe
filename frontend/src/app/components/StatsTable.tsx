@@ -84,6 +84,20 @@ function top4RateColor(rate: number): string {
   return "text-red-400";
 }
 
+function placementBarWidth(avp: number): number {
+  // Map AVP 1-8 to bar width 100%-0%
+  return Math.max(0, Math.min(100, ((8 - avp) / 7) * 100));
+}
+
+function placementBarColor(avp: number): string {
+  if (avp <= 3.0) return "bg-yellow-400/30";
+  if (avp <= 3.5) return "bg-green-400/25";
+  if (avp <= 4.0) return "bg-green-400/15";
+  if (avp <= 4.5) return "bg-tft-muted/15";
+  if (avp <= 5.5) return "bg-orange-400/15";
+  return "bg-red-400/15";
+}
+
 function formatUnit(name: string): string {
   return name.replace(/^TFT\d+_/, "");
 }
@@ -339,7 +353,7 @@ export default function StatsTable({
           <select
             value={selectedVersion}
             onChange={(e) => handleVersionChange(e.target.value)}
-            className="bg-tft-surface border border-tft-border text-tft-text rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent"
+            className="bg-tft-surface border border-tft-border text-tft-text rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-tft-accent transition-colors"
           >
             <option value="">All versions</option>
             {versions.map((v) => (
@@ -347,42 +361,57 @@ export default function StatsTable({
             ))}
           </select>
         )}
-        <input
-          type="text"
-          placeholder="Search unit..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-48"
-        />
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tft-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search unit..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-48 transition-colors"
+          />
+        </div>
         <input
           type="number"
           placeholder="Min games"
           value={minGames}
           onChange={(e) => setMinGames(e.target.value)}
-          className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-32"
+          className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-32 transition-colors"
           min={0}
         />
-        <select
-          value={tierFilter}
-          onChange={(e) => setTierFilter(e.target.value)}
-          className="bg-tft-surface border border-tft-border text-tft-text rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent"
-        >
-          <option value="">All tiers</option>
-          <option value="1">Tier 1</option>
-          <option value="2">Tier 2</option>
-          <option value="3">Tier 3</option>
-          <option value="4">Tier 4</option>
-          <option value="5">Tier 5</option>
-        </select>
-        <span className="text-tft-muted text-sm ml-auto">
-          {matchesAnalyzed.toLocaleString("en-US")} games analyzed
+        <div className="flex gap-1 bg-tft-surface border border-tft-border rounded-lg p-0.5">
+          {[
+            { value: "", label: "All" },
+            { value: "1", label: "1" },
+            { value: "2", label: "2" },
+            { value: "3", label: "3" },
+            { value: "4", label: "4" },
+            { value: "5", label: "5" },
+          ].map((t) => (
+            <button
+              key={t.value}
+              onClick={() => setTierFilter(t.value)}
+              className={`px-2.5 py-1 rounded-md text-sm font-medium transition-all ${
+                tierFilter === t.value
+                  ? "bg-tft-gold/20 text-tft-gold shadow-sm"
+                  : "text-tft-muted hover:text-tft-text"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <span className="text-tft-muted text-sm ml-auto tabular-nums">
+          {filtered.length} units &middot; {matchesAnalyzed.toLocaleString("en-US")} games
         </span>
       </div>
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-tft-border">
         <table className="w-full text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="bg-tft-surface border-b border-tft-border">
               {COLUMNS.map((col) => (
                 <th
@@ -392,14 +421,13 @@ export default function StatsTable({
                     px-4 py-3 text-left font-semibold cursor-pointer select-none
                     text-tft-muted hover:text-tft-text transition-colors
                     ${sortKey === col.key ? "text-tft-gold" : ""}
-                    ${col.key === "unit_name" ? "w-48" : ""}
+                    ${col.key === "unit_name" ? "w-56" : ""}
                   `}
                 >
                   {col.label}
                   <SortIcon active={sortKey === col.key} dir={sortDir} />
                 </th>
               ))}
-              {/* expand chevron column */}
               <th className="w-8" />
             </tr>
           </thead>
@@ -418,43 +446,65 @@ export default function StatsTable({
                 const isExpanded = expandedUnit === row.unit_name;
                 const isLoading = loadingUnit === row.unit_name;
                 const detail = detailCache[`${row.unit_name}__${selectedVersion}`];
-
                 return (
                   <Fragment key={row.unit_name}>
                     <tr
                       onClick={() => handleRowClick(row.unit_name)}
                       className={`
-                        border-b border-tft-border transition-colors cursor-pointer
+                        border-b border-tft-border/60 transition-colors cursor-pointer
                         hover:bg-tft-hover
-                        ${isExpanded ? "bg-tft-hover" : i % 2 === 0 ? "bg-tft-bg" : "bg-tft-surface/40"}
+                        ${isExpanded ? "bg-tft-hover" : i % 2 === 0 ? "bg-tft-bg" : "bg-tft-surface/30"}
                         ${isExpanded ? "" : "last:border-0"}
                       `}
                     >
-                      <td className="px-4 py-3 font-medium text-tft-text">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={unitImageUrl(row.unit_name)}
-                          alt={formatUnit(row.unit_name)}
-                          width={40}
-                          height={40}
-                          className={`w-10 h-10 object-cover rounded-lg border-2 ${costBorderColor(row.cost)}`}
-                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                        />
+                      {/* Unit: image + name + cost tag */}
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={unitImageUrl(row.unit_name)}
+                              alt={formatUnit(row.unit_name)}
+                              width={44}
+                              height={44}
+                              className={`w-11 h-11 object-cover rounded-lg border-2 ${costBorderColor(row.cost)} transition-transform hover:scale-110`}
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
+                            />
+                          </div>
+                          <span className="text-tft-text font-semibold text-sm truncate">
+                            {formatUnit(row.unit_name)}
+                          </span>
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-tft-text tabular-nums">
+                      {/* Frequency */}
+                      <td className="px-4 py-2.5 text-tft-text tabular-nums font-medium">
                         {row.games}
                       </td>
-                      <td className={`px-4 py-3 tabular-nums ${placementColor(row.avg_placement)}`}>
-                        {row.avg_placement.toFixed(2)}
+                      {/* AVP with colored bar */}
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className={`tabular-nums font-semibold ${placementColor(row.avg_placement)}`}>
+                            {row.avg_placement.toFixed(2)}
+                          </span>
+                          <div className="w-16 h-1.5 rounded-full bg-tft-border/50 overflow-hidden hidden sm:block">
+                            <div
+                              className={`h-full rounded-full ${placementBarColor(row.avg_placement)} transition-all`}
+                              style={{ width: `${placementBarWidth(row.avg_placement)}%` }}
+                            />
+                          </div>
+                        </div>
                       </td>
-                      <td className={`px-4 py-3 tabular-nums ${top4RateColor(row.top4_rate)}`}>
+                      {/* Top 4 */}
+                      <td className={`px-4 py-2.5 tabular-nums ${top4RateColor(row.top4_rate)}`}>
                         {(row.top4_rate * 100).toFixed(1)}%
                       </td>
-                      <td className={`px-4 py-3 tabular-nums ${winRateColor(row.win_rate)}`}>
+                      {/* Win % */}
+                      <td className={`px-4 py-2.5 tabular-nums ${winRateColor(row.win_rate)}`}>
                         {(row.win_rate * 100).toFixed(1)}%
                       </td>
-                      <td className="px-2 py-3 text-tft-muted text-center">
-                        <span className={`inline-block transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}>
+                      {/* Expand chevron */}
+                      <td className="px-2 py-2.5 text-tft-muted text-center">
+                        <span className={`inline-block transition-transform duration-200 text-lg ${isExpanded ? "rotate-90" : ""}`}>
                           ›
                         </span>
                       </td>
@@ -471,24 +521,27 @@ export default function StatsTable({
                             <img
                               src={unitImageUrl(row.unit_name)}
                               alt={formatUnit(row.unit_name)}
-                              width={24}
-                              height={24}
-                              className={`w-6 h-6 object-cover rounded border ${costBorderColor(row.cost)}`}
+                              width={28}
+                              height={28}
+                              className={`w-7 h-7 object-cover rounded-md border-2 ${costBorderColor(row.cost)}`}
                               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                             />
-                            <span className="text-tft-text font-semibold text-sm">
+                            <span className="text-tft-text font-semibold">
                               {formatUnit(row.unit_name)}
                             </span>
                           </div>
 
                           {isLoading && (
-                            <p className="text-tft-muted text-sm">Loading...</p>
+                            <div className="flex items-center gap-2 text-tft-muted text-sm">
+                              <div className="w-4 h-4 border-2 border-tft-gold/30 border-t-tft-gold rounded-full animate-spin" />
+                              Loading details...
+                            </div>
                           )}
 
                           {!isLoading && detail && (
                             <div className="flex flex-wrap gap-10">
                               <div>
-                                <p className="text-tft-muted text-xs mb-2">Star Level</p>
+                                <p className="text-tft-muted text-xs mb-2 uppercase tracking-wider font-semibold">Star Level</p>
                                 {detail.star_stats.length > 0
                                   ? <StarStatsTable stats={detail.star_stats} />
                                   : <p className="text-tft-muted text-sm">No data.</p>
@@ -496,7 +549,7 @@ export default function StatsTable({
                               </div>
                               {detail.item_stats.length > 0 && (
                                 <div>
-                                  <p className="text-tft-muted text-xs mb-2">Top Items</p>
+                                  <p className="text-tft-muted text-xs mb-2 uppercase tracking-wider font-semibold">Top Items</p>
                                   <ItemStatsTable stats={detail.item_stats} itemAssets={itemAssets} />
                                 </div>
                               )}

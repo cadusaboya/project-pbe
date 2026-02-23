@@ -71,17 +71,28 @@ function unitImageUrl(characterId: string): string {
 }
 
 function avpTextColor(avp: number): string {
-  if (avp <= 3.5) return "text-green-400";
-  if (avp <= 4.5) return "text-yellow-400";
-  return "text-red-400";
+  if (avp <= 3.2) return "text-emerald-400";
+  if (avp <= 3.7) return "text-teal-400";
+  if (avp <= 4.0) return "text-green-300";
+  if (avp <= 4.4) return "text-amber-300/90";
+  if (avp <= 4.8) return "text-orange-400/80";
+  return "text-rose-400/80";
+}
+
+function compTier(avp: number): { label: string; color: string; bg: string } {
+  if (avp < 3.7) return { label: "S", color: "text-red-400", bg: "bg-red-500/20 border-red-500/40" };
+  if (avp < 4.0) return { label: "A", color: "text-orange-400", bg: "bg-orange-500/20 border-orange-500/40" };
+  if (avp < 4.4) return { label: "B", color: "text-yellow-400", bg: "bg-yellow-500/20 border-yellow-500/40" };
+  if (avp < 4.8) return { label: "C", color: "text-lime-400", bg: "bg-lime-500/20 border-lime-500/40" };
+  return { label: "D", color: "text-slate-400", bg: "bg-slate-500/15 border-slate-500/30" };
 }
 
 
-function UnitChip({ unit, size = 44 }: { unit: CompUnit; size?: number }) {
-  const dim = size === 44 ? "w-11 h-11" : "w-9 h-9";
+function UnitChip({ unit, size = 48 }: { unit: CompUnit; size?: number }) {
+  const dim = size >= 48 ? "w-12 h-12" : size >= 40 ? "w-10 h-10" : "w-9 h-9";
   return (
     <div
-      className={`${dim} rounded-lg border-2 ${costBorderColor(unit.cost)} overflow-hidden shrink-0`}
+      className={`${dim} rounded-lg border-2 ${costBorderColor(unit.cost)} overflow-hidden shrink-0 transition-transform hover:scale-110 hover:z-10`}
       title={formatUnit(unit.character_id)}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -99,23 +110,21 @@ function UnitChip({ unit, size = 44 }: { unit: CompUnit; size?: number }) {
   );
 }
 
-function StatBlock({
+function StatBadge({
   value,
   label,
   valueClass = "text-tft-text",
-  large = false,
 }: {
   value: string;
   label: string;
   valueClass?: string;
-  large?: boolean;
 }) {
   return (
-    <div className="text-right leading-none shrink-0">
-      <div className={`${large ? "text-2xl font-extrabold" : "text-sm font-semibold"} tabular-nums ${valueClass}`}>
+    <div className="flex flex-col items-center px-2">
+      <div className={`text-sm font-bold tabular-nums ${valueClass}`}>
         {value}
       </div>
-      <div className="text-[10px] uppercase tracking-wide text-tft-muted mt-1">{label}</div>
+      <div className="text-[9px] uppercase tracking-wider text-tft-muted">{label}</div>
     </div>
   );
 }
@@ -147,7 +156,7 @@ function CompCard({ comp, onExplore }: { comp: CompStat; onExplore?: (comp: Comp
     >
       {/* Clickable header */}
       <div
-        className="px-4 py-3.5 cursor-pointer select-none hover:bg-tft-hover transition-colors"
+        className="px-4 py-3.5 cursor-pointer select-none hover:bg-tft-hover/50 transition-colors"
         onClick={() => setExpanded((v) => !v)}
       >
         {/* Row 1: name + meta tags + explore button */}
@@ -180,41 +189,50 @@ function CompCard({ comp, onExplore }: { comp: CompStat; onExplore?: (comp: Comp
         )}
 
         {/* Row 2: units + stats */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Core units */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {comp.core_units.map((u) => (
-              <UnitChip key={u.character_id} unit={u} />
-            ))}
-          </div>
-
-          {/* Flex suggestion */}
-          {suggestedFlex && (
-            <div className="flex items-center gap-1.5 shrink-0">
-              <div className="flex flex-col items-center px-0.5 select-none">
-                <span className="text-tft-muted/50 text-base leading-none">+</span>
-                <span className="text-[8px] uppercase tracking-widest text-tft-muted/40 leading-none mt-0.5">
-                  flex
-                </span>
-              </div>
-              {suggestedFlex.units.map((u) => (
-                <UnitChip key={`suggest-${u.character_id}`} unit={u} />
+        <div className="flex items-center gap-3">
+          {/* Units section — fills remaining space */}
+          <div className="flex items-center gap-3 flex-1 min-w-0 flex-wrap">
+            {/* Core units */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {comp.core_units.map((u) => (
+                <UnitChip key={u.character_id} unit={u} />
               ))}
             </div>
-          )}
 
-          {/* Stats pushed to the right */}
-          <div className="ml-auto flex items-center gap-5 shrink-0">
-            <StatBlock value={String(comp.comps)} label="Frequency" />
-            <StatBlock value={`${winRate.toFixed(1)}%`} label="Win%" />
-            <StatBlock value={`${top4Rate.toFixed(1)}%`} label="Top 4%" />
-            <StatBlock
-              value={comp.avg_placement.toFixed(2)}
-              label="AVP"
-              valueClass={avpTextColor(comp.avg_placement)}
-              large
-            />
-            <span className="text-tft-muted text-[11px] w-3 shrink-0">
+            {/* Flex suggestion */}
+            {suggestedFlex && (
+              <div className="flex items-center gap-1 shrink-0">
+                <div className="w-px h-8 bg-tft-border/50 mx-1" />
+                <span className="text-[9px] uppercase tracking-widest text-tft-muted/50 mr-0.5">
+                  flex
+                </span>
+                {suggestedFlex.units.map((u) => (
+                  <UnitChip key={`suggest-${u.character_id}`} unit={u} size={40} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Stats — fixed width so all cards align */}
+          <div className="flex items-center gap-1 shrink-0 w-[340px] justify-end">
+            {/* Tier badge */}
+            <span className={`inline-flex items-center justify-center w-7 h-7 rounded-md border text-xs font-bold ${compTier(comp.avg_placement).color} ${compTier(comp.avg_placement).bg} mr-1`}>
+              {compTier(comp.avg_placement).label}
+            </span>
+            {/* AVP */}
+            <div className="flex flex-col items-center w-14">
+              <div className={`text-xl font-semibold tabular-nums leading-none ${avpTextColor(comp.avg_placement)}`}>
+                {comp.avg_placement.toFixed(2)}
+              </div>
+              <div className="text-[9px] uppercase tracking-wider text-tft-muted mt-0.5">AVP</div>
+            </div>
+            <div className="w-px h-6 bg-tft-border/40" />
+            <div className="w-14"><StatBadge value={String(comp.comps)} label="Freq" /></div>
+            <div className="w-px h-6 bg-tft-border/40" />
+            <div className="w-14"><StatBadge value={`${winRate.toFixed(1)}%`} label="Win" /></div>
+            <div className="w-px h-6 bg-tft-border/40" />
+            <div className="w-14"><StatBadge value={`${top4Rate.toFixed(1)}%`} label="Top 4" /></div>
+            <span className="text-tft-muted text-[11px] w-3 shrink-0 ml-1">
               {expanded ? "▲" : "▼"}
             </span>
           </div>
@@ -231,22 +249,24 @@ function CompCard({ comp, onExplore }: { comp: CompStat; onExplore?: (comp: Comp
           ) : (
             <div className="divide-y divide-tft-border/40">
               {comp.flex_combos.map((flex, idx) => (
-                <div key={idx} className="px-4 py-2.5 flex items-center gap-3">
-                  <span className="text-[11px] text-tft-muted w-14 shrink-0 tabular-nums">
+                <div key={idx} className="px-4 py-2.5 flex items-center gap-3 hover:bg-tft-hover/30 transition-colors">
+                  <span className="text-[11px] text-tft-muted w-8 shrink-0 tabular-nums font-medium">
                     #{idx + 1}
                   </span>
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-1">
                     {flex.units.map((u) => (
                       <UnitChip key={`${idx}-${u.character_id}`} unit={u} size={36} />
                     ))}
                   </div>
-                  <div className="ml-auto flex items-center gap-4 shrink-0">
-                    <StatBlock value={String(flex.comps)} label="Frequency" />
-                    <StatBlock
-                      value={flex.avg_placement.toFixed(2)}
-                      label="AVP"
-                      valueClass={avpTextColor(flex.avg_placement)}
-                    />
+                  <div className="ml-auto flex items-center gap-3 shrink-0">
+                    <StatBadge value={String(flex.comps)} label="Freq" />
+                    <div className="w-px h-5 bg-tft-border/40" />
+                    <div className="flex flex-col items-center px-1">
+                      <div className={`text-base font-bold tabular-nums ${avpTextColor(flex.avg_placement)}`}>
+                        {flex.avg_placement.toFixed(2)}
+                      </div>
+                      <div className="text-[9px] uppercase tracking-wider text-tft-muted">AVP</div>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -408,7 +428,7 @@ export default function CompsList({
           <select
             value={selectedVersion}
             onChange={(e) => handleVersionChange(e.target.value)}
-            className="bg-tft-surface border border-tft-border text-tft-text rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent"
+            className="bg-tft-surface border border-tft-border text-tft-text rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-tft-accent transition-colors"
           >
             <option value="">All versions</option>
             {versions.map((v) => (
@@ -421,7 +441,7 @@ export default function CompsList({
           <select
             value={selectedCoreSizes}
             onChange={(e) => handleCoreSizesChange(e.target.value)}
-            className="bg-tft-surface border border-tft-border text-tft-text rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent"
+            className="bg-tft-surface border border-tft-border text-tft-text rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-tft-accent transition-colors"
           >
             <option value="2">Core 2</option>
             <option value="3">Core 3</option>
@@ -442,26 +462,31 @@ export default function CompsList({
             min={1}
             value={selectedMinOccurrences}
             onChange={(e) => handleMinOccurrencesChange(e.target.value)}
-            className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-36"
+            className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-36 transition-colors"
             placeholder="Min occurrences"
             title="Min occurrences"
           />
         )}
 
-        <input
-          type="text"
-          placeholder="Search comp or unit..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-56"
-        />
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tft-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search comp or unit..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-56 transition-colors"
+          />
+        </div>
 
         {/* Sort buttons */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 bg-tft-surface border border-tft-border rounded-lg p-0.5">
           {(
             [
               { key: "avg_placement", label: "AVP" },
-              { key: "comps",         label: "Frequency" },
+              { key: "comps",         label: "Freq" },
               { key: "win_rate",      label: "Win%" },
               { key: "top4_rate",     label: "Top 4%" },
             ] as { key: SortKey; label: string }[]
@@ -472,10 +497,10 @@ export default function CompsList({
               <button
                 key={key}
                 onClick={() => handleSort(key)}
-                className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
                   active
-                    ? "bg-tft-accent/20 border border-tft-accent text-tft-text"
-                    : "bg-tft-surface border border-tft-border text-tft-muted hover:text-tft-text hover:border-tft-accent/50"
+                    ? "bg-tft-gold/20 text-tft-gold shadow-sm"
+                    : "text-tft-muted hover:text-tft-text"
                 }`}
               >
                 {label}{arrow}
@@ -484,7 +509,7 @@ export default function CompsList({
           })}
         </div>
 
-        <span className="text-tft-muted text-sm ml-auto">{filtered.length} comps</span>
+        <span className="text-tft-muted text-sm ml-auto tabular-nums">{filtered.length} comps</span>
       </div>
 
       {/* List */}
