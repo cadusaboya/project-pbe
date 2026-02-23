@@ -328,10 +328,10 @@ function Last20Chart({ games }: { games: Last20Entry[] }) {
   const chronological = [...games].reverse();
 
   const placementColors = (p: number) => {
-    if (p === 1) return "bg-yellow-400/20 border-yellow-400/60 text-yellow-300";
-    if (p <= 4) return "bg-green-500/20 border-green-500/50 text-green-400";
-    if (p <= 6) return "bg-tft-surface border-tft-border text-tft-muted";
-    return "bg-red-500/15 border-red-500/40 text-red-400";
+    if (p === 1) return "bg-yellow-600/80 border-yellow-700 text-white";
+    if (p <= 4) return "bg-teal-700/80 border-teal-800 text-white";
+    if (p <= 6) return "bg-slate-700/80 border-slate-800 text-white/80";
+    return "bg-rose-800/80 border-rose-900 text-white/80";
   };
 
   // Split into rows of 10
@@ -347,7 +347,7 @@ function Last20Chart({ games }: { games: Last20Entry[] }) {
           {row.map((g, i) => (
             <div
               key={i}
-              className={`w-8 h-8 rounded border flex items-center justify-center text-xs font-bold ${placementColors(g.placement)}`}
+              className={`w-7 h-7 rounded border flex items-center justify-center text-xs font-bold ${placementColors(g.placement)}`}
               title={`#${g.placement} — ${formatDate(g.game_datetime)}`}
             >
               {g.placement}
@@ -417,7 +417,7 @@ function MatchRow({
           </span>
 
           {/* Center: traits + units */}
-          <div className="flex flex-col gap-1 flex-1 min-w-0">
+          <div className="flex flex-col gap-2.5 flex-1 min-w-0">
             <TraitChips units={match.units} traitData={traitData} />
             <div className="flex flex-wrap gap-1">
               {match.units
@@ -465,7 +465,7 @@ function MatchRow({
                     >
                       {displayPlayerName(participant.name)}
                     </a>
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-2.5">
                       <TraitChips units={participant.units} traitData={traitData} />
                       <div className="flex flex-wrap gap-1">
                         {participant.units
@@ -521,22 +521,26 @@ export default function PlayerProfile({
             <StatCard
               label="AVP"
               value={avg_placement.toFixed(2)}
-              color={avg_placement <= 4 ? "text-green-400" : avg_placement <= 5 ? "text-yellow-400" : "text-red-400"}
+              color={avg_placement <= 3.5 ? "text-teal-400" : avg_placement <= 4 ? "text-cyan-400" : avg_placement <= 4.5 ? "text-slate-300" : "text-rose-400/70"}
+              accent={avg_placement <= 3.5 ? "bg-teal-400" : avg_placement <= 4 ? "bg-cyan-400" : avg_placement <= 4.5 ? "bg-slate-400" : "bg-rose-400"}
             />
             <StatCard
               label="Win Rate"
               value={`${(win_rate * 100).toFixed(1)}%`}
-              color={win_rate >= 0.15 ? "text-green-400" : win_rate >= 0.10 ? "text-yellow-400" : "text-tft-text"}
+              color={win_rate >= 0.15 ? "text-teal-400" : win_rate >= 0.10 ? "text-cyan-400" : "text-tft-muted"}
+              accent={win_rate >= 0.15 ? "bg-teal-400" : win_rate >= 0.10 ? "bg-cyan-400" : "bg-tft-muted"}
             />
             <StatCard
               label="Top 4"
               value={`${(top4_rate * 100).toFixed(1)}%`}
-              color={top4_rate >= 0.5 ? "text-green-400" : top4_rate >= 0.4 ? "text-yellow-400" : "text-tft-text"}
+              color={top4_rate >= 0.5 ? "text-teal-400" : top4_rate >= 0.4 ? "text-cyan-400" : "text-tft-muted"}
+              accent={top4_rate >= 0.5 ? "bg-teal-400" : top4_rate >= 0.4 ? "bg-cyan-400" : "bg-tft-muted"}
             />
             <StatCard
               label="Games"
               value={total_games.toString()}
               color="text-tft-text"
+              accent="bg-tft-gold"
             />
           </div>
         </div>
@@ -545,7 +549,7 @@ export default function PlayerProfile({
       {/* ── Sidebar + Match History ── */}
       <div className="flex flex-col lg:flex-row gap-4">
         {/* Left sidebar: Last 20 + Most Played stacked */}
-        <div className="lg:w-[400px] shrink-0 space-y-4">
+        <div className="lg:w-[350px] shrink-0 space-y-4">
           {last_20.length > 0 && (
             <div className="border border-tft-border rounded-xl bg-tft-surface/60 p-4">
               <h2 className="text-sm font-semibold text-tft-text mb-2">Last {last_20.length} Games</h2>
@@ -555,7 +559,11 @@ export default function PlayerProfile({
 
           {top_units.length > 0 && (
             <div className="border border-tft-border rounded-xl bg-tft-surface/60 p-4">
-              <h2 className="text-sm font-semibold text-tft-text mb-2">Most Played</h2>
+              <div className="flex items-center mb-2 px-2 gap-2">
+                <h2 className="text-sm font-semibold text-tft-text flex-1 min-w-0">Most Played</h2>
+                <span className="text-[10px] text-tft-muted font-medium uppercase tracking-wide w-10 text-right shrink-0">AVP</span>
+                <span className="text-[10px] text-tft-muted font-medium uppercase tracking-wide w-16 text-right shrink-0">Top4%</span>
+              </div>
               <div className="space-y-1">
                 {top_units.slice(0, 8).map((unit) => (
                   <TopUnitRow key={unit.character_id} unit={unit} totalGames={total_games} />
@@ -601,35 +609,46 @@ function StatCard({
   label,
   value,
   color,
+  accent,
 }: {
   label: string;
   value: string;
   color: string;
+  accent: string;
 }) {
   return (
-    <div className="bg-tft-bg/60 border border-tft-border rounded-lg px-4 py-3 text-center">
-      <p className="text-tft-muted text-xs font-medium uppercase tracking-wide">{label}</p>
-      <p className={`text-2xl font-bold mt-0.5 ${color}`}>{value}</p>
+    <div className="bg-tft-bg/60 border border-tft-border rounded-lg overflow-hidden text-center">
+      <div className={`h-0.5 ${accent}`} />
+      <div className="px-4 py-3">
+        <p className="text-tft-muted text-xs font-medium uppercase tracking-wide">{label}</p>
+        <p className={`text-2xl font-bold mt-0.5 ${color}`}>{value}</p>
+      </div>
     </div>
   );
 }
 
 function TopUnitRow({ unit, totalGames }: { unit: TopUnit; totalGames: number }) {
-  const playRate = ((unit.games / totalGames) * 100).toFixed(0);
+  const playRate = (unit.games / totalGames) * 100;
+  const avpCol = unit.avg_placement <= 3.5 ? "text-teal-400" : unit.avg_placement <= 4 ? "text-cyan-400" : unit.avg_placement <= 4.5 ? "text-slate-300" : "text-rose-400/70";
 
   return (
-    <div className="flex items-center gap-2 py-1">
+    <div className="flex items-center gap-2 py-1.5 px-2 rounded">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={unitImageUrl(unit.character_id)}
         alt={formatUnit(unit.character_id)}
-        className={`w-7 h-7 rounded border-2 ${costColor(unit.cost)} object-cover shrink-0`}
+        className={`w-8 h-8 rounded border-2 ${costColor(unit.cost)} object-cover shrink-0`}
         onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
       />
-      <span className="text-xs text-tft-text truncate flex-1 min-w-0">{formatUnit(unit.character_id)}</span>
-      <span className="text-[11px] text-tft-muted shrink-0">{unit.games} ({playRate}%)</span>
-      <span className={`text-xs font-bold shrink-0 w-10 text-right ${unit.avg_placement <= 4 ? "text-green-400" : unit.avg_placement <= 5 ? "text-yellow-300" : "text-red-400"}`}>
+      <div className="flex-1 min-w-0">
+        <span className="text-xs font-medium text-tft-text truncate block">{formatUnit(unit.character_id)}</span>
+        <span className="text-[10px] text-tft-muted">{unit.games} games · {playRate.toFixed(0)}%</span>
+      </div>
+      <span className={`text-xs font-semibold tabular-nums shrink-0 w-10 text-right ${avpCol}`}>
         {unit.avg_placement.toFixed(2)}
+      </span>
+      <span className="text-[10px] text-tft-muted tabular-nums shrink-0 w-16 text-right">
+        {(unit.top4_rate * 100).toFixed(0)}%
       </span>
     </div>
   );
