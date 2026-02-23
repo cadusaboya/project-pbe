@@ -29,6 +29,16 @@ async function fetchVersions(): Promise<string[]> {
   }
 }
 
+async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
+  try {
+    const res = await fetch(backendUrl("/api/traits/"), { cache: "no-store" });
+    if (!res.ok) return {};
+    return res.json();
+  } catch {
+    return {};
+  }
+}
+
 export default async function HiddenCompsPage({
   searchParams,
 }: {
@@ -41,12 +51,14 @@ export default async function HiddenCompsPage({
   } = await searchParams;
   let data: CompStat[] = [];
   let versions: string[] = [];
+  let traitData: Record<string, { breakpoints: number[]; icon: string }> = {};
   let error: string | null = null;
 
   try {
-    [data, versions] = await Promise.all([
+    [data, versions, traitData] = await Promise.all([
       fetchHiddenCompStats(gameVersion, coreSizes, minOccurrences),
       fetchVersions(),
+      fetchTraits(),
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";
@@ -77,6 +89,7 @@ export default async function HiddenCompsPage({
           showHiddenFilters
           selectedCoreSizes={coreSizes}
           selectedMinOccurrences={minOccurrences}
+          traitData={traitData}
         />
       )}
     </div>

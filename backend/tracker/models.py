@@ -97,7 +97,7 @@ class Comp(models.Model):
     required_unit_star_levels = models.JSONField(default=dict)
     required_unit_item_counts = models.JSONField(default=dict)
     required_trait_breakpoints = models.JSONField(default=dict)
-    max_trait_counts = models.JSONField(default=dict)
+    excluded_traits = models.JSONField(default=dict)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

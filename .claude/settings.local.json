@@ -14,7 +14,10 @@
       "Bash(do echo \"=== Checking $dir ===\" grep -r \"português\\\\|não\\\\|sim\\\\|código\\\\|descrição\\\\|função\" \"$dir\" --include=\"*.py\")",
       "Bash(done)",
       "Bash(pip install:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(find:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx next build:*)"
     ]
   }
 }

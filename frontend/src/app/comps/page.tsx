@@ -22,6 +22,16 @@ async function fetchVersions(): Promise<string[]> {
   }
 }
 
+async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
+  try {
+    const res = await fetch(backendUrl("/api/traits/"), { cache: "no-store" });
+    if (!res.ok) return {};
+    return res.json();
+  } catch {
+    return {};
+  }
+}
+
 export default async function CompsPage({
   searchParams,
 }: {
@@ -30,12 +40,14 @@ export default async function CompsPage({
   const { game_version: gameVersion } = await searchParams;
   let data: CompStat[] = [];
   let versions: string[] = [];
+  let traitData: Record<string, { breakpoints: number[]; icon: string }> = {};
   let error: string | null = null;
 
   try {
-    [data, versions] = await Promise.all([
+    [data, versions, traitData] = await Promise.all([
       fetchCompStats(gameVersion),
       fetchVersions(),
+      fetchTraits(),
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";
@@ -68,6 +80,7 @@ export default async function CompsPage({
           selectedVersion={gameVersion ?? ""}
           basePath="/comps"
           showCompMeta={false}
+          traitData={traitData}
         />
       )}
     </div>

@@ -24,6 +24,7 @@ from django.core.management.base import BaseCommand
 CDRAGON_URL = "https://raw.communitydragon.org/pbe/cdragon/tft/en_us.json"
 CDRAGON_BASE = "https://raw.communitydragon.org/pbe/game"
 OUTPUT_FILE = Path(settings.BASE_DIR) / "item_assets.json"
+NAMES_FILE = Path(settings.BASE_DIR) / "item_names.json"
 
 
 def icon_to_url(icon_path: str) -> str:
@@ -57,15 +58,20 @@ class Command(BaseCommand):
         self.stdout.write(f"Found {len(items)} items in CDragon data.")
 
         mapping: dict[str, str] = {}
+        names: dict[str, str] = {}
         for item in items:
             api_name: str = item.get("apiName", "")
             icon: str = item.get("icon", "")
+            name: str = item.get("name", "")
             if api_name and icon:
                 mapping[api_name] = icon_to_url(icon)
+            if api_name and name:
+                names[api_name] = name
 
         OUTPUT_FILE.write_text(json.dumps(mapping, indent=2), encoding="utf-8")
+        NAMES_FILE.write_text(json.dumps(names, indent=2), encoding="utf-8")
         self.stdout.write(
             self.style.SUCCESS(
-                f"Saved {len(mapping)} item mappings to {OUTPUT_FILE}"
+                f"Saved {len(mapping)} item assets + {len(names)} item names"
             )
         )

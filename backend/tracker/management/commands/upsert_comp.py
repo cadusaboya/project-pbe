@@ -109,12 +109,13 @@ class Command(BaseCommand):
             ),
         )
         parser.add_argument(
-            "--max-trait-counts",
+            "--exclude-traits",
             type=str,
             default="",
             help=(
-                "Comma-separated trait:max_units rules. "
-                "Example: --max-trait-counts 'Noxus:3'"
+                "Comma-separated trait:threshold rules. Boards where the trait "
+                "reaches >= threshold active units are excluded. "
+                "Example: --exclude-traits 'Noxus:3' (excludes boards with 3+ Noxus)"
             ),
         )
 
@@ -131,7 +132,7 @@ class Command(BaseCommand):
         require_unit_counts_raw = (options.get("require_unit_counts") or "").strip()
         require_unit_stars_raw = (options.get("require_unit_stars") or "").strip()
         require_trait_breakpoints_raw = (options.get("require_trait_breakpoints") or "").strip()
-        max_trait_counts_raw = (options.get("max_trait_counts") or "").strip()
+        exclude_traits_raw = (options.get("exclude_traits") or "").strip()
 
         if not name:
             raise CommandError("--name cannot be empty.")
@@ -293,24 +294,24 @@ class Command(BaseCommand):
                     ) from exc
                 required_trait_breakpoints[trait_name] = min_units
 
-        max_trait_counts: dict[str, int] = {}
-        if max_trait_counts_raw:
-            for raw_rule in [r.strip() for r in max_trait_counts_raw.split(",") if r.strip()]:
+        excluded_traits: dict[str, int] = {}
+        if exclude_traits_raw:
+            for raw_rule in [r.strip() for r in exclude_traits_raw.split(",") if r.strip()]:
                 if ":" not in raw_rule:
                     raise CommandError(
-                        f"Invalid max-trait-counts rule '{raw_rule}'. Use Trait:Count format."
+                        f"Invalid exclude-traits rule '{raw_rule}'. Use Trait:Threshold format."
                     )
                 raw_trait, raw_count = raw_rule.split(":", 1)
                 trait_name = raw_trait.strip()
                 if not trait_name:
                     raise CommandError(f"Trait name cannot be empty in '{raw_rule}'.")
                 try:
-                    max_units = max(0, int(raw_count.strip()))
+                    threshold = max(1, int(raw_count.strip()))
                 except ValueError as exc:
                     raise CommandError(
-                        f"Invalid max count in rule '{raw_rule}'. Must be integer."
+                        f"Invalid threshold in rule '{raw_rule}'. Must be integer."
                     ) from exc
-                max_trait_counts[trait_name] = max_units
+                excluded_traits[trait_name] = threshold
 
         comp, created = Comp.objects.update_or_create(
             name=name,
@@ -324,7 +325,7 @@ class Command(BaseCommand):
                 "required_unit_star_levels": required_unit_star_levels,
                 "required_unit_item_counts": required_unit_item_counts,
                 "required_trait_breakpoints": required_trait_breakpoints,
-                "max_trait_counts": max_trait_counts,
+                "excluded_traits": excluded_traits,
                 "is_active": is_active,
             },
         )
@@ -362,11 +363,11 @@ class Command(BaseCommand):
                 f"{k}:{v}" for k, v in comp.required_trait_breakpoints.items()
             )
             self.stdout.write(f"Required trait breakpoints: {pretty}")
-        if comp.max_trait_counts:
+        if comp.excluded_traits:
             pretty = ", ".join(
-                f"{k}:{v}" for k, v in comp.max_trait_counts.items()
+                f"{k}:{v}" for k, v in comp.excluded_traits.items()
             )
-            self.stdout.write(f"Max trait counts: {pretty}")
+            self.stdout.write(f"Excluded traits: {pretty}")
         self.stdout.write(f"Active: {comp.is_active}")
 
         if unresolved:

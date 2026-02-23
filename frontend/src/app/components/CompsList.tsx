@@ -31,7 +31,17 @@ export interface CompStat {
   win_rate?: number;
   top4_rate?: number;
   flex_combos: FlexCombo[];
+  // Constraint fields
+  excluded_units?: string[];
+  required_traits?: string[];
+  excluded_unit_counts?: Record<string, number>;
+  required_unit_star_levels?: Record<string, number>;
+  required_unit_item_counts?: Record<string, number>;
+  required_trait_breakpoints?: Record<string, number>;
+  excluded_traits?: Record<string, number>;
 }
+
+type TraitData = Record<string, { breakpoints: number[]; icon: string }>;
 
 const COST_COLORS: Record<number, string> = {
   1: "border-gray-500",
@@ -118,7 +128,7 @@ function MetaTag({ children }: { children: React.ReactNode }) {
   );
 }
 
-function CompCard({ comp }: { comp: CompStat }) {
+function CompCard({ comp, onExplore }: { comp: CompStat; onExplore?: (comp: CompStat) => void }) {
   const [expanded, setExpanded] = useState(false);
   const suggestedFlex = comp.flex_combos[0];
   const winRate = (comp.win_rate ?? 0) * 100;
@@ -140,8 +150,8 @@ function CompCard({ comp }: { comp: CompStat }) {
         className="px-4 py-3.5 cursor-pointer select-none hover:bg-tft-hover transition-colors"
         onClick={() => setExpanded((v) => !v)}
       >
-        {/* Row 1: name + meta tags */}
-        {hasMeta && (
+        {/* Row 1: name + meta tags + explore button */}
+        {(hasMeta || onExplore) && (
           <div className="flex items-center gap-2 flex-wrap mb-2.5">
             {comp.name && (
               <span className="text-base font-bold text-tft-text leading-none">{comp.name}</span>
@@ -158,6 +168,14 @@ function CompCard({ comp }: { comp: CompStat }) {
                 {formatTrait(t.name)} {t.units}
               </MetaTag>
             ))}
+            {onExplore && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onExplore(comp); }}
+                className="ml-auto text-xs text-tft-muted hover:text-tft-accent border border-tft-border hover:border-tft-accent/50 rounded px-2 py-0.5 transition-colors shrink-0"
+              >
+                Explore →
+              </button>
+            )}
           </div>
         )}
 
@@ -249,6 +267,7 @@ export default function CompsList({
   showHiddenFilters = false,
   selectedCoreSizes = "4,5,6",
   selectedMinOccurrences = "100",
+  traitData = {},
 }: {
   data: CompStat[];
   versions: string[];
@@ -258,6 +277,7 @@ export default function CompsList({
   showHiddenFilters?: boolean;
   selectedCoreSizes?: string;
   selectedMinOccurrences?: string;
+  traitData?: TraitData;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -287,6 +307,67 @@ export default function CompsList({
     if (v) params.set("core_sizes", v);
     else params.delete("core_sizes");
     pushParams(params);
+  }
+
+  function handleExploreComp(comp: CompStat) {
+    const params = new URLSearchParams();
+    if (selectedVersion) params.set("game_version", selectedVersion);
+
+    // Count each unit (core_units already expands multi-copy units)
+    const unitCounts = new Map<string, number>();
+    for (const u of comp.core_units) {
+      unitCounts.set(u.character_id, (unitCounts.get(u.character_id) ?? 0) + 1);
+    }
+    for (const [charId, count] of unitCounts) {
+      params.append("require_unit", charId);
+      if (count > 1) params.append("require_unit_count", `${charId}:${count}`);
+    }
+
+    // target_level → player_level
+    if (comp.target_level) params.append("player_level", String(comp.target_level));
+
+    // excluded_units → ban_unit
+    for (const u of comp.excluded_units ?? []) {
+      params.append("ban_unit", u);
+    }
+
+    // required_traits + required_trait_breakpoints → require_trait (snapped to real breakpoints)
+    const breakpointTraitsLower = new Set(
+      Object.keys(comp.required_trait_breakpoints ?? {}).map((t) => t.toLowerCase())
+    );
+    for (const t of comp.required_traits ?? []) {
+      if (breakpointTraitsLower.has(t.toLowerCase())) continue;
+      const bps = traitData[t]?.breakpoints ?? [];
+      if (bps.length > 0) params.append("require_trait", `${t}:${Math.min(...bps)}`);
+    }
+    for (const [trait, minUnits] of Object.entries(comp.required_trait_breakpoints ?? {})) {
+      const bps = traitData[trait]?.breakpoints ?? [];
+      const validBps = bps.filter((bp) => bp <= minUnits);
+      const snapped = validBps.length > 0 ? Math.max(...validBps) : bps.length > 0 ? Math.min(...bps) : minUnits;
+      params.append("require_trait", `${trait}:${snapped}`);
+    }
+
+    // excluded_unit_counts → exclude_unit_count
+    for (const [unit, minCount] of Object.entries(comp.excluded_unit_counts ?? {})) {
+      params.append("exclude_unit_count", `${unit}:${minCount}`);
+    }
+
+    // required_unit_star_levels → require_unit_star
+    for (const [unit, minStar] of Object.entries(comp.required_unit_star_levels ?? {})) {
+      params.append("require_unit_star", `${unit}:${minStar}`);
+    }
+
+    // required_unit_item_counts → require_unit_item_count
+    for (const [unit, minItems] of Object.entries(comp.required_unit_item_counts ?? {})) {
+      params.append("require_unit_item_count", `${unit}:${minItems}`);
+    }
+
+    // excluded_traits → exclude_trait
+    for (const [trait, threshold] of Object.entries(comp.excluded_traits ?? {})) {
+      params.append("exclude_trait", `${trait}:${threshold}`);
+    }
+
+    router.push(`/explore?${params.toString()}`);
   }
 
   function handleMinOccurrencesChange(v: string) {
@@ -416,6 +497,7 @@ export default function CompsList({
           {filtered.map((comp, i) => (
             <CompCard
               key={`${i}-${comp.core_units.map((u) => u.character_id).join("|")}`}
+              onExplore={handleExploreComp}
               comp={{
                 ...comp,
                 target_level: showCompMeta ? comp.target_level : undefined,

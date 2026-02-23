@@ -32,7 +32,8 @@ function formatUnit(id: string): string {
   return id.replace(/^TFT\d+_/, "");
 }
 
-function formatItem(id: string): string {
+function formatItem(id: string, itemNames?: Record<string, string>): string {
+  if (itemNames?.[id]) return itemNames[id];
   return id
     .replace(/^TFT\d+_Item_/, "")
     .replace(/^TFT_Item_/, "")
@@ -62,15 +63,6 @@ function itemImageUrl(itemId: string): string {
     return `https://raw.communitydragon.org/pbe/game/assets/maps/particles/tft/item_icons/standard/${name}.png`;
   }
   return "";
-}
-
-function regionFromMatchId(matchId: string): string {
-  return matchId.split("_")[0].toLowerCase();
-}
-
-function metaTftPlayerUrl(matchId: string, winner: string): string {
-  const region = regionFromMatchId(matchId);
-  return `https://www.metatft.com/player/${region}/${encodeURIComponent(winner)}`;
 }
 
 function formatDate(iso: string): string {
@@ -229,9 +221,11 @@ function StarLevel({ level }: { level: number }) {
 function UnitChip({
   unit,
   itemAssets,
+  itemNames,
 }: {
   unit: WinningUnit;
   itemAssets: Record<string, string>;
+  itemNames?: Record<string, string>;
 }) {
   const border = costColor(unit.cost);
   const traitTitle = unit.traits.length
@@ -267,8 +261,8 @@ function UnitChip({
               <img
                 key={i}
                 src={src}
-                alt={formatItem(item)}
-                title={formatItem(item)}
+                alt={formatItem(item, itemNames)}
+                title={formatItem(item, itemNames)}
                 width={16}
                 height={16}
                 className="w-4 h-4 rounded object-cover"
@@ -285,10 +279,12 @@ function UnitChip({
 function CompCard({
   comp,
   itemAssets,
+  itemNames,
   traitData,
 }: {
   comp: WinningComp;
   itemAssets: Record<string, string>;
+  itemNames?: Record<string, string>;
   traitData: Record<string, TraitInfo>;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -322,9 +318,13 @@ function CompCard({
       >
         <div className="flex items-start justify-between gap-2">
           <div>
-            <span className="text-tft-gold font-semibold">
+            <a
+              href={`/player/${encodeURIComponent(comp.winner.split("#")[0])}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-tft-gold font-semibold hover:underline"
+            >
               #1 {displayPlayerName(comp.winner)}
-            </span>
+            </a>
             <div className="text-tft-muted text-xs mt-0.5 flex flex-wrap items-center gap-1.5">
               {formatDate(comp.game_datetime)}
               {comp.game_version && (
@@ -337,14 +337,12 @@ function CompCard({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <a
-              href={metaTftPlayerUrl(comp.match_id, comp.winner)}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={`/player/${encodeURIComponent(comp.winner.split("#")[0])}`}
               onClick={(e) => e.stopPropagation()}
               className="text-xs px-2 py-0.5 rounded bg-tft-surface border border-tft-border text-tft-muted hover:text-tft-text hover:border-tft-accent transition-colors"
-              title="View player profile on MetaTFT"
+              title="View player stats"
             >
-              MetaTFT ↗
+              Player Stats
             </a>
             <span className="text-tft-muted text-xs">
               {expanded ? "▲" : "▼"}
@@ -356,7 +354,7 @@ function CompCard({
             .slice()
             .sort((a, b) => b.cost - a.cost || b.star_level - a.star_level)
             .map((unit, i) => (
-              <UnitChip key={i} unit={unit} itemAssets={itemAssets} />
+              <UnitChip key={i} unit={unit} itemAssets={itemAssets} itemNames={itemNames} />
             ))}
         </div>
       </div>
@@ -388,9 +386,13 @@ function CompCard({
                   >
                     #{participant.placement}
                   </span>
-                  <span className="text-tft-text text-sm w-40 truncate shrink-0">
+                  <a
+                    href={`/player/${encodeURIComponent(participant.name.split("#")[0])}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-tft-text text-sm w-40 truncate shrink-0 hover:text-tft-gold transition-colors"
+                  >
                     {displayPlayerName(participant.name)}
-                  </span>
+                  </a>
                   <div className="flex flex-col gap-1.5">
                     <TraitChips units={participant.units} traitData={traitData} />
                     <div className="flex flex-wrap gap-1">
@@ -402,6 +404,7 @@ function CompCard({
                             key={j}
                             unit={unit}
                             itemAssets={itemAssets}
+                            itemNames={itemNames}
                           />
                         ))}
                     </div>
@@ -418,12 +421,14 @@ function CompCard({
 export default function WinningCompsList({
   data,
   itemAssets,
+  itemNames,
   versions,
   selectedVersion,
   traitData,
 }: {
   data: WinningComp[];
   itemAssets: Record<string, string>;
+  itemNames?: Record<string, string>;
   versions: string[];
   selectedVersion: string;
   traitData: Record<string, TraitInfo>;
@@ -506,7 +511,7 @@ export default function WinningCompsList({
       ) : (
         <div className="grid gap-4">
           {filtered.map((comp) => (
-            <CompCard key={comp.match_id} comp={comp} itemAssets={itemAssets} traitData={traitData} />
+            <CompCard key={comp.match_id} comp={comp} itemAssets={itemAssets} itemNames={itemNames} traitData={traitData} />
           ))}
         </div>
       )}

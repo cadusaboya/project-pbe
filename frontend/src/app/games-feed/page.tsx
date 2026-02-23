@@ -21,15 +21,15 @@ async function fetchWinningComps(gameVersion?: string): Promise<WinningComp[]> {
   return res.json();
 }
 
-async function fetchItemAssets(): Promise<Record<string, string>> {
+async function fetchItemData(): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
   try {
     const res = await fetch(backendUrl("/api/item-assets/"), {
       cache: "no-store",
     });
-    if (!res.ok) return {};
+    if (!res.ok) return { assets: {}, names: {} };
     return res.json();
   } catch {
-    return {};
+    return { assets: {}, names: {} };
   }
 }
 
@@ -53,17 +53,21 @@ export default async function GamesFeedPage({
   const { game_version: gameVersion } = await searchParams;
   let data: WinningComp[] = [];
   let itemAssets: Record<string, string> = {};
+  let itemNames: Record<string, string> = {};
   let versions: string[] = [];
   let error: string | null = null;
 
   let traitBreakpoints: Record<string, TraitInfo> = {};
   try {
-    [data, itemAssets, versions, traitBreakpoints] = await Promise.all([
+    let itemData: { assets: Record<string, string>; names: Record<string, string> };
+    [data, itemData, versions, traitBreakpoints] = await Promise.all([
       fetchWinningComps(gameVersion),
-      fetchItemAssets(),
+      fetchItemData(),
       fetchVersions(),
       fetchTraitBreakpoints(),
     ]);
+    itemAssets = itemData.assets;
+    itemNames = itemData.names;
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";
   }
@@ -96,6 +100,7 @@ export default async function GamesFeedPage({
         <WinningCompsList
           data={data}
           itemAssets={itemAssets}
+          itemNames={itemNames}
           versions={versions}
           selectedVersion={gameVersion ?? ""}
           traitData={traitBreakpoints}
