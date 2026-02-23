@@ -404,7 +404,7 @@ export default function CompsList({
   }
 
   const filtered = useMemo(() => {
-    let rows = data;
+    let rows = data.filter((comp) => comp.comps > 0);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       rows = rows.filter((comp) => {

@@ -1840,7 +1840,7 @@ class VersionsView(APIView):
         versions = list(
             Match.objects.values_list("game_version", flat=True)
             .distinct()
-            .order_by("game_version")
+            .order_by("-game_version")
         )
         _VERSIONS_CACHE = versions
         _VERSIONS_CACHE_TS = now
