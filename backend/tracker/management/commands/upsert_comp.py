@@ -55,6 +55,15 @@ class Command(BaseCommand):
             ),
         )
         parser.add_argument(
+            "--exclude-unit-counts",
+            type=str,
+            default="",
+            help=(
+                "Comma-separated unit:min_copies rules that EXCLUDE boards when matched. "
+                "Example: --exclude-unit-counts 'Malzahar:2'"
+            ),
+        )
+        parser.add_argument(
             "--require-traits",
             type=str,
             default="",
@@ -116,6 +125,7 @@ class Command(BaseCommand):
         is_active = not options["inactive"]
         target_level = max(1, min(int(options["level"]), 10))
         exclude_raw = (options.get("exclude") or "").strip()
+        exclude_unit_counts_raw = (options.get("exclude_unit_counts") or "").strip()
         require_traits_raw = (options.get("require_traits") or "").strip()
         require_items_raw = (options.get("require_items") or "").strip()
         require_unit_counts_raw = (options.get("require_unit_counts") or "").strip()
@@ -175,6 +185,23 @@ class Command(BaseCommand):
                     continue
                 seen_ex.add(u)
                 excluded_units.append(u)
+
+        excluded_unit_counts: dict[str, int] = {}
+        if exclude_unit_counts_raw:
+            for raw_rule in [r.strip() for r in exclude_unit_counts_raw.split(",") if r.strip()]:
+                if ":" not in raw_rule:
+                    raise CommandError(
+                        f"Invalid exclude-unit-counts rule '{raw_rule}'. Use Unit:Count format."
+                    )
+                raw_unit, raw_count = raw_rule.split(":", 1)
+                unit_norm = self._normalize_token(raw_unit.strip(), prefix)
+                try:
+                    min_count = max(1, int(raw_count.strip()))
+                except ValueError as exc:
+                    raise CommandError(
+                        f"Invalid unit count in rule '{raw_rule}'. Must be integer."
+                    ) from exc
+                excluded_unit_counts[unit_norm] = min_count
 
         required_traits: list[str] = []
         required_trait_breakpoints: dict[str, int] = {}
@@ -291,6 +318,7 @@ class Command(BaseCommand):
                 "units": units,
                 "target_level": target_level,
                 "excluded_units": excluded_units,
+                "excluded_unit_counts": excluded_unit_counts,
                 "required_traits": required_traits,
                 "required_unit_counts": required_unit_counts,
                 "required_unit_star_levels": required_unit_star_levels,
@@ -307,6 +335,11 @@ class Command(BaseCommand):
         self.stdout.write(f"Target level: {comp.target_level}")
         if comp.excluded_units:
             self.stdout.write(f"Excluded: {', '.join(comp.excluded_units)}")
+        if comp.excluded_unit_counts:
+            pretty = ", ".join(
+                f"{k}:{v}" for k, v in comp.excluded_unit_counts.items()
+            )
+            self.stdout.write(f"Excluded unit counts: {pretty}")
         if comp.required_traits:
             self.stdout.write(f"Required traits: {', '.join(comp.required_traits)}")
         if comp.required_unit_item_counts:

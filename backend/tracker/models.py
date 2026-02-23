@@ -91,6 +91,7 @@ class Comp(models.Model):
     units = models.JSONField(default=list)
     target_level = models.PositiveSmallIntegerField(default=9)
     excluded_units = models.JSONField(default=list)
+    excluded_unit_counts = models.JSONField(default=dict)
     required_traits = models.JSONField(default=list)
     required_unit_counts = models.JSONField(default=dict)
     required_unit_star_levels = models.JSONField(default=dict)

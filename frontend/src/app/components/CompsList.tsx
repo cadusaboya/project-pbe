@@ -187,7 +187,7 @@ function CompCard({ comp }: { comp: CompStat }) {
 
           {/* Stats pushed to the right */}
           <div className="ml-auto flex items-center gap-5 shrink-0">
-            <StatBlock value={String(comp.comps)} label="Games" />
+            <StatBlock value={String(comp.comps)} label="Frequency" />
             <StatBlock value={`${winRate.toFixed(1)}%`} label="Win%" />
             <StatBlock value={`${top4Rate.toFixed(1)}%`} label="Top 4%" />
             <StatBlock
@@ -223,7 +223,7 @@ function CompCard({ comp }: { comp: CompStat }) {
                     ))}
                   </div>
                   <div className="ml-auto flex items-center gap-4 shrink-0">
-                    <StatBlock value={String(flex.comps)} label="Games" />
+                    <StatBlock value={String(flex.comps)} label="Frequency" />
                     <StatBlock
                       value={flex.avg_placement.toFixed(2)}
                       label="AVP"
@@ -380,7 +380,7 @@ export default function CompsList({
           {(
             [
               { key: "avg_placement", label: "AVP" },
-              { key: "comps",         label: "Games" },
+              { key: "comps",         label: "Frequency" },
               { key: "win_rate",      label: "Win%" },
               { key: "top4_rate",     label: "Top 4%" },
             ] as { key: SortKey; label: string }[]

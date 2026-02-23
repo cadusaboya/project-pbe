@@ -1015,6 +1015,16 @@ class CompsView(APIView):
             core_unit_counts: Counter[str] = Counter(base_units)
             raw_excluded = comp.excluded_units if isinstance(comp.excluded_units, list) else []
             excluded_set = {str(u).strip() for u in raw_excluded if str(u).strip()}
+            raw_excluded_unit_counts = (
+                comp.excluded_unit_counts
+                if isinstance(comp.excluded_unit_counts, dict)
+                else {}
+            )
+            excluded_unit_counts = {
+                str(unit).strip(): max(1, int(cnt))
+                for unit, cnt in raw_excluded_unit_counts.items()
+                if str(unit).strip()
+            }
             raw_required_traits = comp.required_traits if isinstance(comp.required_traits, list) else []
             required_traits = [str(t).strip() for t in raw_required_traits if str(t).strip()]
             required_traits_lower = [t.lower() for t in required_traits]
@@ -1102,6 +1112,14 @@ class CompsView(APIView):
             for b in boards:
                 if excluded_set and (excluded_set & b["unit_set"]):
                     continue
+                if excluded_unit_counts:
+                    blocked_by_count = False
+                    for unit_id, min_count in excluded_unit_counts.items():
+                        if b["unit_count_by_unit"].get(unit_id, 0) >= min_count:
+                            blocked_by_count = True
+                            break
+                    if blocked_by_count:
+                        continue
                 board_flex_size = (b["level"] or 0) - core_size
                 has_core_units = all(
                     b["unit_count_by_unit"].get(unit_id, 0) >= min_count
