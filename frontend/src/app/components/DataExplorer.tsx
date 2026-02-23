@@ -339,6 +339,8 @@ export default function DataExplorer({
   // Filters
   const [selectedVersion, setSelectedVersion] = useState(initialVersion);
   const [conditions, setConditions] = useState<Condition[]>([]);
+  const [minLevel, setMinLevel] = useState("");
+  const [maxLevel, setMaxLevel] = useState("");
 
   // Pending condition builder state
   const [pendingType, setPendingType] = useState<ConditionType>("require_unit");
@@ -372,6 +374,8 @@ export default function DataExplorer({
     setLoading(true);
     const params = new URLSearchParams();
     if (selectedVersion) params.set("game_version", selectedVersion);
+    if (minLevel) params.set("min_level", minLevel);
+    if (maxLevel) params.set("max_level", maxLevel);
     for (const c of conditions) {
       if (c.type === "require_unit" && c.unit) params.append("require_unit", c.unit);
       if (c.type === "ban_unit" && c.unit) params.append("ban_unit", c.unit);
@@ -384,7 +388,7 @@ export default function DataExplorer({
       .then(setExploreData)
       .catch(() => setExploreData(null))
       .finally(() => setLoading(false));
-  }, [conditions, selectedVersion]);
+  }, [conditions, selectedVersion, minLevel, maxLevel]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -501,7 +505,7 @@ export default function DataExplorer({
         </p>
       </div>
 
-      {/* Version filter */}
+      {/* Version filter + Level filter */}
       <div className="flex flex-wrap gap-3 items-center">
         {versions.length > 0 && (
           <select value={selectedVersion} onChange={(e) => handleVersionChange(e.target.value)}
@@ -510,6 +514,23 @@ export default function DataExplorer({
             {versions.map((v) => <option key={v} value={v}>{v}</option>)}
           </select>
         )}
+
+        <div className="flex items-center gap-2">
+          <span className="text-tft-muted text-sm">Level</span>
+          <input
+            type="number" min={1} max={11} placeholder="Min"
+            value={minLevel}
+            onChange={(e) => setMinLevel(e.target.value)}
+            className="w-16 bg-tft-surface border border-tft-border text-tft-text rounded-md px-2 py-2 text-sm focus:outline-none focus:border-tft-accent text-center"
+          />
+          <span className="text-tft-muted text-sm">–</span>
+          <input
+            type="number" min={1} max={11} placeholder="Max"
+            value={maxLevel}
+            onChange={(e) => setMaxLevel(e.target.value)}
+            className="w-16 bg-tft-surface border border-tft-border text-tft-text rounded-md px-2 py-2 text-sm focus:outline-none focus:border-tft-accent text-center"
+          />
+        </div>
       </div>
 
       {/* Condition builder */}

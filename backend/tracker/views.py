@@ -544,6 +544,8 @@ class ExploreView(APIView):
       ban_unit              – unit character_id that must NOT appear in comp
       require_item_on_unit  – "unit_id::item_id" — unit must carry this item
       exclude_item          – item_id that must not appear on ANY unit in comp
+      min_level             – minimum player level (inclusive)
+      max_level             – maximum player level (inclusive)
     """
 
     def get(self, request):
@@ -552,6 +554,11 @@ class ExploreView(APIView):
         ban_units = set(request.query_params.getlist("ban_unit"))
         require_items_raw = request.query_params.getlist("require_item_on_unit")
         exclude_items = set(request.query_params.getlist("exclude_item"))
+
+        min_level_raw = request.query_params.get("min_level")
+        max_level_raw = request.query_params.get("max_level")
+        min_level = int(min_level_raw) if min_level_raw and min_level_raw.isdigit() else None
+        max_level = int(max_level_raw) if max_level_raw and max_level_raw.isdigit() else None
 
         # Parse "unit_id::item_id" strings
         require_items: list[tuple[str, str]] = []
@@ -575,6 +582,7 @@ class ExploreView(APIView):
                 unit_map[uu.unit.character_id] = set(uu.items or [])
             participants.append({
                 "placement": p.placement,
+                "level": p.level,
                 "unit_set": set(unit_map.keys()),
                 "unit_items": unit_map,
             })
@@ -582,6 +590,10 @@ class ExploreView(APIView):
         def matches(p_data: dict) -> bool:
             unit_set = p_data["unit_set"]
             unit_items = p_data["unit_items"]
+            if min_level is not None and p_data["level"] < min_level:
+                return False
+            if max_level is not None and p_data["level"] > max_level:
+                return False
             if not require_units.issubset(unit_set):
                 return False
             if ban_units & unit_set:
@@ -1083,12 +1095,6 @@ class CompsView(APIView):
                 _unit_slot_weight(unit_id) * count
                 for unit_id, count in core_unit_counts.items()
             )
-            if core_size >= target_level:
-                # Completed board at this level: suggest next +1 until level 10.
-                flex_size = 1 if target_level < 10 else 0
-            else:
-                flex_size = target_level - core_size
-
             core_count = 0
             core_total_placement = 0
             core_top4_count = 0
@@ -1101,19 +1107,12 @@ class CompsView(APIView):
             for b in boards:
                 if excluded_set and (excluded_set & b["unit_set"]):
                     continue
-                missing_core_units: list[str] = []
-                for unit_id, min_count in core_unit_counts.items():
-                    present = b["unit_count_by_unit"].get(unit_id, 0)
-                    if present < min_count:
-                        missing_core_units.extend([unit_id] * (min_count - present))
-                has_core_units = len(missing_core_units) == 0
-                near_core_for_flex = (
-                    not has_core_units
-                    and flex_size > 0
-                    and core_size >= target_level
-                    and len(missing_core_units) <= flex_size
+                board_flex_size = (b["level"] or 0) - core_size
+                has_core_units = all(
+                    b["unit_count_by_unit"].get(unit_id, 0) >= min_count
+                    for unit_id, min_count in core_unit_counts.items()
                 )
-                if not has_core_units and not near_core_for_flex:
+                if not has_core_units:
                     continue
                 if required_traits_lower:
                     ok_traits = True
@@ -1183,13 +1182,9 @@ class CompsView(APIView):
                 for unit_id, count in sorted(remaining_counter.items()):
                     if count > 0:
                         remaining_pool.extend([unit_id] * count)
-                if near_core_for_flex and missing_core_units:
-                    # Count "8 of 9"-style boards toward flex by treating
-                    # missing core units as flex candidates.
-                    remaining_pool.extend(missing_core_units)
-                if flex_size == 0:
+                if board_flex_size <= 0:
                     continue
-                for flex in _weighted_flex_combos(remaining_pool, flex_size):
+                for flex in _weighted_flex_combos(remaining_pool, board_flex_size):
                     row = flex_stats[flex]
                     row["count"] += 1
                     row["total_placement"] += b["placement"]
@@ -1224,7 +1219,7 @@ class CompsView(APIView):
                 "name": comp.name,
                 "target_level": target_level,
                 "core_size": core_size,
-                "flex_slots": flex_size,
+                "flex_slots": None,
                 "core_traits": core_traits,
                 "core_units": [
                     {"character_id": u, "cost": unit_cost_map.get(u, 0)}
