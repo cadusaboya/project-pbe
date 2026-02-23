@@ -12,7 +12,7 @@ from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import AggregatedUnitStat, Comp, Match, Participant, Player, Unit, UnitUsage
+from .models import AggregatedUnitStat, Comp, LiveGame, Match, Participant, Player, Unit, UnitUsage
 from .serializers import UnitStatSerializer, WinningCompSerializer
 
 _ITEM_ASSETS_FILE = Path(settings.BASE_DIR) / "item_assets.json"
@@ -1845,3 +1845,22 @@ class VersionsView(APIView):
         _VERSIONS_CACHE = versions
         _VERSIONS_CACHE_TS = now
         return _cc(Response(versions), 300)
+
+
+class LiveMatchesView(APIView):
+    """GET /api/live-matches/ — currently active games with tracked players."""
+
+    def get(self, request):
+        games = LiveGame.objects.all().order_by("-pro_player_count", "-game_start_time")
+
+        result = []
+        for game in games:
+            result.append({
+                "game_id": game.game_id,
+                "game_start_time": game.game_start_time.isoformat(),
+                "participants": game.participants,
+                "pro_player_count": game.pro_player_count,
+                "last_checked_at": game.last_checked_at.isoformat(),
+            })
+
+        return _cc(Response(result), 30)

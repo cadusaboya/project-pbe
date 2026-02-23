@@ -155,3 +155,16 @@ class RiotAPIService:
         """
         url = f"{self.BASE_URL}/tft/match/v1/matches/{match_id}"
         return await self._request(client, url)
+
+    async def get_active_game(
+        self,
+        client: httpx.AsyncClient,
+        puuid: str,
+    ) -> Optional[dict]:
+        """
+        GET /lol/spectator/tft/v5/active-games/by-puuid/{puuid}
+        Returns active game data or None if the player is not in a game (404).
+        Uses platform routing (pbe1) instead of regional routing (americas).
+        """
+        url = f"https://pbe1.api.riotgames.com/lol/spectator/tft/v5/active-games/by-puuid/{puuid}"
+        return await self._request(client, url)

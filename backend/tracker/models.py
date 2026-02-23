@@ -110,3 +110,16 @@ class Comp(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class LiveGame(models.Model):
+    """Ephemeral model storing currently active games. Fully replaced each poll cycle."""
+
+    game_id = models.CharField(max_length=100, unique=True)
+    game_start_time = models.DateTimeField()
+    participants = models.JSONField(default=list)
+    pro_player_count = models.IntegerField(default=0)
+    last_checked_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"LiveGame {self.game_id} ({self.pro_player_count} pros)"

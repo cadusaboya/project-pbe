@@ -20,7 +20,9 @@
       "Bash(npx next build:*)",
       "Bash(npm run build:*)",
       "WebFetch(domain:mobalytics.gg)",
-      "WebFetch(domain:tftflow.com)"
+      "WebFetch(domain:tftflow.com)",
+      "Bash(git checkout:*)",
+      "WebFetch(domain:developer.riotgames.com)"
     ]
   }
 }
