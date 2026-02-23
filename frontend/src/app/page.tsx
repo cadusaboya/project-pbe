@@ -251,7 +251,6 @@ export default async function Home() {
                       <span className={`text-sm font-semibold tabular-nums ${avpColor(unit.avg_placement)}`}>
                         {unit.avg_placement.toFixed(2)}
                       </span>
-                      <span className="text-xs text-tft-muted tabular-nums w-12 text-right">{unit.games} games</span>
                     </div>
                   ))}
                 </div>
@@ -265,12 +264,12 @@ export default async function Home() {
                   <h3 className="text-sm font-semibold text-tft-muted uppercase tracking-wider">Top Comps</h3>
                   <span className="text-xs text-tft-muted group-hover:text-tft-gold transition-colors">View all →</span>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {topComps.map((comp, i) => {
                     const tier = compTier(comp.avg_placement);
                     const bestFlex = comp.flex_combos?.[0];
                     return (
-                      <div key={i} className="flex items-center gap-2">
+                      <div key={i} className="flex items-center gap-2 h-9">
                         <span className="text-sm font-bold text-tft-muted/50 w-5 tabular-nums">{i + 1}</span>
                         <span className={`text-xs font-bold w-5 h-5 flex items-center justify-center rounded ${tier.bg} ${tier.color}`}>
                           {tier.label}
