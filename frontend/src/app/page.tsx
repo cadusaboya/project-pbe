@@ -43,7 +43,8 @@ async function fetchTopComps(): Promise<TopComp[]> {
       next: { revalidate: 120 },
     });
     if (!res.ok) return [];
-    const data: TopComp[] = await res.json();
+    const json = await res.json();
+    const data: TopComp[] = json.comps ?? json;
     return data.sort((a, b) => a.avg_placement - b.avg_placement).slice(0, 5);
   } catch {
     return [];
