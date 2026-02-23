@@ -380,7 +380,7 @@ export default async function Home() {
           </h2>
 
           <p className="max-w-2xl mx-auto text-tft-muted text-lg leading-relaxed">
-            When Project PBE ends, we&apos;re going all in. TFT Pro Radar will expand to
+            When Project PBE ends, TFT Pro Radar will expand to
             track <span className="text-tft-text font-semibold">how the best players play</span> on
             the live server with same depth and speed, covering every ranked game
             from pro player lobbies.
