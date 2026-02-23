@@ -53,7 +53,7 @@ const features = [
   {
     icon: <IconGrid />,
     title: "Comp Tracker",
-    desc: "See exactly what top players are running — boards, units, items, and star levels from real games.",
+    desc: "See exactly what top players are running: boards, units, items, and star levels from real games.",
     href: "/comps",
   },
   {
@@ -117,7 +117,6 @@ export default function Home() {
 
           <p className="max-w-2xl mx-auto text-lg md:text-xl text-tft-muted leading-relaxed">
             We track every Project PBE lobby.
-            Every comp, every item, every placement.
             Everything analyzed and served in real time so you can get ready when the patch drops live.
           </p>
 
@@ -149,17 +148,17 @@ export default function Home() {
             {
               step: "01",
               title: "We watch the best",
-              desc: "Our system tracks 150+ handpicked players around the clock — pros, streamers, and top ladder grinders.",
+              desc: "Our system currently tracks every single Project PBE lobby. Once the tournament ends, we will track only the pros, streamers and top players worldwide.",
             },
             {
               step: "02",
-              title: "Every game, analyzed",
-              desc: "Each match is broken down into comps, items, augments, and placements. Nothing gets missed.",
+              title: "Every game analyzed",
+              desc: "Each match is broken down into comps, items, and placements. Nothing gets missed.",
             },
             {
               step: "03",
               title: "You get the edge",
-              desc: "Browse aggregated stats, trending comps, and real-time game feeds. Know what's strong before patch notes tell you.",
+              desc: "Browse aggregated stats, trending comps, and real-time game feeds. Know what's strong before your opponents.",
             },
           ].map((s) => (
             <div
@@ -225,7 +224,7 @@ export default function Home() {
 
           <div className="grid sm:grid-cols-3 gap-6 pt-4 max-w-3xl mx-auto">
             {[
-              { value: "All Regions", label: "NA, EUW, KR, and more" },
+              { value: "All Regions", label: "NA, EUW, CN, and more" },
               { value: "Pro Players", label: "Track only the best players" },
               { value: "Real Time", label: "Games tracked as they finish" },
             ].map((stat) => (
