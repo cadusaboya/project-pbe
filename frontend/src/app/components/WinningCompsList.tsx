@@ -443,7 +443,7 @@ export default function WinningCompsList({
     } else {
       params.delete("game_version");
     }
-    router.push(`/last-games?${params.toString()}`);
+    router.push(`/games-feed?${params.toString()}`);
   }
 
   const filtered = useMemo<WinningComp[]>(() => {
