@@ -45,6 +45,8 @@ interface UnitResult {
   unit_name: string;
   games: number;
   avg_placement: number;
+  top4_rate: number;
+  win_rate: number;
   delta: number;
 }
 
@@ -53,6 +55,8 @@ interface ItemResult {
   item_name: string;
   games: number;
   avg_placement: number;
+  top4_rate: number;
+  win_rate: number;
   delta: number;
 }
 
@@ -61,12 +65,16 @@ interface UnitCountResult {
   count: number;
   games: number;
   avg_placement: number;
+  top4_rate: number;
+  win_rate: number;
   delta: number;
 }
 
 interface ExploreResponse {
   base_games: number;
   base_avg_placement: number;
+  base_top4_rate: number;
+  base_win_rate: number;
   unit_stats: UnitResult[];
   unit_count_stats: UnitCountResult[];
   item_stats: ItemResult[];
@@ -476,20 +484,6 @@ function UnitFilterChip({
                 <option value={3}>3</option>
               </select>
             </div>
-
-            {/* Count dropdown */}
-            <div className="flex items-center gap-1">
-              <span className="text-tft-muted text-[10px]">Count</span>
-              <select
-                value={filter.requiredCount}
-                onChange={(e) => onUpdate({ ...filter, requiredCount: Number(e.target.value) })}
-                className="bg-tft-bg border border-tft-border text-tft-text rounded px-1 py-0 text-[11px] focus:outline-none focus:border-tft-accent"
-              >
-                <option value={1}>1</option>
-                <option value={2}>2</option>
-                <option value={3}>3</option>
-              </select>
-            </div>
           </div>
         )}
       </div>
@@ -830,9 +824,9 @@ export default function DataExplorer({
 
   // Table
   const [activeTab, setActiveTab] = useState<"units" | "items">("units");
-  const [unitSortKey, setUnitSortKey] = useState<"games" | "avg_placement" | "delta">("games");
+  const [unitSortKey, setUnitSortKey] = useState<"games" | "avg_placement" | "top4_rate" | "win_rate" | "delta">("games");
   const [unitSortDir, setUnitSortDir] = useState<SortDir>("desc");
-  const [itemSortKey, setItemSortKey] = useState<"games" | "avg_placement" | "delta">("games");
+  const [itemSortKey, setItemSortKey] = useState<"games" | "avg_placement" | "top4_rate" | "win_rate" | "delta">("games");
   const [itemSortDir, setItemSortDir] = useState<SortDir>("desc");
 
   useEffect(() => {
@@ -987,6 +981,20 @@ export default function DataExplorer({
     }
   }
 
+  function rateColor(v: number) {
+    if (v >= 0.6) return "text-yellow-400 font-semibold";
+    if (v >= 0.45) return "text-green-400";
+    if (v >= 0.3) return "text-tft-text";
+    return "text-red-400";
+  }
+
+  function winRateColor(v: number) {
+    if (v >= 0.2) return "text-yellow-400 font-semibold";
+    if (v >= 0.12) return "text-green-400";
+    if (v >= 0.08) return "text-tft-text";
+    return "text-red-400";
+  }
+
   const requiredUnits = useMemo(
     () =>
       new Set(
@@ -1014,6 +1022,8 @@ export default function DataExplorer({
           unit_name: row.unit_name,
           games: row.games,
           avg_placement: row.avg_placement,
+          top4_rate: row.top4_rate,
+          win_rate: row.win_rate,
           delta: row.delta,
           countLabel: row.count === 2 ? "2nd" : row.count === 3 ? "3rd" : `${row.count}th`,
         })),
@@ -1046,98 +1056,106 @@ export default function DataExplorer({
         </p>
       </div>
 
-      {/* Version filter */}
-      <div className="flex flex-wrap gap-3 items-center">
-        {versions.length > 0 && (
-          <select
-            value={selectedVersion}
-            onChange={(e) => handleVersionChange(e.target.value)}
-            className="bg-tft-surface border border-tft-border text-tft-text rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent"
-          >
-            <option value="">All versions</option>
-            {versions.map((v) => (
-              <option key={v} value={v}>
-                {v}
-              </option>
-            ))}
-          </select>
-        )}
-        <div className="flex items-center gap-1.5">
-          <label className="text-tft-muted text-sm">Min freq:</label>
-          <input
-            type="number"
-            min={0}
-            value={minFrequency || ""}
-            placeholder="0"
-            onChange={(e) => setMinFrequency(Math.max(0, Number(e.target.value) || 0))}
-            className="bg-tft-surface border border-tft-border text-tft-text rounded-md px-3 py-2 text-sm w-20 focus:outline-none focus:border-tft-accent tabular-nums"
-          />
-        </div>
-      </div>
+      <div className="flex gap-6">
+        {/* Left sidebar: filters */}
+        <div className="w-72 flex-shrink-0 space-y-4">
+          <div className="bg-tft-surface border border-tft-border rounded-xl p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-tft-text text-sm font-semibold">Filters</p>
+              {filters.length > 0 && (
+                <button
+                  onClick={() => setFilters([])}
+                  className="text-tft-muted hover:text-red-400 text-xs transition-colors"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
 
-      {/* Filter section */}
-      <div className="bg-tft-surface border border-tft-border rounded-xl p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <p className="text-tft-text text-sm font-semibold">Select Filters</p>
-          {filters.length > 0 && (
-            <button
-              onClick={() => setFilters([])}
-              className="text-tft-muted hover:text-red-400 text-xs transition-colors"
-            >
-              Clear all
-            </button>
-          )}
-        </div>
+            {/* Unified search */}
+            <UnifiedSearch units={units} traitData={traitData} itemAssets={itemAssets} filters={filters} onSelect={handleSearchSelect} />
 
-        {/* Unified search */}
-        <UnifiedSearch units={units} traitData={traitData} itemAssets={itemAssets} filters={filters} onSelect={handleSearchSelect} />
+            {/* Version filter */}
+            {versions.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-tft-muted text-xs font-medium">Version</label>
+                <select
+                  value={selectedVersion}
+                  onChange={(e) => handleVersionChange(e.target.value)}
+                  className="w-full bg-tft-bg border border-tft-border text-tft-text rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent"
+                >
+                  <option value="">All versions</option>
+                  {versions.map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-        {/* Selected filter chips */}
-        {filters.length > 0 && (
-          <div className="flex flex-wrap gap-2 pt-1">
-            {filters.map((f) =>
-              f.kind === "unit" ? (
-                <UnitFilterChip
-                  key={f.id}
-                  filter={f}
-                  unitInfo={unitMap[f.unit]}
-                  onUpdate={(updated) => updateFilter(f.id, updated)}
-                  onRemove={() => removeFilter(f.id)}
-                />
-              ) : f.kind === "trait" ? (
-                <TraitFilterChip
-                  key={f.id}
-                  filter={f}
-                  traitData={traitData}
-                  onUpdate={(updated) => updateFilter(f.id, updated)}
-                  onRemove={() => removeFilter(f.id)}
-                />
-              ) : f.kind === "item" ? (
-                <ItemFilterChip
-                  key={f.id}
-                  filter={f}
-                  itemAssets={itemAssets}
-                  units={units}
-                  onUpdate={(updated) => updateFilter(f.id, updated)}
-                  onRemove={() => removeFilter(f.id)}
-                />
-              ) : (
-                <LevelFilterChip
-                  key={f.id}
-                  filter={f}
-                  onUpdate={(updated) => updateFilter(f.id, updated)}
-                  onRemove={() => removeFilter(f.id)}
-                />
-              )
+            {/* Min frequency */}
+            <div className="space-y-1.5">
+              <label className="text-tft-muted text-xs font-medium">Min frequency</label>
+              <input
+                type="number"
+                min={0}
+                value={minFrequency || ""}
+                placeholder="0"
+                onChange={(e) => setMinFrequency(Math.max(0, Number(e.target.value) || 0))}
+                className="w-full bg-tft-bg border border-tft-border text-tft-text rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent tabular-nums"
+              />
+            </div>
+
+            {/* Selected filter chips — vertical stack */}
+            {filters.length > 0 && (
+              <div className="flex flex-col gap-2 pt-1">
+                {filters.map((f) =>
+                  f.kind === "unit" ? (
+                    <UnitFilterChip
+                      key={f.id}
+                      filter={f}
+                      unitInfo={unitMap[f.unit]}
+                      onUpdate={(updated) => updateFilter(f.id, updated)}
+                      onRemove={() => removeFilter(f.id)}
+                    />
+                  ) : f.kind === "trait" ? (
+                    <TraitFilterChip
+                      key={f.id}
+                      filter={f}
+                      traitData={traitData}
+                      onUpdate={(updated) => updateFilter(f.id, updated)}
+                      onRemove={() => removeFilter(f.id)}
+                    />
+                  ) : f.kind === "item" ? (
+                    <ItemFilterChip
+                      key={f.id}
+                      filter={f}
+                      itemAssets={itemAssets}
+                      units={units}
+                      onUpdate={(updated) => updateFilter(f.id, updated)}
+                      onRemove={() => removeFilter(f.id)}
+                    />
+                  ) : (
+                    <LevelFilterChip
+                      key={f.id}
+                      filter={f}
+                      onUpdate={(updated) => updateFilter(f.id, updated)}
+                      onRemove={() => removeFilter(f.id)}
+                    />
+                  )
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>
+        </div>
 
+        {/* Right: results */}
+        <div className="flex-1 min-w-0 space-y-4">
       {/* Empty state */}
       {filters.length === 0 && (
         <div className="text-center py-20 text-tft-muted">
-          <p className="text-lg">Add a filter above to make queries.</p>
+          <p className="text-lg">Add a filter to start exploring.</p>
         </div>
       )}
 
@@ -1148,7 +1166,7 @@ export default function DataExplorer({
       {!loading && exploreData && (
         <div className="space-y-4">
           {/* Base stats card */}
-          <div className="bg-tft-surface border border-tft-border rounded-xl px-5 py-4 flex items-center gap-6">
+          <div className="bg-tft-surface border border-tft-border rounded-xl px-5 py-4 flex items-center gap-6 flex-wrap">
             <div>
               <p className="text-tft-muted text-xs uppercase tracking-wide">Matching comps</p>
               <p className="text-2xl font-bold text-tft-text tabular-nums">
@@ -1164,6 +1182,20 @@ export default function DataExplorer({
                 )}`}
               >
                 {exploreData.base_avg_placement.toFixed(2)}
+              </p>
+            </div>
+            <div className="w-px h-10 bg-tft-border" />
+            <div>
+              <p className="text-tft-muted text-xs uppercase tracking-wide">Top 4 %</p>
+              <p className={`text-2xl font-bold tabular-nums ${rateColor(exploreData.base_top4_rate)}`}>
+                {(exploreData.base_top4_rate * 100).toFixed(1)}%
+              </p>
+            </div>
+            <div className="w-px h-10 bg-tft-border" />
+            <div>
+              <p className="text-tft-muted text-xs uppercase tracking-wide">Win %</p>
+              <p className={`text-2xl font-bold tabular-nums ${winRateColor(exploreData.base_win_rate)}`}>
+                {(exploreData.base_win_rate * 100).toFixed(1)}%
               </p>
             </div>
           </div>
@@ -1192,7 +1224,7 @@ export default function DataExplorer({
                 <thead>
                   <tr className="bg-tft-surface border-b border-tft-border">
                     <th className="px-4 py-3 text-left font-semibold text-tft-muted">Unit</th>
-                    {(["games", "avg_placement", "delta"] as const).map((col) => (
+                    {(["games", "avg_placement", "top4_rate", "win_rate", "delta"] as const).map((col) => (
                       <th
                         key={col}
                         onClick={() => handleUnitSort(col)}
@@ -1204,6 +1236,10 @@ export default function DataExplorer({
                           ? "Frequency"
                           : col === "avg_placement"
                           ? "Avg Place"
+                          : col === "top4_rate"
+                          ? "Top 4 %"
+                          : col === "win_rate"
+                          ? "Win %"
                           : "Delta"}
                         <SortIcon active={unitSortKey === col} dir={unitSortDir} />
                       </th>
@@ -1213,7 +1249,7 @@ export default function DataExplorer({
                 <tbody>
                   {sortedUnits.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-4 py-10 text-center text-tft-muted">
+                      <td colSpan={6} className="px-4 py-10 text-center text-tft-muted">
                         No data.
                       </td>
                     </tr>
@@ -1275,6 +1311,12 @@ export default function DataExplorer({
                           >
                             {row.avg_placement.toFixed(2)}
                           </td>
+                          <td className={`px-4 py-2.5 text-right tabular-nums ${rateColor(row.top4_rate)}`}>
+                            {(row.top4_rate * 100).toFixed(1)}%
+                          </td>
+                          <td className={`px-4 py-2.5 text-right tabular-nums ${winRateColor(row.win_rate)}`}>
+                            {(row.win_rate * 100).toFixed(1)}%
+                          </td>
                           <td
                             className={`px-4 py-2.5 text-right tabular-nums font-semibold ${deltaColor(
                               row.delta
@@ -1303,7 +1345,7 @@ export default function DataExplorer({
                   <tr className="bg-tft-surface border-b border-tft-border">
                     <th className="px-4 py-3 text-left font-semibold text-tft-muted">Unit</th>
                     <th className="px-4 py-3 text-left font-semibold text-tft-muted">Item</th>
-                    {(["games", "avg_placement", "delta"] as const).map((col) => (
+                    {(["games", "avg_placement", "top4_rate", "win_rate", "delta"] as const).map((col) => (
                       <th
                         key={col}
                         onClick={() => handleItemSort(col)}
@@ -1315,6 +1357,10 @@ export default function DataExplorer({
                           ? "Frequency"
                           : col === "avg_placement"
                           ? "Avg Place"
+                          : col === "top4_rate"
+                          ? "Top 4 %"
+                          : col === "win_rate"
+                          ? "Win %"
                           : "Delta"}
                         <SortIcon active={itemSortKey === col} dir={itemSortDir} />
                       </th>
@@ -1324,7 +1370,7 @@ export default function DataExplorer({
                 <tbody>
                   {sortedItems.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-10 text-center text-tft-muted">
+                      <td colSpan={7} className="px-4 py-10 text-center text-tft-muted">
                         No data.
                       </td>
                     </tr>
@@ -1389,6 +1435,12 @@ export default function DataExplorer({
                           >
                             {row.avg_placement.toFixed(2)}
                           </td>
+                          <td className={`px-4 py-2.5 text-right tabular-nums ${rateColor(row.top4_rate)}`}>
+                            {(row.top4_rate * 100).toFixed(1)}%
+                          </td>
+                          <td className={`px-4 py-2.5 text-right tabular-nums ${winRateColor(row.win_rate)}`}>
+                            {(row.win_rate * 100).toFixed(1)}%
+                          </td>
                           <td
                             className={`px-4 py-2.5 text-right tabular-nums font-semibold ${deltaColor(
                               row.delta
@@ -1417,6 +1469,8 @@ export default function DataExplorer({
           No comps matched these conditions. Try relaxing some filters.
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 }

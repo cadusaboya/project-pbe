@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Suspense } from "react";
 import { Analytics } from "@vercel/analytics/react";
 import StatsBar from "./components/StatsBar";
+import Nav from "./components/Nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,23 +20,13 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const navItems = [
-    { href: "/comps", label: "Comps", hint: "core boards and best flex" },
-    { href: "/unit-stats", label: "Unit Stats", hint: "AVP, top4, and win rate" },
-    { href: "/items", label: "Items", hint: "item impact by champion" },
-    { href: "/search", label: "Unit Search", hint: "find comps by unit" },
-    { href: "/games-feed", label: "Games Feed", hint: "last Project PBE lobbies" },
-    { href: "/players", label: "Player Stats", hint: "rankings and top units" },
-    { href: "/explore", label: "Data Explorer", hint: "advanced filters and analysis" },
-  ];
-
   return (
     <html lang="en">
       <body className="min-h-screen bg-tft-bg text-tft-text antialiased">
         <header className="border-b border-tft-border bg-gradient-to-b from-tft-surface to-tft-bg/95 backdrop-blur-sm sticky top-0 z-20">
           <div className="max-w-7xl mx-auto px-4 py-3 space-y-3">
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
+              <Link href="/" className="flex items-center gap-2">
                 <Image
                   src="/logo.png"
                   alt="TFT Pro Radar"
@@ -46,10 +37,7 @@ export default function RootLayout({
                 <span className="text-tft-gold text-2xl font-bold tracking-tight">
                   TFT Pro Radar
                 </span>
-              </div>
-              <span className="text-xs text-tft-muted">
-                Explore all features below
-              </span>
+              </Link>
               <a
                 href="https://x.com/TFTProRadar"
                 target="_blank"
@@ -83,22 +71,7 @@ export default function RootLayout({
                 <span>Join Discord</span>
               </a>
             </div>
-            <nav className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="group rounded-lg border border-tft-border bg-tft-surface/60 hover:border-tft-gold/50 hover:bg-tft-hover px-3 py-2 transition-colors"
-                >
-                  <p className="text-sm font-semibold text-tft-text leading-tight group-hover:text-tft-gold">
-                    {item.label}
-                  </p>
-                  <p className="text-[11px] text-tft-muted leading-tight mt-1">
-                    {item.hint}
-                  </p>
-                </Link>
-              ))}
-            </nav>
+            <Nav />
           </div>
         </header>
         <Suspense fallback={null}>

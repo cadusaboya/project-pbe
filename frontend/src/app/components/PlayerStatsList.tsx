@@ -145,11 +145,17 @@ export default function PlayerStatsList({ data }: { data: PlayerStat[] }) {
             {rows.map((p, idx) => (
               <tr
                 key={`${p.game_name}#${p.tag_line}`}
-                onClick={() => router.push(`/player/${encodeURIComponent(p.game_name)}`)}
-                className="hover:bg-tft-hover/50 cursor-pointer transition-colors"
+                className="hover:bg-tft-hover/50 transition-colors"
               >
                 <td className="px-4 py-2.5 text-tft-muted">{idx + 1}</td>
-                <td className="px-4 py-2.5 font-medium text-tft-text">{p.game_name}</td>
+                <td className="px-4 py-2.5 font-medium">
+                  <span
+                    onClick={() => router.push(`/player/${encodeURIComponent(p.game_name)}`)}
+                    className="text-tft-text underline decoration-tft-muted/50 hover:decoration-tft-accent hover:text-tft-accent cursor-pointer transition-colors"
+                  >
+                    {p.game_name}
+                  </span>
+                </td>
                 <td className="px-4 py-2.5 text-center text-tft-muted">{p.games}</td>
                 <td className={`px-4 py-2.5 text-center font-semibold ${avpTextColor(p.avg_placement)}`}>
                   {p.avg_placement.toFixed(2)}

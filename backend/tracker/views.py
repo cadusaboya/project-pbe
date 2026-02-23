@@ -759,13 +759,21 @@ class ExploreView(APIView):
 
         base_games = len(filtered)
         base_avg = round(sum(p["placement"] for p in filtered) / base_games, 2) if base_games else 0.0
+        base_top4 = sum(1 for p in filtered if p["placement"] <= 4)
+        base_wins = sum(1 for p in filtered if p["placement"] == 1)
+        base_top4_rate = round(base_top4 / base_games, 4) if base_games else 0.0
+        base_win_rate = round(base_wins / base_games, 4) if base_games else 0.0
 
         # Per-unit stats across filtered comps
-        unit_agg: dict = defaultdict(lambda: {"games": 0, "total": 0})
+        unit_agg: dict = defaultdict(lambda: {"games": 0, "total": 0, "top4": 0, "wins": 0})
         for p in filtered:
             for unit_id in p["unit_set"]:
                 unit_agg[unit_id]["games"] += 1
                 unit_agg[unit_id]["total"] += p["placement"]
+                if p["placement"] <= 4:
+                    unit_agg[unit_id]["top4"] += 1
+                if p["placement"] == 1:
+                    unit_agg[unit_id]["wins"] += 1
 
         unit_stats = []
         for unit_id, agg in unit_agg.items():
@@ -775,6 +783,8 @@ class ExploreView(APIView):
                 "unit_name": unit_id,
                 "games": g,
                 "avg_placement": avg_p,
+                "top4_rate": round(agg["top4"] / g, 4) if g else 0.0,
+                "win_rate": round(agg["wins"] / g, 4) if g else 0.0,
                 "delta": round(avg_p - base_avg, 2),
             })
         unit_stats.sort(key=lambda x: -x["games"])
@@ -791,10 +801,16 @@ class ExploreView(APIView):
                         break
                     games = 0
                     total = 0
+                    top4 = 0
+                    wins = 0
                     for p in filtered:
                         if p["unit_count_by_unit"].get(unit_id, 0) >= next_count:
                             games += 1
                             total += p["placement"]
+                            if p["placement"] <= 4:
+                                top4 += 1
+                            if p["placement"] == 1:
+                                wins += 1
                     if games > 0:
                         avg_p = round(total / games, 2)
                         unit_count_stats.append({
@@ -802,11 +818,13 @@ class ExploreView(APIView):
                             "count": next_count,
                             "games": games,
                             "avg_placement": avg_p,
+                            "top4_rate": round(top4 / games, 4),
+                            "win_rate": round(wins / games, 4),
                             "delta": round(avg_p - base_avg, 2),
                         })
 
         # Per (unit, item) stats across filtered comps
-        item_agg: dict = defaultdict(lambda: {"games": 0, "total": 0})
+        item_agg: dict = defaultdict(lambda: {"games": 0, "total": 0, "top4": 0, "wins": 0})
         for p in filtered:
             for unit_id, items in p["unit_items"].items():
                 for item in items:
@@ -814,6 +832,10 @@ class ExploreView(APIView):
                         continue
                     item_agg[(unit_id, item)]["games"] += 1
                     item_agg[(unit_id, item)]["total"] += p["placement"]
+                    if p["placement"] <= 4:
+                        item_agg[(unit_id, item)]["top4"] += 1
+                    if p["placement"] == 1:
+                        item_agg[(unit_id, item)]["wins"] += 1
 
         item_stats = []
         for (unit_id, item_id), agg in item_agg.items():
@@ -824,6 +846,8 @@ class ExploreView(APIView):
                 "item_name": item_id,
                 "games": g,
                 "avg_placement": avg_p,
+                "top4_rate": round(agg["top4"] / g, 4) if g else 0.0,
+                "win_rate": round(agg["wins"] / g, 4) if g else 0.0,
                 "delta": round(avg_p - base_avg, 2),
             })
         item_stats.sort(key=lambda x: -x["games"])
@@ -831,6 +855,8 @@ class ExploreView(APIView):
         return Response({
             "base_games": base_games,
             "base_avg_placement": base_avg,
+            "base_top4_rate": base_top4_rate,
+            "base_win_rate": base_win_rate,
             "unit_stats": unit_stats,
             "unit_count_stats": unit_count_stats,
             "item_stats": item_stats,
