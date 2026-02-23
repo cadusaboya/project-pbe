@@ -326,7 +326,7 @@ function CompCard({
                 <a
                   href={`/player/${encodeURIComponent(comp.winner.split("#")[0])}`}
                   onClick={(e) => e.stopPropagation()}
-                  className="text-tft-gold font-semibold underline decoration-tft-gold/40 hover:decoration-tft-gold truncate"
+                  className="text-tft-text font-semibold hover:text-tft-gold truncate transition-colors"
                 >
                   {displayPlayerName(comp.winner)}
                 </a>
