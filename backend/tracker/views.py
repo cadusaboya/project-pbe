@@ -544,8 +544,7 @@ class ExploreView(APIView):
       ban_unit              – unit character_id that must NOT appear in comp
       require_item_on_unit  – "unit_id::item_id" — unit must carry this item
       exclude_item          – item_id that must not appear on ANY unit in comp
-      min_level             – minimum player level (inclusive)
-      max_level             – maximum player level (inclusive)
+      player_level          – exact player level to include (repeatable; OR logic)
     """
 
     def get(self, request):
@@ -555,10 +554,8 @@ class ExploreView(APIView):
         require_items_raw = request.query_params.getlist("require_item_on_unit")
         exclude_items = set(request.query_params.getlist("exclude_item"))
 
-        min_level_raw = request.query_params.get("min_level")
-        max_level_raw = request.query_params.get("max_level")
-        min_level = int(min_level_raw) if min_level_raw and min_level_raw.isdigit() else None
-        max_level = int(max_level_raw) if max_level_raw and max_level_raw.isdigit() else None
+        player_levels_raw = request.query_params.getlist("player_level")
+        player_levels = {int(v) for v in player_levels_raw if v.isdigit()}
 
         # Parse "unit_id::item_id" strings
         require_items: list[tuple[str, str]] = []
@@ -590,9 +587,7 @@ class ExploreView(APIView):
         def matches(p_data: dict) -> bool:
             unit_set = p_data["unit_set"]
             unit_items = p_data["unit_items"]
-            if min_level is not None and p_data["level"] < min_level:
-                return False
-            if max_level is not None and p_data["level"] > max_level:
+            if player_levels and p_data["level"] not in player_levels:
                 return False
             if not require_units.issubset(unit_set):
                 return False

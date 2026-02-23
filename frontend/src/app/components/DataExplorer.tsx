@@ -7,13 +7,14 @@ import { UnitStat } from "./StatsTable";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ConditionType = "require_unit" | "ban_unit" | "require_item_on_unit" | "exclude_item";
+type ConditionType = "require_unit" | "ban_unit" | "require_item_on_unit" | "exclude_item" | "player_level";
 
 interface Condition {
   id: string;
   type: ConditionType;
   unit?: string;
   item?: string;
+  level?: number;
 }
 
 interface UnitResult {
@@ -93,6 +94,7 @@ const CONDITION_LABELS: Record<ConditionType, string> = {
   ban_unit: "Exclude unit",
   require_item_on_unit: "Unit has item",
   exclude_item: "Ban item from comp",
+  player_level: "Player level",
 };
 
 const CONDITION_COLORS: Record<ConditionType, string> = {
@@ -100,6 +102,7 @@ const CONDITION_COLORS: Record<ConditionType, string> = {
   ban_unit: "border-red-700 bg-red-950/40",
   require_item_on_unit: "border-blue-600 bg-blue-950/30",
   exclude_item: "border-orange-600 bg-orange-950/30",
+  player_level: "border-tft-accent bg-tft-accent/10",
 };
 
 function conditionLabel(c: Condition): string {
@@ -108,6 +111,7 @@ function conditionLabel(c: Condition): string {
     case "ban_unit": return `✗ ${formatUnit(c.unit!)}`;
     case "require_item_on_unit": return `${formatUnit(c.unit!)} + ${formatItemName(c.item!)}`;
     case "exclude_item": return `No ${formatItemName(c.item!)}`;
+    case "player_level": return `Level ${c.level}`;
   }
 }
 
@@ -339,13 +343,12 @@ export default function DataExplorer({
   // Filters
   const [selectedVersion, setSelectedVersion] = useState(initialVersion);
   const [conditions, setConditions] = useState<Condition[]>([]);
-  const [minLevel, setMinLevel] = useState("");
-  const [maxLevel, setMaxLevel] = useState("");
 
   // Pending condition builder state
   const [pendingType, setPendingType] = useState<ConditionType>("require_unit");
   const [pendingUnit, setPendingUnit] = useState("");
   const [pendingItem, setPendingItem] = useState("");
+  const [pendingLevel, setPendingLevel] = useState<number>(8);
 
   // Data
   const [exploreData, setExploreData] = useState<ExploreResponse | null>(null);
@@ -374,21 +377,20 @@ export default function DataExplorer({
     setLoading(true);
     const params = new URLSearchParams();
     if (selectedVersion) params.set("game_version", selectedVersion);
-    if (minLevel) params.set("min_level", minLevel);
-    if (maxLevel) params.set("max_level", maxLevel);
     for (const c of conditions) {
       if (c.type === "require_unit" && c.unit) params.append("require_unit", c.unit);
       if (c.type === "ban_unit" && c.unit) params.append("ban_unit", c.unit);
       if (c.type === "require_item_on_unit" && c.unit && c.item)
         params.append("require_item_on_unit", `${c.unit}::${c.item}`);
       if (c.type === "exclude_item" && c.item) params.append("exclude_item", c.item);
+      if (c.type === "player_level" && c.level != null) params.append("player_level", String(c.level));
     }
     fetch(backendUrl(`/api/explore/?${params.toString()}`))
       .then((r) => (r.ok ? r.json() : null))
       .then(setExploreData)
       .catch(() => setExploreData(null))
       .finally(() => setLoading(false));
-  }, [conditions, selectedVersion, minLevel, maxLevel]);
+  }, [conditions, selectedVersion]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -419,6 +421,11 @@ export default function DataExplorer({
   }
 
   function addCondition() {
+    if (pendingType === "player_level") {
+      const isDuplicate = conditions.some((c) => c.type === "player_level" && c.level === pendingLevel);
+      if (!isDuplicate) setConditions((prev) => [...prev, { id: uid(), type: "player_level", level: pendingLevel }]);
+      return;
+    }
     const needsUnit = pendingType !== "exclude_item";
     const needsItem = pendingType === "require_item_on_unit" || pendingType === "exclude_item";
     if (needsUnit && !pendingUnit) return;
@@ -493,8 +500,9 @@ export default function DataExplorer({
     [units]
   );
 
-  const needsUnit = pendingType !== "exclude_item";
+  const needsUnit = pendingType !== "exclude_item" && pendingType !== "player_level";
   const needsItem = pendingType === "require_item_on_unit" || pendingType === "exclude_item";
+  const needsLevel = pendingType === "player_level";
 
   return (
     <div className="space-y-6">
@@ -505,7 +513,7 @@ export default function DataExplorer({
         </p>
       </div>
 
-      {/* Version filter + Level filter */}
+      {/* Version filter */}
       <div className="flex flex-wrap gap-3 items-center">
         {versions.length > 0 && (
           <select value={selectedVersion} onChange={(e) => handleVersionChange(e.target.value)}
@@ -514,23 +522,6 @@ export default function DataExplorer({
             {versions.map((v) => <option key={v} value={v}>{v}</option>)}
           </select>
         )}
-
-        <div className="flex items-center gap-2">
-          <span className="text-tft-muted text-sm">Level</span>
-          <input
-            type="number" min={1} max={11} placeholder="Min"
-            value={minLevel}
-            onChange={(e) => setMinLevel(e.target.value)}
-            className="w-16 bg-tft-surface border border-tft-border text-tft-text rounded-md px-2 py-2 text-sm focus:outline-none focus:border-tft-accent text-center"
-          />
-          <span className="text-tft-muted text-sm">–</span>
-          <input
-            type="number" min={1} max={11} placeholder="Max"
-            value={maxLevel}
-            onChange={(e) => setMaxLevel(e.target.value)}
-            className="w-16 bg-tft-surface border border-tft-border text-tft-text rounded-md px-2 py-2 text-sm focus:outline-none focus:border-tft-accent text-center"
-          />
-        </div>
       </div>
 
       {/* Condition builder */}
@@ -553,6 +544,19 @@ export default function DataExplorer({
           {/* Item picker */}
           {needsItem && (
             <ItemPicker itemAssets={itemAssets} value={pendingItem} onChange={setPendingItem} onCommit={handleItemCommit} />
+          )}
+
+          {/* Level picker */}
+          {needsLevel && (
+            <select
+              value={pendingLevel}
+              onChange={(e) => setPendingLevel(Number(e.target.value))}
+              className="bg-tft-bg border border-tft-border text-tft-text rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-tft-accent"
+            >
+              {Array.from({ length: 11 }, (_, i) => i + 1).map((lvl) => (
+                <option key={lvl} value={lvl}>Level {lvl}</option>
+              ))}
+            </select>
           )}
 
           <button
