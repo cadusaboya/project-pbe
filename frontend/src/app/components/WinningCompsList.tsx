@@ -235,9 +235,9 @@ function UnitChip({
       <img
         src={unitImageUrl(unit.character_id)}
         alt={formatUnit(unit.character_id)}
-        width={40}
-        height={40}
-        className="w-10 h-10 block rounded object-cover"
+        width={44}
+        height={44}
+        className="w-11 h-11 block rounded object-cover"
         onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
       />
       {/* Stars overlapping top of image */}
@@ -344,9 +344,9 @@ function CompCard({
               {expanded ? "▲" : "▼"}
             </span>
           </div>
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2.5">
             <TraitChips units={comp.units} traitData={traitData} />
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2">
               {comp.units
                 .slice()
                 .sort((a, b) => b.cost - a.cost || b.star_level - a.star_level)
@@ -507,7 +507,7 @@ export default function WinningCompsList({
           No comps found.
         </div>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid gap-4">
           {filtered.map((comp) => (
             <CompCard key={comp.match_id} comp={comp} itemAssets={itemAssets} itemNames={itemNames} traitData={traitData} />
           ))}

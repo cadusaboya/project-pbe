@@ -33,11 +33,7 @@ from tracker.services.riot_api import RiotAPIService
 
 logger = logging.getLogger(__name__)
 
-GAME_VERSION_BEFORE = "16.6 A - No THex Items"
-GAME_VERSION_AFTER = "16.6 B"
-DEFAULT_SWITCH_DATE = "2026-02-23"
-DEFAULT_SWITCH_TIME = "16:30"
-DEFAULT_SWITCH_TZ = "America/Cuiaba"
+GAME_VERSION = "16.6 B"
 DEFAULT_FETCH_CUTOFF_DATE = "2026-02-23"
 DEFAULT_FETCH_CUTOFF_TIME = "00:00"
 DEFAULT_FETCH_CUTOFF_TZ = "America/Cuiaba"
@@ -64,7 +60,6 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        switch_dt_utc = self._build_switch_datetime_utc()
         fetch_cutoff_utc = self._build_fetch_cutoff_datetime_utc()
         cooldown_seconds = self._get_player_cooldown_seconds()
         api_key = os.environ.get("RIOT_API_KEY", "").strip()
@@ -89,7 +84,6 @@ class Command(BaseCommand):
                 api_key,
                 match_id,
                 puuid_to_player,
-                switch_dt_utc,
                 fetch_cutoff_utc,
             )
             return
@@ -110,10 +104,7 @@ class Command(BaseCommand):
         )
         if cooldown_seconds > 0:
             self.stdout.write(f"Per-player poll cooldown: {cooldown_seconds}s\n")
-        self.stdout.write(
-            f"Version switch at {switch_dt_utc.isoformat()} UTC "
-            f"(before: '{GAME_VERSION_BEFORE}', after: '{GAME_VERSION_AFTER}')\n"
-        )
+        self.stdout.write(f"Game version: {GAME_VERSION}\n")
 
         total_stored = 0
 
@@ -194,10 +185,9 @@ class Command(BaseCommand):
                     continue
 
                 try:
-                    game_version = self._resolve_game_version(match_data, switch_dt_utc)
-                    if process_match(match_data, puuid_to_player, game_version=game_version):
+                    if process_match(match_data, puuid_to_player, game_version=GAME_VERSION):
                         total_stored += 1
-                        self.stdout.write(f"    {mid} - stored ({game_start_utc.date()}, {game_version})")
+                        self.stdout.write(f"    {mid} - stored ({game_start_utc.date()}, {GAME_VERSION})")
                     else:
                         self.stdout.write(f"    {mid} - already existed")
                 except Exception as exc:
@@ -224,7 +214,6 @@ class Command(BaseCommand):
         api_key,
         match_id,
         puuid_to_player,
-        switch_dt_utc: datetime.datetime,
         fetch_cutoff_utc: datetime.datetime,
     ):
         self.stdout.write(f"Fetching specific match: {match_id}")
@@ -245,8 +234,7 @@ class Command(BaseCommand):
             )
             return
         try:
-            game_version = self._resolve_game_version(match_data, switch_dt_utc)
-            if process_match(match_data, puuid_to_player, game_version=game_version):
+            if process_match(match_data, puuid_to_player, game_version=GAME_VERSION):
                 self.stdout.write(self.style.SUCCESS(f"{match_id} - stored"))
                 count = recompute_unit_stats()
                 self.stdout.write(self.style.SUCCESS(f"Done - updated stats for {count} unit(s)."))
@@ -255,41 +243,6 @@ class Command(BaseCommand):
         except Exception as exc:
             logger.error("Error processing %s: %s", match_id, exc, exc_info=True)
             self.stderr.write(self.style.ERROR(str(exc)))
-
-    def _build_switch_datetime_utc(self) -> datetime.datetime:
-        switch_date = os.environ.get("PBE_SWITCH_DATE", DEFAULT_SWITCH_DATE).strip()
-        switch_time = os.environ.get("PBE_SWITCH_TIME", DEFAULT_SWITCH_TIME).strip()
-        tz_name = os.environ.get("PBE_SWITCH_TZ", DEFAULT_SWITCH_TZ).strip()
-
-        try:
-            tz = ZoneInfo(tz_name)
-        except ZoneInfoNotFoundError:
-            logger.warning("Invalid timezone '%s'. Falling back to UTC.", tz_name)
-            tz = datetime.timezone.utc
-
-        naive_switch = datetime.datetime.strptime(
-            f"{switch_date} {switch_time}", "%Y-%m-%d %H:%M"
-        )
-        local_switch = naive_switch.replace(tzinfo=tz)
-        return local_switch.astimezone(datetime.timezone.utc)
-
-    def _resolve_game_version(
-        self,
-        match_data: dict,
-        switch_dt_utc: datetime.datetime,
-    ) -> str:
-        info = match_data.get("info", {})
-        game_ms = info.get("game_datetime") or 0
-
-        if game_ms <= 0:
-            return GAME_VERSION_AFTER
-
-        game_start_utc = datetime.datetime.fromtimestamp(
-            game_ms / 1000, tz=datetime.timezone.utc
-        )
-        if game_start_utc >= switch_dt_utc:
-            return GAME_VERSION_AFTER
-        return GAME_VERSION_BEFORE
 
     def _build_fetch_cutoff_datetime_utc(self) -> datetime.datetime:
         cutoff_date = os.environ.get("PBE_QUEUE_CUTOFF_DATE", DEFAULT_FETCH_CUTOFF_DATE).strip()
