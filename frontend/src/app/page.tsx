@@ -1,4 +1,88 @@
 import Link from "next/link";
+import { backendUrl } from "@/lib/backend";
+
+interface TopUnit {
+  unit_name: string;
+  cost: number;
+  games: number;
+  avg_placement: number;
+}
+
+interface FlexCombo {
+  units: { character_id: string; cost: number }[];
+  comps: number;
+  avg_placement: number;
+}
+
+interface TopComp {
+  name: string;
+  core_units: { character_id: string; cost: number }[];
+  avg_placement: number;
+  comps: number;
+  top4_rate: number;
+  win_rate: number;
+  flex_combos: FlexCombo[];
+}
+
+async function fetchTopUnits(): Promise<TopUnit[]> {
+  try {
+    const res = await fetch(backendUrl("/api/unit-stats/?sort=avg_placement&min_games=20"), {
+      next: { revalidate: 120 },
+    });
+    if (!res.ok) return [];
+    const data: TopUnit[] = await res.json();
+    return data.slice(0, 5);
+  } catch {
+    return [];
+  }
+}
+
+async function fetchTopComps(): Promise<TopComp[]> {
+  try {
+    const res = await fetch(backendUrl("/api/comps/?top_flex=1"), {
+      next: { revalidate: 120 },
+    });
+    if (!res.ok) return [];
+    const data: TopComp[] = await res.json();
+    return data.sort((a, b) => a.avg_placement - b.avg_placement).slice(0, 5);
+  } catch {
+    return [];
+  }
+}
+
+const COST_COLORS: Record<number, string> = {
+  1: "border-gray-500",
+  2: "border-green-600",
+  3: "border-blue-500",
+  4: "border-purple-500",
+  5: "border-yellow-400",
+  7: "border-yellow-400",
+};
+
+function unitImageUrl(characterId: string): string {
+  const lower = characterId.toLowerCase();
+  const setNum = lower.match(/^tft(\d+)_/)?.[1] ?? "16";
+  return `https://raw.communitydragon.org/pbe/game/assets/characters/${lower}/hud/${lower}_square.tft_set${setNum}.png`;
+}
+
+function formatUnit(name: string): string {
+  return name.replace(/^TFT\d+_/, "");
+}
+
+function avpColor(avp: number): string {
+  if (avp <= 3.5) return "text-emerald-400";
+  if (avp <= 4.0) return "text-teal-400";
+  if (avp <= 4.5) return "text-amber-300";
+  return "text-rose-400";
+}
+
+function compTier(avp: number): { label: string; color: string; bg: string } {
+  if (avp < 3.7) return { label: "S", color: "text-red-400", bg: "bg-red-500/20 border border-red-500/40" };
+  if (avp < 4.0) return { label: "A", color: "text-orange-400", bg: "bg-orange-500/20 border border-orange-500/40" };
+  if (avp < 4.4) return { label: "B", color: "text-yellow-400", bg: "bg-yellow-500/20 border border-yellow-500/40" };
+  if (avp < 4.8) return { label: "C", color: "text-lime-400", bg: "bg-lime-500/20 border border-lime-500/40" };
+  return { label: "D", color: "text-slate-400", bg: "bg-slate-500/15 border border-slate-500/30" };
+}
 
 function IconGrid() {
   return (
@@ -88,7 +172,10 @@ const features = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const [topUnits, topComps] = await Promise.all([fetchTopUnits(), fetchTopComps()]);
+  const hasQuickStats = topUnits.length > 0 || topComps.length > 0;
+
   return (
     <div className="space-y-24 pb-16">
       {/* Hero */}
@@ -136,6 +223,83 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Quick Stats — top units & comps at a glance */}
+      {hasQuickStats && (
+        <section className="space-y-6 -mt-12">
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Top Units */}
+            {topUnits.length > 0 && (
+              <Link href="/unit-stats" className="group rounded-xl border border-tft-border bg-tft-surface/40 p-5 hover:border-tft-gold/30 transition-colors">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-tft-muted uppercase tracking-wider">Top Units by AVP</h3>
+                  <span className="text-xs text-tft-muted group-hover:text-tft-gold transition-colors">View all →</span>
+                </div>
+                <div className="space-y-2.5">
+                  {topUnits.map((unit, i) => (
+                    <div key={unit.unit_name} className="flex items-center gap-3">
+                      <span className="text-sm font-bold text-tft-muted/50 w-5 tabular-nums">{i + 1}</span>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={unitImageUrl(unit.unit_name)}
+                        alt={formatUnit(unit.unit_name)}
+                        width={36}
+                        height={36}
+                        className={`w-9 h-9 rounded-lg border-2 ${COST_COLORS[unit.cost] ?? "border-gray-500"} object-cover`}
+                      />
+                      <span className="text-sm font-medium text-tft-text flex-1">{formatUnit(unit.unit_name)}</span>
+                      <span className={`text-sm font-semibold tabular-nums ${avpColor(unit.avg_placement)}`}>
+                        {unit.avg_placement.toFixed(2)}
+                      </span>
+                      <span className="text-xs text-tft-muted tabular-nums w-12 text-right">{unit.games} games</span>
+                    </div>
+                  ))}
+                </div>
+              </Link>
+            )}
+
+            {/* Top Comps */}
+            {topComps.length > 0 && (
+              <Link href="/comps" className="group rounded-xl border border-tft-border bg-tft-surface/40 p-5 hover:border-tft-gold/30 transition-colors">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-tft-muted uppercase tracking-wider">Top Comps</h3>
+                  <span className="text-xs text-tft-muted group-hover:text-tft-gold transition-colors">View all →</span>
+                </div>
+                <div className="space-y-3">
+                  {topComps.map((comp, i) => {
+                    const tier = compTier(comp.avg_placement);
+                    const bestFlex = comp.flex_combos?.[0];
+                    return (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-tft-muted/50 w-5 tabular-nums">{i + 1}</span>
+                        <span className={`text-xs font-bold w-5 h-5 flex items-center justify-center rounded ${tier.bg} ${tier.color}`}>
+                          {tier.label}
+                        </span>
+                        <div className="flex items-center gap-1 flex-1">
+                          {[...comp.core_units, ...(bestFlex?.units ?? [])].map((u) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              key={u.character_id}
+                              src={unitImageUrl(u.character_id)}
+                              alt={formatUnit(u.character_id)}
+                              width={28}
+                              height={28}
+                              className={`w-7 h-7 rounded border-2 ${COST_COLORS[u.cost] ?? "border-gray-500"} object-cover`}
+                            />
+                          ))}
+                        </div>
+                        <span className={`text-sm font-semibold tabular-nums ${avpColor(comp.avg_placement)}`}>
+                          {comp.avg_placement.toFixed(2)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* How it works */}
       <section className="space-y-10">
