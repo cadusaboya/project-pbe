@@ -33,7 +33,7 @@ from tracker.services.riot_api import RiotAPIService
 
 logger = logging.getLogger(__name__)
 
-GAME_VERSION = "16.6 B"
+GAME_VERSION = "16.6B - No T-Hex Items"
 DEFAULT_FETCH_CUTOFF_DATE = "2026-02-23"
 DEFAULT_FETCH_CUTOFF_TIME = "00:00"
 DEFAULT_FETCH_CUTOFF_TZ = "America/Cuiaba"

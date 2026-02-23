@@ -7,7 +7,7 @@ from django.core.management.base import BaseCommand
 from tracker.models import Match
 
 GAME_VERSION_BEFORE = "16.6 A - No THex Items"
-GAME_VERSION_AFTER = "16.6 B"
+GAME_VERSION_AFTER = "16.6B - No T-Hex Items"
 DEFAULT_SWITCH_DATE = "2026-02-23"
 DEFAULT_SWITCH_TIME = "16:30"
 DEFAULT_SWITCH_TZ = "America/Cuiaba"
@@ -16,7 +16,7 @@ DEFAULT_SWITCH_TZ = "America/Cuiaba"
 class Command(BaseCommand):
     help = (
         "Recompute Match.game_version using the version switchover rule: "
-        "before cutoff -> '16.6 A - No THex Items', from cutoff onward -> '16.6 B'."
+        "before cutoff -> '16.6 A - No THex Items', from cutoff onward -> '16.6B - No T-Hex Items'."
     )
 
     def add_arguments(self, parser):
