@@ -8,11 +8,49 @@ import Nav from "./components/Nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "TFT Pro Radar",
-  description: "Unit statistics tracker for TFT PBE matches",
+  title: "TFT Pro Radar — Real-Time PBE Meta Tracker",
+  description:
+    "Track every TFT Project PBE lobby in real time. Unit stats, top comps, item analytics, player rankings, and a live game feed — know the meta before everyone else.",
   icons: {
     icon: "/favicon.png",
   },
+  metadataBase: new URL("https://tftproradar.com"),
+  openGraph: {
+    title: "TFT Pro Radar — Real-Time PBE Meta Tracker",
+    description:
+      "Live unit stats, top comps, item analytics, and player rankings from every TFT PBE lobby. Get the edge before the patch hits live.",
+    siteName: "TFT Pro Radar",
+    locale: "en_US",
+    type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "TFT Pro Radar — Know the meta before everyone else",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "TFT Pro Radar — Real-Time PBE Meta Tracker",
+    description:
+      "Live unit stats, top comps, item analytics, and player rankings from every TFT PBE lobby.",
+    images: ["/og-image.png"],
+    creator: "@TFTProRadar",
+  },
+  keywords: [
+    "TFT",
+    "Teamfight Tactics",
+    "PBE",
+    "meta",
+    "tier list",
+    "unit stats",
+    "comps",
+    "items",
+    "pro players",
+    "tracker",
+  ],
 };
 
 export default function RootLayout({
