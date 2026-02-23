@@ -73,10 +73,10 @@ export default function RootLayout({
             </div>
             <Nav />
           </div>
+          <Suspense fallback={null}>
+            <StatsBar />
+          </Suspense>
         </header>
-        <Suspense fallback={null}>
-          <StatsBar />
-        </Suspense>
         <main className="max-w-7xl mx-auto px-4 py-8">{children}</main>
         <Analytics />
       </body>
