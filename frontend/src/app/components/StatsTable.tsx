@@ -246,7 +246,7 @@ export default function StatsTable({
     } else {
       params.delete("game_version");
     }
-    router.push(`/?${params.toString()}`);
+    router.push(`/unit-stats?${params.toString()}`);
   }
 
   const handleSort = (key: SortKey, defaultDir: SortDir) => {
