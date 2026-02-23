@@ -25,3 +25,12 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #c89b3c;
 }
+
+/* Hide scrollbar for nav */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

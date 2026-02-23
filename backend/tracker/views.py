@@ -22,6 +22,9 @@ _TRAIT_CACHE: dict | None = None
 _TRAIT_CACHE_TS: float = 0.0
 _TRAIT_CACHE_TTL = 3600.0  # seconds
 
+_CHAMPIONS_CACHE: list | None = None
+_CHAMPIONS_CACHE_TS: float = 0.0
+
 # In-memory caches for data that rarely changes
 _ITEM_ASSETS_CACHE: dict | None = None
 _ITEM_NAMES_CACHE: dict | None = None
@@ -151,6 +154,50 @@ class TraitDataView(APIView):
                 _TRAIT_CACHE = {}
 
         return _cc(Response(_TRAIT_CACHE), 300)
+
+
+class ChampionsView(APIView):
+    """
+    GET /api/champions/
+
+    Returns all Set 16 champions from CDragon with apiName, name, cost, traits.
+    Cached in-process for 1 hour.
+    """
+
+    def get(self, request):
+        global _CHAMPIONS_CACHE, _CHAMPIONS_CACHE_TS
+
+        now = time.time()
+        if _CHAMPIONS_CACHE is not None and (now - _CHAMPIONS_CACHE_TS) < _TRAIT_CACHE_TTL:
+            return _cc(Response(_CHAMPIONS_CACHE), 300)
+
+        try:
+            with httpx.Client(timeout=120) as client:
+                resp = client.get(_CDRAGON_TFT_URL)
+                resp.raise_for_status()
+                data = resp.json()
+
+            champions = []
+            current_set = data.get("sets", {}).get("16", {})
+            for champ in current_set.get("champions", []):
+                api_name: str = champ.get("apiName", "")
+                if not api_name:
+                    continue
+                champions.append({
+                    "apiName": api_name,
+                    "name": champ.get("name", api_name.replace("TFT16_", "")),
+                    "cost": champ.get("cost", 0),
+                    "traits": champ.get("traits", []),
+                })
+
+            champions.sort(key=lambda c: (c["cost"], c["name"]))
+            _CHAMPIONS_CACHE = champions
+            _CHAMPIONS_CACHE_TS = now
+        except Exception:
+            if _CHAMPIONS_CACHE is None:
+                _CHAMPIONS_CACHE = []
+
+        return _cc(Response(_CHAMPIONS_CACHE), 300)
 
 
 class UnitStatsView(ListAPIView):
