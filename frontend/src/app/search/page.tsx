@@ -14,13 +14,13 @@ async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
   }
 }
 
-async function fetchItemAssets(): Promise<Record<string, string>> {
+async function fetchItemData(): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
   try {
     const res = await fetch(backendUrl("/api/item-assets/"), { cache: "no-store" });
-    if (!res.ok) return {};
+    if (!res.ok) return { assets: {}, names: {} };
     return res.json();
   } catch {
-    return {};
+    return { assets: {}, names: {} };
   }
 }
 
@@ -35,9 +35,9 @@ async function fetchUnits(): Promise<UnitStat[]> {
 }
 
 export default async function SearchPage() {
-  const [units, itemAssets, traitData] = await Promise.all([
+  const [units, itemData, traitData] = await Promise.all([
     fetchUnits(),
-    fetchItemAssets(),
+    fetchItemData(),
     fetchTraitBreakpoints(),
   ]);
 
@@ -52,7 +52,8 @@ export default async function SearchPage() {
       <Suspense fallback={null}>
         <SearchComps
           units={units}
-          itemAssets={itemAssets}
+          itemAssets={itemData.assets}
+          itemNames={itemData.names}
           traitData={traitData}
         />
       </Suspense>

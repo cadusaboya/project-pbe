@@ -40,7 +40,8 @@ function formatUnit(id: string): string {
   return id.replace(/^TFT\d+_/, "");
 }
 
-function formatItem(id: string): string {
+function formatItem(id: string, itemNames?: Record<string, string>): string {
+  if (itemNames?.[id]) return itemNames[id];
   return id
     .replace(/^TFT\d+_Item_/, "")
     .replace(/^TFT_Item_/, "")
@@ -285,10 +286,12 @@ function StarLevel({ level }: { level: number }) {
 function UnitChip({
   unit,
   itemAssets,
+  itemNames,
   highlighted,
 }: {
   unit: SearchUnit;
   itemAssets: Record<string, string>;
+  itemNames?: Record<string, string>;
   highlighted?: boolean;
 }) {
   const border = highlighted
@@ -322,8 +325,8 @@ function UnitChip({
               <img
                 key={i}
                 src={src}
-                alt={formatItem(item)}
-                title={formatItem(item)}
+                alt={formatItem(item, itemNames)}
+                title={formatItem(item, itemNames)}
                 width={16}
                 height={16}
                 className="w-4 h-4 rounded object-cover"
@@ -340,9 +343,11 @@ function UnitChip({
 function UnitChipSmall({
   unit,
   itemAssets,
+  itemNames,
 }: {
   unit: SearchUnit;
   itemAssets: Record<string, string>;
+  itemNames?: Record<string, string>;
 }) {
   const border = costColor(unit.cost);
   return (
@@ -372,8 +377,8 @@ function UnitChipSmall({
               <img
                 key={i}
                 src={src}
-                alt={formatItem(item)}
-                title={formatItem(item)}
+                alt={formatItem(item, itemNames)}
+                title={formatItem(item, itemNames)}
                 width={12}
                 height={12}
                 className="w-3 h-3 rounded object-cover"
@@ -436,11 +441,13 @@ function TraitChips({
 function ResultCard({
   comp,
   itemAssets,
+  itemNames,
   traitData,
   searchedUnits,
 }: {
   comp: SearchComp;
   itemAssets: Record<string, string>;
+  itemNames?: Record<string, string>;
   traitData: Record<string, TraitInfo>;
   searchedUnits: string[];
 }) {
@@ -489,9 +496,13 @@ function ResultCard({
           >
             #{comp.placement}
           </span>
-          <span className="text-tft-text font-medium">
+          <a
+            href={`/player/${encodeURIComponent(comp.player.split("#")[0])}`}
+            onClick={(e) => e.stopPropagation()}
+            className="text-tft-text font-medium hover:text-tft-gold transition-colors"
+          >
             {displayPlayerName(comp.player)}
-          </span>
+          </a>
           <span className="text-tft-muted text-xs">{formatDate(comp.game_datetime)}</span>
           {comp.game_version && (
             <span className="px-1.5 py-0.5 rounded bg-tft-surface border border-tft-border text-tft-muted text-xs">
@@ -507,6 +518,7 @@ function ResultCard({
               key={i}
               unit={unit}
               itemAssets={itemAssets}
+              itemNames={itemNames}
               highlighted={isHighlighted(unit)}
             />
           ))}
@@ -537,9 +549,13 @@ function ResultCard({
                   <span className={`w-5 text-sm text-right shrink-0 ${placementStyle(participant.placement)}`}>
                     #{participant.placement}
                   </span>
-                  <span className={`text-sm w-36 truncate shrink-0 ${isCurrentPlayer ? "text-tft-accent font-semibold" : "text-tft-text"}`}>
+                  <a
+                    href={`/player/${encodeURIComponent(participant.name.split("#")[0])}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className={`text-sm w-36 truncate shrink-0 hover:text-tft-gold transition-colors ${isCurrentPlayer ? "text-tft-accent font-semibold" : "text-tft-text"}`}
+                  >
                     {displayPlayerName(participant.name)}
-                  </span>
+                  </a>
                   <div className="flex flex-col gap-1.5">
                     <TraitChips units={participant.units} traitData={traitData} />
                     <div className="flex flex-wrap gap-1">
@@ -547,7 +563,7 @@ function ResultCard({
                         .slice()
                         .sort((a, b) => b.cost - a.cost || b.star_level - a.star_level)
                         .map((unit, j) => (
-                          <UnitChipSmall key={j} unit={unit} itemAssets={itemAssets} />
+                          <UnitChipSmall key={j} unit={unit} itemAssets={itemAssets} itemNames={itemNames} />
                         ))}
                     </div>
                   </div>
@@ -566,10 +582,12 @@ function ResultCard({
 export default function SearchComps({
   units,
   itemAssets,
+  itemNames,
   traitData,
 }: {
   units: UnitStat[];
   itemAssets: Record<string, string>;
+  itemNames?: Record<string, string>;
   traitData: Record<string, TraitInfo>;
 }) {
   const [requiredUnits, setRequiredUnits] = useState<string[]>([]);
@@ -725,6 +743,7 @@ export default function SearchComps({
               key={`${comp.match_id}-${comp.placement}-${i}`}
               comp={comp}
               itemAssets={itemAssets}
+              itemNames={itemNames}
               traitData={traitData}
               searchedUnits={requiredUnits}
             />

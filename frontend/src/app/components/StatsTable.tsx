@@ -112,7 +112,10 @@ function starLabelColor(starLevel: number): string {
   return "text-gray-400";
 }
 
+let _itemNamesCache: Record<string, string> = {};
+
 function formatItemName(itemName: string): string {
+  if (_itemNamesCache[itemName]) return _itemNamesCache[itemName];
   return itemName.replace(/^TFT\d*_Item_/, "").replace(/([A-Z])/g, " $1").trim();
 }
 
@@ -234,8 +237,11 @@ export default function StatsTable({
 
   useEffect(() => {
     fetch(backendUrl("/api/item-assets/"))
-      .then((r) => r.ok ? r.json() : {})
-      .then(setItemAssets)
+      .then((r) => (r.ok ? r.json() : { assets: {}, names: {} }))
+      .then((data: { assets: Record<string, string>; names: Record<string, string> }) => {
+        setItemAssets(data.assets ?? data);
+        if (data.names) _itemNamesCache = data.names;
+      })
       .catch(() => {});
   }, []);
 
