@@ -1,7 +1,12 @@
 import CompsList, { CompStat } from "../components/CompsList";
 import { backendUrl } from "@/lib/backend";
 
-async function fetchCompStats(gameVersion?: string): Promise<CompStat[]> {
+interface CompsResponse {
+  total_games: number;
+  comps: CompStat[];
+}
+
+async function fetchCompStats(gameVersion?: string): Promise<CompsResponse> {
   const url = new URL(backendUrl("/api/comps/"));
   if (gameVersion) url.searchParams.set("game_version", gameVersion);
 
@@ -39,16 +44,21 @@ export default async function CompsPage({
 }) {
   const { game_version: gameVersion } = await searchParams;
   let data: CompStat[] = [];
+  let totalGames = 0;
   let versions: string[] = [];
   let traitData: Record<string, { breakpoints: number[]; icon: string }> = {};
   let error: string | null = null;
 
   try {
-    [data, versions, traitData] = await Promise.all([
+    const [compsRes, v, t] = await Promise.all([
       fetchCompStats(gameVersion),
       fetchVersions(),
       fetchTraits(),
     ]);
+    data = compsRes.comps;
+    totalGames = compsRes.total_games;
+    versions = v;
+    traitData = t;
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";
   }
@@ -81,6 +91,7 @@ export default async function CompsPage({
           basePath="/comps"
           showCompMeta={false}
           traitData={traitData}
+          totalGames={totalGames}
         />
       )}
     </div>

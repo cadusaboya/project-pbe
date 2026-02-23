@@ -288,6 +288,7 @@ export default function CompsList({
   selectedCoreSizes = "4,5,6",
   selectedMinOccurrences = "100",
   traitData = {},
+  totalGames,
 }: {
   data: CompStat[];
   versions: string[];
@@ -298,6 +299,7 @@ export default function CompsList({
   selectedCoreSizes?: string;
   selectedMinOccurrences?: string;
   traitData?: TraitData;
+  totalGames?: number;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -509,7 +511,11 @@ export default function CompsList({
           })}
         </div>
 
-        <span className="text-tft-muted text-sm ml-auto tabular-nums">{filtered.length} comps</span>
+        <span className="text-tft-muted text-sm ml-auto tabular-nums">
+          {totalGames != null && totalGames > 0
+            ? `${totalGames.toLocaleString()} games analyzed`
+            : `${filtered.length} comps`}
+        </span>
       </div>
 
       {/* List */}

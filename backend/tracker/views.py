@@ -1535,10 +1535,11 @@ class CompsView(APIView):
                 ],
             })
 
+        total_games = len({b["match_id"] for b in boards})
+
         result.sort(key=lambda x: (-x["comps"], x["avg_placement"], x["name"]))
-        if limit is not None:
-            return _cc(Response(result[:limit]), 60)
-        return _cc(Response(result), 60)
+        comps_list = result[:limit] if limit is not None else result
+        return _cc(Response({"total_games": total_games, "comps": comps_list}), 60)
 
 
 class SearchCompsView(APIView):
