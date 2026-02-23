@@ -202,12 +202,6 @@ function costColor(cost: number): string {
   return COST_COLORS[cost] ?? "border-gray-500";
 }
 
-function placementStyle(p: number): string {
-  if (p === 1) return "text-yellow-400 font-bold";
-  if (p <= 4) return "text-green-400 font-semibold";
-  return "text-tft-muted";
-}
-
 function StarLevel({ level }: { level: number }) {
   const stars = "★".repeat(level);
   const colors = ["", "text-amber-700", "text-slate-300", "text-yellow-400"];
@@ -241,9 +235,9 @@ function UnitChip({
       <img
         src={unitImageUrl(unit.character_id)}
         alt={formatUnit(unit.character_id)}
-        width={48}
-        height={48}
-        className="w-12 h-12 block rounded object-cover"
+        width={40}
+        height={40}
+        className="w-10 h-10 block rounded object-cover"
         onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
       />
       {/* Stars overlapping top of image */}
@@ -309,111 +303,115 @@ function CompCard({
     setExpanded((e) => !e);
   }
 
+  const lobbyPlacementStyle = (p: number) => {
+    if (p <= 4) return "bg-teal-700/80 border-teal-800 text-white";
+    if (p <= 6) return "bg-slate-700/80 border-slate-800 text-white/80";
+    return "bg-rose-800/80 border-rose-900 text-white/80";
+  };
+
   return (
     <div className="border border-tft-border rounded-xl bg-tft-surface/60 overflow-hidden">
-      {/* Header — click to expand */}
-      <div
-        className="p-4 space-y-3 cursor-pointer select-none hover:bg-tft-hover transition-colors"
-        onClick={handleToggle}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <a
-              href={`/player/${encodeURIComponent(comp.winner.split("#")[0])}`}
-              onClick={(e) => e.stopPropagation()}
-              className="text-tft-gold font-semibold hover:underline"
-            >
-              #1 {displayPlayerName(comp.winner)}
-            </a>
-            <div className="text-tft-muted text-xs mt-0.5 flex flex-wrap items-center gap-1.5">
-              {formatDate(comp.game_datetime)}
-              {comp.game_version && (
-                <span className="px-1.5 py-0.5 rounded bg-tft-surface border border-tft-border text-tft-muted">
-                  {comp.game_version}
-                </span>
-              )}
-              <TraitChips units={comp.units} traitData={traitData} />
+        {/* Header — click to expand */}
+        <div
+          className="px-3 py-2.5 space-y-2 cursor-pointer select-none hover:bg-tft-hover transition-colors"
+          onClick={handleToggle}
+        >
+          <div className="flex items-center gap-3">
+            {/* Solid gold placement badge */}
+            <span className="w-7 h-7 rounded border flex items-center justify-center text-xs font-bold bg-yellow-700/80 border-yellow-800 text-white shrink-0">
+              1
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/player/${encodeURIComponent(comp.winner.split("#")[0])}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-tft-gold font-semibold underline decoration-tft-gold/40 hover:decoration-tft-gold truncate"
+                >
+                  {displayPlayerName(comp.winner)}
+                </a>
+              </div>
+              <div className="text-tft-muted text-xs mt-0.5 flex flex-wrap items-center gap-1.5">
+                {formatDate(comp.game_datetime)}
+                {comp.game_version && (
+                  <span className="px-1.5 py-0.5 rounded bg-tft-surface border border-tft-border text-tft-muted">
+                    {comp.game_version}
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <a
-              href={`/player/${encodeURIComponent(comp.winner.split("#")[0])}`}
-              onClick={(e) => e.stopPropagation()}
-              className="text-xs px-2 py-0.5 rounded bg-tft-surface border border-tft-border text-tft-muted hover:text-tft-text hover:border-tft-accent transition-colors"
-              title="View player stats"
-            >
-              Player Stats
-            </a>
-            <span className="text-tft-muted text-xs">
+            <span className="text-tft-muted text-xs shrink-0">
               {expanded ? "▲" : "▼"}
             </span>
           </div>
+          <div className="flex flex-col gap-1.5">
+            <TraitChips units={comp.units} traitData={traitData} />
+            <div className="flex flex-wrap gap-1.5">
+              {comp.units
+                .slice()
+                .sort((a, b) => b.cost - a.cost || b.star_level - a.star_level)
+                .map((unit, i) => (
+                  <UnitChip key={i} unit={unit} itemAssets={itemAssets} itemNames={itemNames} />
+                ))}
+            </div>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {comp.units
-            .slice()
-            .sort((a, b) => b.cost - a.cost || b.star_level - a.star_level)
-            .map((unit, i) => (
-              <UnitChip key={i} unit={unit} itemAssets={itemAssets} itemNames={itemNames} />
-            ))}
-        </div>
-      </div>
 
-      {/* Expanded lobby */}
-      {expanded && (
-        <div className="border-t border-tft-border px-4 py-3 space-y-1">
-          {loading && (
-            <p className="text-tft-muted text-sm text-center py-4">
-              Loading lobby...
-            </p>
-          )}
-          {lobbyError && (
-            <p className="text-red-400 text-sm text-center py-4">
-              {lobbyError}
-            </p>
-          )}
-          {lobby &&
-            lobby.filter((p) => p.placement !== 1).map((participant, i, arr) => (
-              <div
-                key={i}
-                className={`py-1.5 ${
-                  i < arr.length - 1 ? "border-b border-tft-border/40" : ""
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`w-5 text-sm text-right shrink-0 ${placementStyle(participant.placement)}`}
-                  >
-                    #{participant.placement}
-                  </span>
-                  <a
-                    href={`/player/${encodeURIComponent(participant.name.split("#")[0])}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-tft-text text-sm w-40 truncate shrink-0 hover:text-tft-gold transition-colors"
-                  >
-                    {displayPlayerName(participant.name)}
-                  </a>
-                  <div className="flex flex-col gap-1.5">
-                    <TraitChips units={participant.units} traitData={traitData} />
-                    <div className="flex flex-wrap gap-1">
-                      {participant.units
-                        .slice()
-                        .sort((a, b) => b.cost - a.cost || b.star_level - a.star_level)
-                        .map((unit, j) => (
-                          <UnitChip
-                            key={j}
-                            unit={unit}
-                            itemAssets={itemAssets}
-                            itemNames={itemNames}
-                          />
-                        ))}
+        {/* Expanded lobby */}
+        {expanded && (
+          <div className="border-t border-tft-border px-4 py-3 space-y-1">
+            {loading && (
+              <p className="text-tft-muted text-sm text-center py-4">
+                Loading lobby...
+              </p>
+            )}
+            {lobbyError && (
+              <p className="text-red-400 text-sm text-center py-4">
+                {lobbyError}
+              </p>
+            )}
+            {lobby &&
+              lobby.filter((p) => p.placement !== 1).map((participant, i, arr) => (
+                <div
+                  key={i}
+                  className={`py-1.5 ${
+                    i < arr.length - 1 ? "border-b border-tft-border/40" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`w-6 h-6 rounded border flex items-center justify-center text-[10px] font-bold shrink-0 ${lobbyPlacementStyle(participant.placement)}`}
+                    >
+                      {participant.placement}
+                    </span>
+                    <a
+                      href={`/player/${encodeURIComponent(participant.name.split("#")[0])}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-tft-text text-sm w-40 truncate shrink-0 hover:text-tft-gold transition-colors"
+                    >
+                      {displayPlayerName(participant.name)}
+                    </a>
+                    <div className="flex flex-col gap-2.5">
+                      <TraitChips units={participant.units} traitData={traitData} />
+                      <div className="flex flex-wrap gap-1">
+                        {participant.units
+                          .slice()
+                          .sort((a, b) => b.cost - a.cost || b.star_level - a.star_level)
+                          .map((unit, j) => (
+                            <UnitChip
+                              key={j}
+                              unit={unit}
+                              itemAssets={itemAssets}
+                              itemNames={itemNames}
+                            />
+                          ))}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-        </div>
-      )}
+              ))}
+          </div>
+        )}
     </div>
   );
 }
@@ -471,7 +469,7 @@ export default function WinningCompsList({
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="flex flex-wrap gap-3 items-center border border-tft-border rounded-xl bg-tft-surface/40 px-4 py-3">
         {versions.length > 0 && (
           <select
             value={selectedVersion}
@@ -509,7 +507,7 @@ export default function WinningCompsList({
           No comps found.
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-3">
           {filtered.map((comp) => (
             <CompCard key={comp.match_id} comp={comp} itemAssets={itemAssets} itemNames={itemNames} traitData={traitData} />
           ))}

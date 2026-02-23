@@ -6,17 +6,17 @@ from django.core.management.base import BaseCommand
 
 from tracker.models import Match
 
-GAME_VERSION_WITH_THEX = "16.6 A"
-GAME_VERSION_NO_THEX = "16.6 A - No THex Items"
-DEFAULT_SWITCH_DATE = "2026-02-21"
-DEFAULT_SWITCH_TIME = "21:10"
+GAME_VERSION_BEFORE = "16.6 A - No THex Items"
+GAME_VERSION_AFTER = "16.6 B"
+DEFAULT_SWITCH_DATE = "2026-02-23"
+DEFAULT_SWITCH_TIME = "16:30"
 DEFAULT_SWITCH_TZ = "America/Cuiaba"
 
 
 class Command(BaseCommand):
     help = (
-        "Recompute Match.game_version using the 16.6A breakpoint rule: "
-        "before cutoff -> '16.6 A', from cutoff onward -> '16.6 A - No THex Items'."
+        "Recompute Match.game_version using the version switchover rule: "
+        "before cutoff -> '16.6 A - No THex Items', from cutoff onward -> '16.6 B'."
     )
 
     def add_arguments(self, parser):
@@ -38,12 +38,12 @@ class Command(BaseCommand):
         switch_dt_utc = self._build_switch_datetime_utc()
 
         qs = Match.objects.filter(
-            game_version__in=[GAME_VERSION_WITH_THEX, GAME_VERSION_NO_THEX]
+            game_version__in=[GAME_VERSION_BEFORE, GAME_VERSION_AFTER]
         ).order_by("match_id")
 
         total = qs.count()
         if total == 0:
-            self.stdout.write("No matches found with 16.6 A labels. Nothing to fix.")
+            self.stdout.write("No matches found with matching version labels. Nothing to fix.")
             return
 
         self.stdout.write(
@@ -109,5 +109,5 @@ class Command(BaseCommand):
             seconds=game_length_s
         )
         if game_end_utc >= switch_dt_utc:
-            return GAME_VERSION_NO_THEX
-        return GAME_VERSION_WITH_THEX
+            return GAME_VERSION_AFTER
+        return GAME_VERSION_BEFORE
