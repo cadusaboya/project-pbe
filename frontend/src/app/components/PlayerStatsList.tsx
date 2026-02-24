@@ -105,7 +105,7 @@ export default function PlayerStatsList({ data }: { data: PlayerStat[] }) {
           placeholder="Search player..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="px-3 py-1.5 rounded-md text-sm bg-tft-surface border border-tft-border text-tft-text placeholder:text-tft-muted focus:outline-none focus:border-tft-accent w-56"
+          className="px-3 py-1.5 rounded-md text-sm bg-tft-surface border border-tft-border text-tft-text placeholder:text-tft-muted focus:outline-none focus:border-tft-accent flex-1 min-w-[120px] max-w-[220px]"
         />
         <div className="flex items-center gap-1.5">
           <label className="text-xs text-tft-muted">Min games:</label>
@@ -115,7 +115,7 @@ export default function PlayerStatsList({ data }: { data: PlayerStat[] }) {
             value={minGames || ""}
             onChange={(e) => setMinGames(parseInt(e.target.value) || 0)}
             placeholder="0"
-            className="px-2 py-1.5 rounded-md text-sm bg-tft-surface border border-tft-border text-tft-text placeholder:text-tft-muted focus:outline-none focus:border-tft-accent w-20"
+            className="px-2 py-1.5 rounded-md text-sm bg-tft-surface border border-tft-border text-tft-text placeholder:text-tft-muted focus:outline-none focus:border-tft-accent w-16 sm:w-20"
           />
         </div>
         <span className="text-xs text-tft-muted ml-auto">{rows.length} players</span>
@@ -130,7 +130,7 @@ export default function PlayerStatsList({ data }: { data: PlayerStat[] }) {
                 <th
                   key={col.label}
                   onClick={col.key ? () => handleSort(col.key!) : undefined}
-                  className={`${col.align} px-4 py-2.5 font-medium ${
+                  className={`${col.align} px-2 sm:px-4 py-2 sm:py-2.5 font-medium whitespace-nowrap ${
                     col.key
                       ? "cursor-pointer select-none hover:text-tft-text transition-colors"
                       : ""
@@ -147,8 +147,8 @@ export default function PlayerStatsList({ data }: { data: PlayerStat[] }) {
                 key={`${p.game_name}#${p.tag_line}`}
                 className="hover:bg-tft-hover/50 transition-colors"
               >
-                <td className="px-4 py-2.5 text-tft-muted">{idx + 1}</td>
-                <td className="px-4 py-2.5 font-medium">
+                <td className="px-2 sm:px-4 py-2 sm:py-2.5 text-tft-muted">{idx + 1}</td>
+                <td className="px-2 sm:px-4 py-2 sm:py-2.5 font-medium">
                   <span
                     onClick={() => router.push(`/player/${encodeURIComponent(p.game_name)}`)}
                     className="text-tft-text underline decoration-tft-muted/50 hover:decoration-tft-accent hover:text-tft-accent cursor-pointer transition-colors"
@@ -156,22 +156,22 @@ export default function PlayerStatsList({ data }: { data: PlayerStat[] }) {
                     {p.game_name}
                   </span>
                 </td>
-                <td className="px-4 py-2.5 text-center text-tft-muted">{p.games}</td>
-                <td className={`px-4 py-2.5 text-center font-semibold ${avpTextColor(p.avg_placement)}`}>
+                <td className="px-2 sm:px-4 py-2 sm:py-2.5 text-center text-tft-muted">{p.games}</td>
+                <td className={`px-2 sm:px-4 py-2 sm:py-2.5 text-center font-semibold ${avpTextColor(p.avg_placement)}`}>
                   {p.avg_placement.toFixed(2)}
                 </td>
-                <td className="px-4 py-2.5 text-center text-tft-muted">
+                <td className="px-2 sm:px-4 py-2 sm:py-2.5 text-center text-tft-muted">
                   {(p.win_rate * 100).toFixed(1)}%
                 </td>
-                <td className="px-4 py-2.5 text-center text-tft-muted">
+                <td className="px-2 sm:px-4 py-2 sm:py-2.5 text-center text-tft-muted">
                   {(p.top4_rate * 100).toFixed(1)}%
                 </td>
-                <td className="px-4 py-2.5">
+                <td className="px-2 sm:px-4 py-2 sm:py-2.5">
                   <div className="flex gap-1">
                     {p.top_units.map((u) => (
                       <div
                         key={u.character_id}
-                        className={`w-7 h-7 rounded border ${costBorderColor(u.cost)} overflow-hidden shrink-0`}
+                        className={`w-6 h-6 sm:w-7 sm:h-7 rounded border ${costBorderColor(u.cost)} overflow-hidden shrink-0`}
                         title={formatUnit(u.character_id)}
                       >
                         <img

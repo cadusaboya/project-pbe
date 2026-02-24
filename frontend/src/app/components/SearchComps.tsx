@@ -225,12 +225,12 @@ function UnitPicker({
     <div ref={ref} className="relative">
       <button
         onClick={() => { setOpen(true); setTimeout(() => inputRef.current?.focus(), 0); }}
-        className="flex items-center gap-2 bg-tft-surface border border-tft-border rounded-md px-3 py-1.5 text-sm hover:border-tft-accent transition-colors min-w-[180px] text-left"
+        className="flex items-center gap-2 bg-tft-surface border border-tft-border rounded-md px-3 py-1.5 text-sm hover:border-tft-accent transition-colors min-w-[140px] sm:min-w-[180px] text-left"
       >
         <span className="text-tft-muted">+ Add unit…</span>
       </button>
       {open && (
-        <div className="absolute z-30 top-full left-0 mt-1 w-56 bg-tft-surface border border-tft-border rounded-md shadow-xl overflow-hidden">
+        <div className="absolute z-30 top-full left-0 mt-1 w-52 sm:w-56 bg-tft-surface border border-tft-border rounded-md shadow-xl overflow-hidden">
           <div className="p-2 border-b border-tft-border">
             <input
               ref={inputRef}
@@ -487,7 +487,7 @@ function ResultCard({
     <div className="border border-tft-border rounded-xl bg-tft-surface/60 overflow-hidden">
       {/* Clickable header */}
       <div
-        className="p-4 space-y-3 cursor-pointer select-none hover:bg-tft-hover transition-colors"
+        className="p-3 sm:p-4 space-y-3 cursor-pointer select-none hover:bg-tft-hover transition-colors"
         onClick={handleToggle}
       >
         <div className="flex items-center gap-3 flex-wrap">
@@ -528,7 +528,7 @@ function ResultCard({
 
       {/* Expanded lobby */}
       {expanded && (
-        <div className="border-t border-tft-border px-4 py-3 space-y-1">
+        <div className="border-t border-tft-border px-3 sm:px-4 py-3 space-y-1">
           <p className="text-tft-muted text-xs font-semibold uppercase tracking-wide pb-1">Full match results</p>
           {loadingLobby && (
             <p className="text-tft-muted text-sm text-center py-4">Loading lobby…</p>
@@ -545,18 +545,18 @@ function ResultCard({
                 key={i}
                 className={`py-1.5 ${i < arr.length - 1 ? "border-b border-tft-border/40" : ""} ${isCurrentPlayer ? "bg-tft-accent/5 rounded" : ""}`}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-start gap-2 sm:gap-3">
                   <span className={`w-5 text-sm text-right shrink-0 ${placementStyle(participant.placement)}`}>
                     #{participant.placement}
                   </span>
                   <a
                     href={`/player/${encodeURIComponent(participant.name.split("#")[0])}`}
                     onClick={(e) => e.stopPropagation()}
-                    className={`text-sm w-36 truncate shrink-0 hover:text-tft-gold transition-colors ${isCurrentPlayer ? "text-tft-accent font-semibold" : "text-tft-text"}`}
+                    className={`text-sm w-24 sm:w-36 truncate shrink-0 hover:text-tft-gold transition-colors ${isCurrentPlayer ? "text-tft-accent font-semibold" : "text-tft-text"}`}
                   >
                     {displayPlayerName(participant.name)}
                   </a>
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                     <TraitChips units={participant.units} traitData={traitData} />
                     <div className="flex flex-wrap gap-1">
                       {participant.units

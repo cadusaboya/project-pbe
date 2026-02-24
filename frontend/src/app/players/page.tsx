@@ -22,8 +22,8 @@ export default async function PlayersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-tft-text">Player Stats</h1>
-        <p className="text-tft-muted text-sm mt-1">
+        <h1 className="text-xl sm:text-2xl font-bold text-tft-text">Player Stats</h1>
+        <p className="text-tft-muted text-xs sm:text-sm mt-1">
           Rankings for all tracked players. Click a player to view their full profile.
         </p>
         <p className="text-sm mt-2">

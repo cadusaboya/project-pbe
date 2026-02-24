@@ -50,9 +50,9 @@ export default async function StatsBar() {
 
   return (
     <div className="border-b border-tft-border bg-tft-bg/60">
-      <div className="max-w-7xl mx-auto px-4 py-2 flex flex-wrap items-center gap-x-6 gap-y-1">
-        <Stat label="Matches analyzed" value={stats.matches_analyzed} />
-        <Stat label="Comps analyzed" value={stats.participants_recorded} />
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-1.5 sm:py-2 flex flex-wrap items-center gap-x-3 sm:gap-x-6 gap-y-1">
+        <Stat label="Matches" value={stats.matches_analyzed} />
+        <Stat label="Comps" value={stats.participants_recorded} />
         <span className="text-tft-muted text-xs ml-auto">
           {stats.last_fetch_at ? (
             <>

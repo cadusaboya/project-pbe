@@ -189,11 +189,11 @@ function CompCard({ comp, onExplore }: { comp: CompStat; onExplore?: (comp: Comp
         )}
 
         {/* Row 2: units + stats */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
           {/* Units section — fills remaining space */}
-          <div className="flex items-center gap-3 flex-1 min-w-0 flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 flex-wrap">
             {/* Core units */}
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
               {comp.core_units.map((u) => (
                 <UnitChip key={u.character_id} unit={u} />
               ))}
@@ -202,7 +202,7 @@ function CompCard({ comp, onExplore }: { comp: CompStat; onExplore?: (comp: Comp
             {/* Flex suggestion */}
             {suggestedFlex && (
               <div className="flex items-center gap-1 shrink-0">
-                <div className="w-px h-8 bg-tft-border/50 mx-1" />
+                <div className="w-px h-8 bg-tft-border/50 mx-0.5 sm:mx-1" />
                 <span className="text-[9px] uppercase tracking-widest text-tft-muted/50 mr-0.5">
                   flex
                 </span>
@@ -213,25 +213,25 @@ function CompCard({ comp, onExplore }: { comp: CompStat; onExplore?: (comp: Comp
             )}
           </div>
 
-          {/* Stats — fixed width so all cards align */}
-          <div className="flex items-center gap-1 shrink-0 w-[340px] justify-end">
+          {/* Stats — responsive: full width on mobile, fixed on desktop */}
+          <div className="flex items-center gap-1 shrink-0 justify-between sm:justify-end sm:w-[340px]">
             {/* Tier badge */}
             <span className={`inline-flex items-center justify-center w-7 h-7 rounded-md border text-xs font-bold ${compTier(comp.avg_placement).color} ${compTier(comp.avg_placement).bg} mr-1`}>
               {compTier(comp.avg_placement).label}
             </span>
             {/* AVP */}
-            <div className="flex flex-col items-center w-14">
-              <div className={`text-xl font-semibold tabular-nums leading-none ${avpTextColor(comp.avg_placement)}`}>
+            <div className="flex flex-col items-center w-12 sm:w-14">
+              <div className={`text-base sm:text-xl font-semibold tabular-nums leading-none ${avpTextColor(comp.avg_placement)}`}>
                 {comp.avg_placement.toFixed(2)}
               </div>
-              <div className="text-[9px] uppercase tracking-wider text-tft-muted mt-0.5">AVP</div>
+              <div className="text-[8px] sm:text-[9px] uppercase tracking-wider text-tft-muted mt-0.5">AVP</div>
             </div>
             <div className="w-px h-6 bg-tft-border/40" />
-            <div className="w-14"><StatBadge value={String(comp.comps)} label="Freq" /></div>
+            <div className="w-10 sm:w-14"><StatBadge value={String(comp.comps)} label="Freq" /></div>
             <div className="w-px h-6 bg-tft-border/40" />
-            <div className="w-14"><StatBadge value={`${winRate.toFixed(1)}%`} label="Win" /></div>
+            <div className="w-10 sm:w-14"><StatBadge value={`${winRate.toFixed(1)}%`} label="Win" /></div>
             <div className="w-px h-6 bg-tft-border/40" />
-            <div className="w-14"><StatBadge value={`${top4Rate.toFixed(1)}%`} label="Top 4" /></div>
+            <div className="w-10 sm:w-14"><StatBadge value={`${top4Rate.toFixed(1)}%`} label="Top 4" /></div>
             <span className="text-tft-muted text-[11px] w-3 shrink-0 ml-1">
               {expanded ? "▲" : "▼"}
             </span>
@@ -470,7 +470,7 @@ export default function CompsList({
           />
         )}
 
-        <div className="relative">
+        <div className="relative flex-1 min-w-[120px] max-w-[220px]">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tft-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
           </svg>
@@ -479,7 +479,7 @@ export default function CompsList({
             placeholder="Search comp or unit..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-56 transition-colors"
+            className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-full transition-colors"
           />
         </div>
 

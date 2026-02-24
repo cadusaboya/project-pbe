@@ -387,11 +387,11 @@ function CompCard({
                     <a
                       href={`/player/${encodeURIComponent(participant.name.split("#")[0])}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="text-tft-text text-sm w-40 truncate shrink-0 hover:text-tft-gold transition-colors"
+                      className="text-tft-text text-sm w-24 sm:w-40 truncate shrink-0 hover:text-tft-gold transition-colors"
                     >
                       {displayPlayerName(participant.name)}
                     </a>
-                    <div className="flex flex-col gap-2.5">
+                    <div className="flex flex-col gap-2.5 flex-1 min-w-0">
                       <TraitChips units={participant.units} traitData={traitData} />
                       <div className="flex flex-wrap gap-1">
                         {participant.units
@@ -469,7 +469,7 @@ export default function WinningCompsList({
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center border border-tft-border rounded-xl bg-tft-surface/40 px-4 py-3">
+      <div className="flex flex-wrap gap-2 sm:gap-3 items-center border border-tft-border rounded-xl bg-tft-surface/40 px-3 sm:px-4 py-2.5 sm:py-3">
         {versions.length > 0 && (
           <select
             value={selectedVersion}
@@ -484,19 +484,19 @@ export default function WinningCompsList({
         )}
         <input
           type="text"
-          placeholder="Search by winning player..."
+          placeholder="Search player..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-48"
+          className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent flex-1 min-w-[120px] max-w-[200px]"
         />
         <input
           type="text"
-          placeholder="Filter by winning units..."
+          placeholder="Filter units..."
           value={unitFilter}
           onChange={(e) => setUnitFilter(e.target.value)}
-          className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-48"
+          className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent flex-1 min-w-[120px] max-w-[200px]"
         />
-        <span className="text-tft-muted text-sm ml-auto">
+        <span className="text-tft-muted text-xs sm:text-sm ml-auto">
           {filtered.length} comps
         </span>
       </div>

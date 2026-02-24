@@ -75,8 +75,8 @@ export default async function GamesFeedPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-tft-text">Games Feed</h1>
-        <p className="text-tft-muted text-sm mt-1">
+        <h1 className="text-xl sm:text-2xl font-bold text-tft-text">Games Feed</h1>
+        <p className="text-tft-muted text-xs sm:text-sm mt-1">
           PBE matches tracked, sorted by most recent. Click to see the full lobby.
         </p>
       </div>

@@ -1146,10 +1146,10 @@ export default function DataExplorer({
         </p>
       </div>
 
-      <div className="flex gap-6">
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
         {/* Left sidebar: filters */}
-        <div className="w-72 flex-shrink-0 space-y-4">
-          <div className="bg-tft-surface border border-tft-border rounded-xl p-4 space-y-4">
+        <div className="w-full lg:w-72 lg:flex-shrink-0 space-y-4">
+          <div className="bg-tft-surface border border-tft-border rounded-xl p-3 sm:p-4 space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-tft-text text-sm font-semibold">Filters</p>
               {filters.length > 0 && (
@@ -1256,54 +1256,51 @@ export default function DataExplorer({
       {!loading && exploreData && (
         <div className="space-y-4">
           {/* Base stats card */}
-          <div className="bg-tft-surface border border-tft-border rounded-xl px-5 py-4 flex items-center gap-6 flex-wrap">
+          <div className="bg-tft-surface border border-tft-border rounded-xl px-3 sm:px-5 py-3 sm:py-4 grid grid-cols-2 sm:flex sm:items-center gap-3 sm:gap-6 sm:flex-wrap">
             <div>
-              <p className="text-tft-muted text-xs uppercase tracking-wide">Matching comps</p>
-              <p className="text-2xl font-bold text-tft-text tabular-nums">
+              <p className="text-tft-muted text-[10px] sm:text-xs uppercase tracking-wide">Matching</p>
+              <p className="text-lg sm:text-2xl font-bold text-tft-text tabular-nums">
                 {exploreData.base_games.toLocaleString("en-US")}
               </p>
             </div>
-            <div className="w-px h-10 bg-tft-border" />
             <div>
-              <p className="text-tft-muted text-xs uppercase tracking-wide">Avg placement</p>
+              <p className="text-tft-muted text-[10px] sm:text-xs uppercase tracking-wide">AVP</p>
               <p
-                className={`text-2xl font-bold tabular-nums ${placementColor(
+                className={`text-lg sm:text-2xl font-bold tabular-nums ${placementColor(
                   exploreData.base_avg_placement
                 )}`}
               >
                 {exploreData.base_avg_placement.toFixed(2)}
               </p>
             </div>
-            <div className="w-px h-10 bg-tft-border" />
             <div>
-              <p className="text-tft-muted text-xs uppercase tracking-wide">Top 4 %</p>
-              <p className={`text-2xl font-bold tabular-nums ${rateColor(exploreData.base_top4_rate)}`}>
+              <p className="text-tft-muted text-[10px] sm:text-xs uppercase tracking-wide">Top 4 %</p>
+              <p className={`text-lg sm:text-2xl font-bold tabular-nums ${rateColor(exploreData.base_top4_rate)}`}>
                 {(exploreData.base_top4_rate * 100).toFixed(1)}%
               </p>
             </div>
-            <div className="w-px h-10 bg-tft-border" />
             <div>
-              <p className="text-tft-muted text-xs uppercase tracking-wide">Win %</p>
-              <p className={`text-2xl font-bold tabular-nums ${winRateColor(exploreData.base_win_rate)}`}>
+              <p className="text-tft-muted text-[10px] sm:text-xs uppercase tracking-wide">Win %</p>
+              <p className={`text-lg sm:text-2xl font-bold tabular-nums ${winRateColor(exploreData.base_win_rate)}`}>
                 {(exploreData.base_win_rate * 100).toFixed(1)}%
               </p>
             </div>
           </div>
 
           {/* Tabs + Search */}
-          <div className="flex items-center justify-between border-b border-tft-border">
-            <div className="flex gap-1">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-tft-border">
+            <div className="flex gap-0.5 sm:gap-1 overflow-x-auto scrollbar-hide">
               {(["units", "items", "traits"] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => { setActiveTab(tab); setTableSearch(""); }}
-                  className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
+                  className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium capitalize transition-colors border-b-2 -mb-px whitespace-nowrap ${
                     activeTab === tab
                       ? "border-tft-accent text-tft-text"
                       : "border-transparent text-tft-muted hover:text-tft-text"
                   }`}
                 >
-                  {tab === "units" ? "Units" : tab === "items" ? "Items on Units" : "Traits"}
+                  {tab === "units" ? "Units" : tab === "items" ? "Items" : "Traits"}
                 </button>
               ))}
             </div>
@@ -1312,7 +1309,7 @@ export default function DataExplorer({
               placeholder={`Search ${activeTab}...`}
               value={tableSearch}
               onChange={(e) => setTableSearch(e.target.value)}
-              className="bg-tft-bg border border-tft-border text-tft-text rounded-lg px-3 py-1.5 text-sm w-48 focus:outline-none focus:border-tft-accent placeholder:text-tft-muted"
+              className="bg-tft-bg border border-tft-border text-tft-text rounded-lg px-3 py-1.5 text-sm w-full sm:w-48 focus:outline-none focus:border-tft-accent placeholder:text-tft-muted"
             />
           </div>
 

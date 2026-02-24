@@ -408,7 +408,7 @@ function MatchRow({
 
       <div className="flex-1 min-w-0">
         <div
-          className="flex items-center gap-3 px-3 py-2.5 cursor-pointer select-none hover:bg-tft-hover transition-colors"
+          className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2.5 cursor-pointer select-none hover:bg-tft-hover transition-colors"
           onClick={handleToggle}
         >
           {/* Placement number */}
@@ -442,7 +442,7 @@ function MatchRow({
 
         {/* Expanded lobby */}
         {expanded && (
-          <div className="border-t border-tft-border/40 px-3 py-2 space-y-1 bg-tft-bg/40">
+          <div className="border-t border-tft-border/40 px-2 sm:px-3 py-2 space-y-1 bg-tft-bg/40">
             {loading && (
               <p className="text-tft-muted text-sm text-center py-3">Loading lobby...</p>
             )}
@@ -460,12 +460,12 @@ function MatchRow({
                     </span>
                     <a
                       href={`/player/${encodeURIComponent(participant.name.split("#")[0])}`}
-                      className="text-tft-text text-sm w-36 truncate shrink-0 hover:text-tft-gold transition-colors"
+                      className="text-tft-text text-sm w-24 sm:w-36 truncate shrink-0 hover:text-tft-gold transition-colors"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {displayPlayerName(participant.name)}
                     </a>
-                    <div className="flex flex-col gap-2.5">
+                    <div className="flex flex-col gap-2.5 flex-1 min-w-0">
                       <TraitChips units={participant.units} traitData={traitData} />
                       <div className="flex flex-wrap gap-1">
                         {participant.units
@@ -505,13 +505,13 @@ export default function PlayerProfile({
   return (
     <div className="space-y-6">
       {/* ── Header ── */}
-      <div className="border border-tft-border rounded-xl bg-tft-surface/60 p-6">
-        <div className="flex flex-col md:flex-row md:items-center gap-6">
+      <div className="border border-tft-border rounded-xl bg-tft-surface/60 p-4 sm:p-6">
+        <div className="flex flex-col md:flex-row md:items-center gap-4 sm:gap-6">
           {/* Player name + tag */}
           <div className="flex-1 min-w-0">
-            <h1 className="text-3xl font-bold text-tft-text truncate">
+            <h1 className="text-2xl sm:text-3xl font-bold text-tft-text truncate">
               {player.game_name}
-              <span className="text-tft-muted text-lg font-normal ml-1">#{player.tag_line}</span>
+              <span className="text-tft-muted text-base sm:text-lg font-normal ml-1">#{player.tag_line}</span>
             </h1>
             <p className="text-tft-muted text-sm mt-1">{total_games} games tracked</p>
           </div>
@@ -549,7 +549,7 @@ export default function PlayerProfile({
       {/* ── Sidebar + Match History ── */}
       <div className="flex flex-col lg:flex-row gap-4">
         {/* Left sidebar: Last 20 + Most Played stacked */}
-        <div className="lg:w-[350px] shrink-0 space-y-4">
+        <div className="w-full lg:w-[350px] shrink-0 space-y-4">
           {last_20.length > 0 && (
             <div className="border border-tft-border rounded-xl bg-tft-surface/60 p-4">
               <h2 className="text-sm font-semibold text-tft-text mb-2">Last {last_20.length} Games</h2>
@@ -575,8 +575,8 @@ export default function PlayerProfile({
 
         {/* Match history */}
         {match_history.length > 0 && (
-          <div className="flex-1 min-w-0 border border-tft-border rounded-xl bg-tft-surface/60 p-5">
-            <h2 className="text-lg font-semibold text-tft-text mb-3">Match History</h2>
+          <div className="flex-1 min-w-0 border border-tft-border rounded-xl bg-tft-surface/60 p-3 sm:p-5">
+            <h2 className="text-base sm:text-lg font-semibold text-tft-text mb-3">Match History</h2>
             <div className="space-y-2">
               {match_history.slice(0, visibleMatches).map((match) => (
                 <MatchRow
@@ -619,9 +619,9 @@ function StatCard({
   return (
     <div className="bg-tft-bg/60 border border-tft-border rounded-lg overflow-hidden text-center">
       <div className={`h-0.5 ${accent}`} />
-      <div className="px-4 py-3">
-        <p className="text-tft-muted text-xs font-medium uppercase tracking-wide">{label}</p>
-        <p className={`text-2xl font-bold mt-0.5 ${color}`}>{value}</p>
+      <div className="px-3 sm:px-4 py-2.5 sm:py-3">
+        <p className="text-tft-muted text-[10px] sm:text-xs font-medium uppercase tracking-wide">{label}</p>
+        <p className={`text-xl sm:text-2xl font-bold mt-0.5 ${color}`}>{value}</p>
       </div>
     </div>
   );

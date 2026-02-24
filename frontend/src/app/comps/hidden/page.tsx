@@ -67,8 +67,8 @@ export default async function HiddenCompsPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-tft-text">Hidden Compositions</h1>
-        <p className="text-tft-muted text-sm mt-1">
+        <h1 className="text-xl sm:text-2xl font-bold text-tft-text">Hidden Compositions</h1>
+        <p className="text-tft-muted text-xs sm:text-sm mt-1">
           Auto-discovered comps from match data. Use this page as reference to create curated comps.
         </p>
       </div>

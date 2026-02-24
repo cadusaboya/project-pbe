@@ -149,7 +149,7 @@ function ChampionSelector({
     <div ref={containerRef} className="relative">
       <button
         onClick={handleOpen}
-        className="flex items-center gap-2 bg-tft-surface border border-tft-border rounded-md px-3 py-2 hover:border-tft-accent transition-colors min-w-[200px] text-left"
+        className="flex items-center gap-2 bg-tft-surface border border-tft-border rounded-md px-3 py-2 hover:border-tft-accent transition-colors min-w-[150px] sm:min-w-[200px] text-left"
       >
         {selectedUnit ? (
           <>
@@ -493,7 +493,7 @@ export default function ItemsExplorer({
 
             {/* Selected item chips */}
             {selectedItems.length > 0 && (
-              <div className="ml-auto flex items-center gap-2 flex-wrap">
+              <div className="sm:ml-auto flex items-center gap-2 flex-wrap">
                 {selectedItems.map((item, idx) => (
                   <div key={item} className="flex items-center gap-1">
                     {idx > 0 && (

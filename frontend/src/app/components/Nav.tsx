@@ -83,8 +83,8 @@ export default function Nav() {
   const pathname = usePathname();
 
   return (
-    <nav className="overflow-x-auto scrollbar-hide -mx-4 px-4">
-      <div className="flex items-center gap-1 min-w-max">
+    <nav className="overflow-x-auto scrollbar-hide -mx-3 sm:-mx-4 px-3 sm:px-4">
+      <div className="flex items-center gap-0.5 sm:gap-1 min-w-max">
         {navItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
 
@@ -92,7 +92,7 @@ export default function Nav() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
                 isActive
                   ? "bg-tft-gold/15 text-tft-gold border border-tft-gold/30"
                   : "text-tft-muted hover:text-tft-text hover:bg-tft-hover border border-transparent"

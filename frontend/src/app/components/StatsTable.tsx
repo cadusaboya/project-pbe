@@ -135,94 +135,98 @@ function formatItemName(itemName: string): string {
 
 function StarStatsTable({ stats }: { stats: StarStat[] }) {
   return (
-    <table className="text-sm w-auto">
-      <thead>
-        <tr className="text-tft-muted text-xs">
-          <th className="text-left font-medium pr-8 pb-1.5">Stars</th>
-          <th className="text-right font-medium pr-8 pb-1.5">Frequency</th>
-          <th className="text-right font-medium pr-8 pb-1.5">Avg Place</th>
-          <th className="text-right font-medium pr-8 pb-1.5">Top 4 %</th>
-          <th className="text-right font-medium pb-1.5">Win %</th>
-        </tr>
-      </thead>
-      <tbody>
-        {stats.map((s) => {
-          const label = STAR_LABELS[s.star_level] ?? `${s.star_level}★`;
-          return (
-            <tr key={s.star_level} className="border-t border-tft-border/50">
-              <td className={`pr-8 py-1.5 font-bold tracking-wider ${starLabelColor(s.star_level)}`}>
-                {label}
-              </td>
-              <td className="pr-8 py-1.5 text-right text-tft-muted tabular-nums">
-                {s.games}
-              </td>
-              <td className={`pr-8 py-1.5 text-right tabular-nums ${placementColor(s.avg_placement)}`}>
-                {s.avg_placement.toFixed(2)}
-              </td>
-              <td className={`pr-8 py-1.5 text-right tabular-nums ${top4RateColor(s.top4_rate)}`}>
-                {(s.top4_rate * 100).toFixed(1)}%
-              </td>
-              <td className={`py-1.5 text-right tabular-nums ${winRateColor(s.win_rate)}`}>
-                {(s.win_rate * 100).toFixed(1)}%
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <div className="overflow-x-auto">
+      <table className="text-xs sm:text-sm w-auto">
+        <thead>
+          <tr className="text-tft-muted text-xs">
+            <th className="text-left font-medium pr-3 sm:pr-8 pb-1.5">Stars</th>
+            <th className="text-right font-medium pr-3 sm:pr-8 pb-1.5">Freq</th>
+            <th className="text-right font-medium pr-3 sm:pr-8 pb-1.5">AVP</th>
+            <th className="text-right font-medium pr-3 sm:pr-8 pb-1.5">Top 4</th>
+            <th className="text-right font-medium pb-1.5">Win</th>
+          </tr>
+        </thead>
+        <tbody>
+          {stats.map((s) => {
+            const label = STAR_LABELS[s.star_level] ?? `${s.star_level}★`;
+            return (
+              <tr key={s.star_level} className="border-t border-tft-border/50">
+                <td className={`pr-3 sm:pr-8 py-1.5 font-bold tracking-wider ${starLabelColor(s.star_level)}`}>
+                  {label}
+                </td>
+                <td className="pr-3 sm:pr-8 py-1.5 text-right text-tft-muted tabular-nums">
+                  {s.games}
+                </td>
+                <td className={`pr-3 sm:pr-8 py-1.5 text-right tabular-nums ${placementColor(s.avg_placement)}`}>
+                  {s.avg_placement.toFixed(2)}
+                </td>
+                <td className={`pr-3 sm:pr-8 py-1.5 text-right tabular-nums ${top4RateColor(s.top4_rate)}`}>
+                  {(s.top4_rate * 100).toFixed(1)}%
+                </td>
+                <td className={`py-1.5 text-right tabular-nums ${winRateColor(s.win_rate)}`}>
+                  {(s.win_rate * 100).toFixed(1)}%
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
 function ItemStatsTable({ stats, itemAssets }: { stats: ItemStat[]; itemAssets: Record<string, string> }) {
   return (
-    <table className="text-sm w-auto">
-      <thead>
-        <tr className="text-tft-muted text-xs">
-          <th className="text-left font-medium pr-8 pb-1.5">Item</th>
-          <th className="text-right font-medium pr-8 pb-1.5">Frequency</th>
-          <th className="text-right font-medium pr-8 pb-1.5">Avg Place</th>
-          <th className="text-right font-medium pr-8 pb-1.5">Top 4 %</th>
-          <th className="text-right font-medium pb-1.5">Win %</th>
-        </tr>
-      </thead>
-      <tbody>
-        {stats.map((s) => {
-          const imgUrl = itemAssets[s.item_name];
-          return (
-            <tr key={s.item_name} className="border-t border-tft-border/50">
-              <td className="pr-8 py-1.5">
-                <div className="flex items-center gap-2">
-                  {imgUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={imgUrl}
-                      alt={formatItemName(s.item_name)}
-                      width={24}
-                      height={24}
-                      className="w-6 h-6 rounded object-cover"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                    />
-                  ) : (
-                    <div className="w-6 h-6 rounded bg-tft-surface border border-tft-border flex-shrink-0" />
-                  )}
-                  <span className="text-tft-text">{formatItemName(s.item_name)}</span>
-                </div>
-              </td>
-              <td className="pr-8 py-1.5 text-right text-tft-muted tabular-nums">{s.games}</td>
-              <td className={`pr-8 py-1.5 text-right tabular-nums ${placementColor(s.avg_placement)}`}>
-                {s.avg_placement.toFixed(2)}
-              </td>
-              <td className={`pr-8 py-1.5 text-right tabular-nums ${top4RateColor(s.top4_rate)}`}>
-                {(s.top4_rate * 100).toFixed(1)}%
-              </td>
-              <td className={`py-1.5 text-right tabular-nums ${winRateColor(s.win_rate)}`}>
-                {(s.win_rate * 100).toFixed(1)}%
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <div className="overflow-x-auto">
+      <table className="text-xs sm:text-sm w-auto">
+        <thead>
+          <tr className="text-tft-muted text-xs">
+            <th className="text-left font-medium pr-3 sm:pr-8 pb-1.5">Item</th>
+            <th className="text-right font-medium pr-3 sm:pr-8 pb-1.5">Freq</th>
+            <th className="text-right font-medium pr-3 sm:pr-8 pb-1.5">AVP</th>
+            <th className="text-right font-medium pr-3 sm:pr-8 pb-1.5">Top 4</th>
+            <th className="text-right font-medium pb-1.5">Win</th>
+          </tr>
+        </thead>
+        <tbody>
+          {stats.map((s) => {
+            const imgUrl = itemAssets[s.item_name];
+            return (
+              <tr key={s.item_name} className="border-t border-tft-border/50">
+                <td className="pr-3 sm:pr-8 py-1.5">
+                  <div className="flex items-center gap-1.5">
+                    {imgUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={imgUrl}
+                        alt={formatItemName(s.item_name)}
+                        width={24}
+                        height={24}
+                        className="w-5 h-5 sm:w-6 sm:h-6 rounded object-cover"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                      />
+                    ) : (
+                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded bg-tft-surface border border-tft-border flex-shrink-0" />
+                    )}
+                    <span className="text-tft-text">{formatItemName(s.item_name)}</span>
+                  </div>
+                </td>
+                <td className="pr-3 sm:pr-8 py-1.5 text-right text-tft-muted tabular-nums">{s.games}</td>
+                <td className={`pr-3 sm:pr-8 py-1.5 text-right tabular-nums ${placementColor(s.avg_placement)}`}>
+                  {s.avg_placement.toFixed(2)}
+                </td>
+                <td className={`pr-3 sm:pr-8 py-1.5 text-right tabular-nums ${top4RateColor(s.top4_rate)}`}>
+                  {(s.top4_rate * 100).toFixed(1)}%
+                </td>
+                <td className={`py-1.5 text-right tabular-nums ${winRateColor(s.win_rate)}`}>
+                  {(s.win_rate * 100).toFixed(1)}%
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -348,7 +352,7 @@ export default function StatsTable({
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="flex flex-wrap gap-2 sm:gap-3 items-center">
         {versions.length > 0 && (
           <select
             value={selectedVersion}
@@ -361,7 +365,7 @@ export default function StatsTable({
             ))}
           </select>
         )}
-        <div className="relative">
+        <div className="relative flex-1 min-w-[120px] max-w-[200px]">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tft-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
           </svg>
@@ -370,7 +374,7 @@ export default function StatsTable({
             placeholder="Search unit..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-48 transition-colors"
+            className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-full transition-colors"
           />
         </div>
         <input
@@ -378,10 +382,10 @@ export default function StatsTable({
           placeholder="Min games"
           value={minGames}
           onChange={(e) => setMinGames(e.target.value)}
-          className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-32 transition-colors"
+          className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-24 sm:w-32 transition-colors"
           min={0}
         />
-        <div className="flex gap-1 bg-tft-surface border border-tft-border rounded-lg p-0.5">
+        <div className="flex gap-0.5 sm:gap-1 bg-tft-surface border border-tft-border rounded-lg p-0.5">
           {[
             { value: "", label: "All" },
             { value: "1", label: "1" },
@@ -393,7 +397,7 @@ export default function StatsTable({
             <button
               key={t.value}
               onClick={() => setTierFilter(t.value)}
-              className={`px-2.5 py-1 rounded-md text-sm font-medium transition-all ${
+              className={`px-1.5 sm:px-2.5 py-1 rounded-md text-xs sm:text-sm font-medium transition-all ${
                 tierFilter === t.value
                   ? "bg-tft-gold/20 text-tft-gold shadow-sm"
                   : "text-tft-muted hover:text-tft-text"
@@ -403,7 +407,7 @@ export default function StatsTable({
             </button>
           ))}
         </div>
-        <span className="text-tft-muted text-sm ml-auto tabular-nums">
+        <span className="text-tft-muted text-xs sm:text-sm ml-auto tabular-nums">
           {filtered.length} units &middot; {matchesAnalyzed.toLocaleString("en-US")} games
         </span>
       </div>
@@ -421,7 +425,7 @@ export default function StatsTable({
                     px-4 py-3 text-left font-semibold cursor-pointer select-none
                     text-tft-muted hover:text-tft-text transition-colors
                     ${sortKey === col.key ? "text-tft-gold" : ""}
-                    ${col.key === "unit_name" ? "w-56" : ""}
+                    ${col.key === "unit_name" ? "min-w-[140px] sm:min-w-[200px]" : ""}
                   `}
                 >
                   {col.label}
@@ -515,7 +519,7 @@ export default function StatsTable({
                         key={`${row.unit_name}-expanded`}
                         className="border-b border-tft-border bg-tft-surface/60"
                       >
-                        <td colSpan={6} className="px-6 py-4">
+                        <td colSpan={6} className="px-3 sm:px-6 py-3 sm:py-4">
                           <div className="flex items-center gap-2 mb-3">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
@@ -539,7 +543,7 @@ export default function StatsTable({
                           )}
 
                           {!isLoading && detail && (
-                            <div className="flex flex-wrap gap-10">
+                            <div className="flex flex-wrap gap-4 sm:gap-10">
                               <div>
                                 <p className="text-tft-muted text-xs mb-2 uppercase tracking-wider font-semibold">Star Level</p>
                                 {detail.star_stats.length > 0

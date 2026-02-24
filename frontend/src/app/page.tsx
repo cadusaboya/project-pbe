@@ -178,9 +178,9 @@ export default async function Home() {
   const hasQuickStats = topUnits.length > 0 || topComps.length > 0;
 
   return (
-    <div className="space-y-24 pb-16">
+    <div className="space-y-12 sm:space-y-24 pb-8 sm:pb-16">
       {/* Hero */}
-      <section className="relative text-center pt-12 md:pt-20 pb-4">
+      <section className="relative text-center pt-8 sm:pt-12 md:pt-20 pb-4">
         {/* Glow effect */}
         <div className="absolute inset-0 -top-20 overflow-hidden pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-tft-gold/5 blur-[120px]" />
@@ -195,7 +195,7 @@ export default async function Home() {
             Currently tracking Project PBE
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight">
+          <h1 className="text-3xl sm:text-5xl md:text-7xl font-bold tracking-tight">
             <span className="text-tft-text">Know the meta</span>
             <br />
             <span className="bg-gradient-to-r from-tft-gold via-yellow-300 to-tft-accent bg-clip-text text-transparent">
@@ -203,21 +203,21 @@ export default async function Home() {
             </span>
           </h1>
 
-          <p className="max-w-2xl mx-auto text-lg md:text-xl text-tft-muted leading-relaxed">
+          <p className="max-w-2xl mx-auto text-base sm:text-lg md:text-xl text-tft-muted leading-relaxed">
             We track every Project PBE lobby.
             Everything analyzed and served in real time so you can get ready when the patch drops live.
           </p>
 
-          <div className="flex flex-wrap justify-center gap-4 pt-4">
+          <div className="flex flex-wrap justify-center gap-3 sm:gap-4 pt-4">
             <Link
               href="/games-feed"
-              className="px-8 py-3 rounded-lg bg-gradient-to-r from-tft-gold to-yellow-500 text-tft-bg font-bold text-lg hover:brightness-110 transition-all shadow-lg shadow-tft-gold/20"
+              className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg bg-gradient-to-r from-tft-gold to-yellow-500 text-tft-bg font-bold text-base sm:text-lg hover:brightness-110 transition-all shadow-lg shadow-tft-gold/20"
             >
               Explore Live Data
             </Link>
             <Link
               href="/comps"
-              className="px-8 py-3 rounded-lg border border-tft-border bg-tft-surface/80 text-tft-text font-semibold text-lg hover:border-tft-gold/50 hover:bg-tft-hover transition-colors"
+              className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg border border-tft-border bg-tft-surface/80 text-tft-text font-semibold text-base sm:text-lg hover:border-tft-gold/50 hover:bg-tft-hover transition-colors"
             >
               View Top Comps
             </Link>
@@ -302,12 +302,12 @@ export default async function Home() {
       )}
 
       {/* How it works */}
-      <section className="space-y-10">
-        <h2 className="text-3xl md:text-4xl font-bold text-center">
+      <section className="space-y-6 sm:space-y-10">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center">
           How it <span className="text-tft-gold">works</span>
         </h2>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
           {[
             {
               step: "01",
@@ -338,23 +338,23 @@ export default async function Home() {
       </section>
 
       {/* Features grid */}
-      <section className="space-y-10">
-        <h2 className="text-3xl md:text-4xl font-bold text-center">
+      <section className="space-y-6 sm:space-y-10">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center">
           Everything you <span className="text-tft-gold">need</span>
         </h2>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
           {features.map((f) => (
             <Link
               key={f.href}
               href={f.href}
-              className="group rounded-xl border border-tft-border bg-tft-surface/40 p-6 space-y-3 hover:border-tft-gold/40 hover:bg-tft-hover/50 transition-all"
+              className="group rounded-xl border border-tft-border bg-tft-surface/40 p-4 sm:p-6 space-y-2 sm:space-y-3 hover:border-tft-gold/40 hover:bg-tft-hover/50 transition-all"
             >
               {f.icon}
-              <h3 className="text-lg font-bold text-tft-text group-hover:text-tft-gold transition-colors">
+              <h3 className="text-sm sm:text-lg font-bold text-tft-text group-hover:text-tft-gold transition-colors">
                 {f.title}
               </h3>
-              <p className="text-sm text-tft-muted leading-relaxed">{f.desc}</p>
+              <p className="text-xs sm:text-sm text-tft-muted leading-relaxed">{f.desc}</p>
             </Link>
           ))}
         </div>
@@ -367,19 +367,19 @@ export default async function Home() {
           <div className="absolute -bottom-32 -left-32 w-64 h-64 rounded-full bg-tft-gold/5 blur-[80px]" />
         </div>
 
-        <div className="relative p-8 md:p-12 space-y-6 text-center">
+        <div className="relative p-5 sm:p-8 md:p-12 space-y-4 sm:space-y-6 text-center">
           <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-tft-accent/40 bg-tft-accent/10 text-tft-accent text-sm font-semibold uppercase tracking-wider">
             Coming Soon
           </span>
 
-          <h2 className="text-3xl md:text-5xl font-bold">
+          <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold">
             <span className="text-tft-text">From PBE to </span>
             <span className="bg-gradient-to-r from-tft-gold to-yellow-300 bg-clip-text text-transparent">
               Live Server
             </span>
           </h2>
 
-          <p className="max-w-2xl mx-auto text-tft-muted text-lg leading-relaxed">
+          <p className="max-w-2xl mx-auto text-tft-muted text-sm sm:text-lg leading-relaxed">
             When Project PBE ends, TFT Pro Radar will expand to
             track <span className="text-tft-text font-semibold">how the best players play</span> on
             the live server with same depth and speed, covering every ranked game
@@ -402,17 +402,17 @@ export default async function Home() {
       </section>
 
       {/* CTA */}
-      <section className="text-center space-y-6">
-        <h2 className="text-3xl md:text-4xl font-bold text-tft-text">
+      <section className="text-center space-y-4 sm:space-y-6">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-tft-text">
           Stop guessing. Start climbing.
         </h2>
-        <p className="text-tft-muted text-lg max-w-xl mx-auto">
+        <p className="text-tft-muted text-sm sm:text-lg max-w-xl mx-auto">
           Join hundreds of players already using TFT Pro Radar to stay ahead of the meta.
         </p>
-        <div className="flex flex-wrap justify-center gap-4">
+        <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
           <Link
             href="/games-feed"
-            className="px-8 py-3 rounded-lg bg-gradient-to-r from-tft-gold to-yellow-500 text-tft-bg font-bold text-lg hover:brightness-110 transition-all shadow-lg shadow-tft-gold/20"
+            className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg bg-gradient-to-r from-tft-gold to-yellow-500 text-tft-bg font-bold text-base sm:text-lg hover:brightness-110 transition-all shadow-lg shadow-tft-gold/20"
           >
             Get Started
           </Link>
@@ -420,7 +420,7 @@ export default async function Home() {
             href="https://discord.gg/6TuFHT7ZJF"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-8 py-3 rounded-lg border border-tft-border bg-tft-surface/80 text-tft-text font-semibold text-lg hover:border-tft-gold/50 hover:bg-tft-hover transition-colors"
+            className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg border border-tft-border bg-tft-surface/80 text-tft-text font-semibold text-base sm:text-lg hover:border-tft-gold/50 hover:bg-tft-hover transition-colors"
           >
             Join the Discord
           </a>

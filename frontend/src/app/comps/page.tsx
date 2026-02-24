@@ -66,8 +66,8 @@ export default async function CompsPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-tft-text">Compositions</h1>
-        <p className="text-tft-muted text-sm mt-1">
+        <h1 className="text-xl sm:text-2xl font-bold text-tft-text">Compositions</h1>
+        <p className="text-tft-muted text-xs sm:text-sm mt-1">
           Curated from project PBE. Click to view the 3 most common flex combos and AVP.
         </p>
       </div>

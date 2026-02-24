@@ -44,8 +44,8 @@ export default async function SearchPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-tft-text">Unit Search</h1>
-        <p className="text-tft-muted text-sm mt-1">
+        <h1 className="text-xl sm:text-2xl font-bold text-tft-text">Unit Search</h1>
+        <p className="text-tft-muted text-xs sm:text-sm mt-1">
           Search for all recorded comps that contain a specific unit or combination of units, across all placements.
         </p>
       </div>

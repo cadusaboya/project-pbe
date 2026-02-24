@@ -63,8 +63,8 @@ export default async function Home({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-tft-text">Unit Statistics</h1>
-        <p className="text-tft-muted text-sm mt-1">
+        <h1 className="text-xl sm:text-2xl font-bold text-tft-text">Unit Statistics</h1>
+        <p className="text-tft-muted text-xs sm:text-sm mt-1">
           Aggregated data from tracked PBE matches. Click column headers to sort.
         </p>
       </div>
