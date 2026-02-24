@@ -6,7 +6,7 @@ import { TraitInfo } from "../components/WinningCompsList";
 
 async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), { next: { revalidate: 60 } });
+    const res = await fetch(backendUrl("/api/traits/"), { cache: "no-store" });
     if (!res.ok) return {};
     return res.json();
   } catch {
@@ -16,7 +16,7 @@ async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
 
 async function fetchItemData(): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
   try {
-    const res = await fetch(backendUrl("/api/item-assets/"), { next: { revalidate: 60 } });
+    const res = await fetch(backendUrl("/api/item-assets/"), { cache: "no-store" });
     if (!res.ok) return { assets: {}, names: {} };
     return res.json();
   } catch {
@@ -26,7 +26,7 @@ async function fetchItemData(): Promise<{ assets: Record<string, string>; names:
 
 async function fetchUnits(): Promise<UnitStat[]> {
   try {
-    const res = await fetch(backendUrl("/api/unit-stats/?sort=games"), { next: { revalidate: 60 } });
+    const res = await fetch(backendUrl("/api/unit-stats/?sort=games"), { cache: "no-store" });
     if (!res.ok) return [];
     return res.json();
   } catch {

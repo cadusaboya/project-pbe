@@ -329,12 +329,12 @@ class StatsView(APIView):
             )
             last_run = game_end.isoformat()
 
-        return _cc(Response({
+        return Response({
             "matches_analyzed": match_qs.count(),
             "players_tracked": Player.objects.filter(puuid__isnull=False).exclude(puuid="").count(),
             "participants_recorded": Participant.objects.count(),
             "last_fetch_at": last_run,
-        }), 60)
+        })
 
 
 class ItemAssetsView(APIView):
@@ -423,7 +423,7 @@ class MatchLobbyView(APIView):
             })
 
         result.sort(key=lambda x: x["placement"])
-        return _cc(Response(result), 60)
+        return Response(result)
 
 
 class WinningCompsView(ListAPIView):
@@ -526,7 +526,7 @@ class UnitStarStatsView(APIView):
                 "win_rate": round(stats["win_count"] / games, 3) if games else 0.0,
             })
 
-        return _cc(Response({"star_stats": star_result, "item_stats": item_result}), 60)
+        return Response({"star_stats": star_result, "item_stats": item_result})
 
 
 class ItemStatsView(APIView):
@@ -606,12 +606,12 @@ class ItemStatsView(APIView):
 
         items.sort(key=lambda x: x["avg_placement"])
 
-        return _cc(Response({
+        return Response({
             "unit": unit_name,
             "base_games": base_games,
             "base_avg_placement": base_avg,
             "items": items,
-        }), 60)
+        })
 
 
 class ExploreView(APIView):
@@ -997,7 +997,7 @@ class ExploreView(APIView):
         }
         if include_trait_stats:
             response_data["trait_stats"] = trait_stats
-        return _cc(Response(response_data), 30)
+        return Response(response_data)
 
 
 class HiddenCompsView(APIView):
@@ -1082,7 +1082,7 @@ class HiddenCompsView(APIView):
             })
 
         if not boards:
-            return _cc(Response([]), 60)
+            return Response([])
 
         unit_cost_map = dict(
             Unit.objects.filter(character_id__in=all_units).values_list("character_id", "cost")
@@ -1202,7 +1202,7 @@ class HiddenCompsView(APIView):
                 ],
             })
 
-        return _cc(Response(result), 60)
+        return Response(result)
 
 
 class CompsView(APIView):
@@ -1656,7 +1656,7 @@ class CompsView(APIView):
 
         result.sort(key=lambda x: (-x["comps"], x["avg_placement"], x["name"]))
         comps_list = result[:limit] if limit is not None else result
-        return _cc(Response({"total_games": total_games, "comps": comps_list}), 60)
+        return Response({"total_games": total_games, "comps": comps_list})
 
 
 class SearchCompsView(APIView):
@@ -1720,7 +1720,7 @@ class SearchCompsView(APIView):
                 "units": units_out,
             })
 
-        return _cc(Response(result), 30)
+        return Response(result)
 
 
 class PlayerProfileView(APIView):
@@ -1830,7 +1830,7 @@ class PlayerProfileView(APIView):
                 "units": units_out,
             })
 
-        return _cc(Response({
+        return Response({
             "player": {"game_name": player.game_name, "tag_line": player.tag_line},
             "total_games": total_games,
             "avg_placement": round(total_placement / total_games, 2),
@@ -1839,7 +1839,7 @@ class PlayerProfileView(APIView):
             "last_20": last_20,
             "top_units": top_units[:15],
             "match_history": match_history,
-        }), 60)
+        })
 
 
 class PlayerListView(APIView):
@@ -1943,7 +1943,7 @@ class PlayerStatsView(APIView):
         else:
             result.sort(key=lambda x: x["avg_placement"])
 
-        return _cc(Response(result), 60)
+        return Response(result)
 
 
 class VersionsView(APIView):

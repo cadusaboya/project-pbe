@@ -5,7 +5,7 @@ async function fetchStats(gameVersion?: string): Promise<UnitStat[]> {
   const url = new URL(backendUrl("/api/unit-stats/"));
   if (gameVersion) url.searchParams.set("game_version", gameVersion);
 
-  const res = await fetch(url.toString(), { next: { revalidate: 60 } });
+  const res = await fetch(url.toString(), { cache: "no-store" });
 
   if (!res.ok) {
     throw new Error(`Failed to fetch stats: ${res.status}`);
@@ -17,7 +17,7 @@ async function fetchStats(gameVersion?: string): Promise<UnitStat[]> {
 async function fetchVersions(): Promise<string[]> {
   try {
     const res = await fetch(backendUrl("/api/versions/"), {
-      next: { revalidate: 60 },
+      cache: "no-store",
     });
     if (!res.ok) return [];
     return res.json();
@@ -30,7 +30,7 @@ async function fetchMatchesAnalyzed(gameVersion?: string): Promise<number> {
   try {
     const url = new URL(backendUrl("/api/stats/"));
     if (gameVersion) url.searchParams.set("game_version", gameVersion);
-    const res = await fetch(url.toString(), { next: { revalidate: 60 } });
+    const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return 0;
     const data = await res.json();
     return Number(data.matches_analyzed ?? 0);

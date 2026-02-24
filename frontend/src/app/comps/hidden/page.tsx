@@ -12,7 +12,7 @@ async function fetchHiddenCompStats(
   if (coreSizes) url.searchParams.set("core_sizes", coreSizes);
   if (minOccurrences) url.searchParams.set("min_occurrences", minOccurrences);
 
-  const res = await fetch(url.toString(), { next: { revalidate: 60 } });
+  const res = await fetch(url.toString(), { cache: "no-store" });
   if (!res.ok) {
     throw new Error(`Failed to fetch hidden composition stats: ${res.status}`);
   }
@@ -21,7 +21,7 @@ async function fetchHiddenCompStats(
 
 async function fetchVersions(): Promise<string[]> {
   try {
-    const res = await fetch(backendUrl("/api/versions/"), { next: { revalidate: 60 } });
+    const res = await fetch(backendUrl("/api/versions/"), { cache: "no-store" });
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -31,7 +31,7 @@ async function fetchVersions(): Promise<string[]> {
 
 async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), { next: { revalidate: 60 } });
+    const res = await fetch(backendUrl("/api/traits/"), { cache: "no-store" });
     if (!res.ok) return {};
     return res.json();
   } catch {

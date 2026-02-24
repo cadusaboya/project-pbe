@@ -23,7 +23,8 @@
       "WebFetch(domain:tftflow.com)",
       "WebFetch(domain:tftprotracker.com)",
       "WebFetch(domain:tftproradar.com)",
-      "Bash(python -m py_compile:*)"
+      "Bash(python -m py_compile:*)",
+      "Bash(git diff:*)"
     ]
   }
 }

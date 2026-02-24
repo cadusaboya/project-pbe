@@ -27,7 +27,7 @@ interface TopComp {
 async function fetchTopUnits(): Promise<TopUnit[]> {
   try {
     const res = await fetch(backendUrl("/api/unit-stats/?sort=avg_placement&min_games=20"), {
-      next: { revalidate: 120 },
+      cache: "no-store",
     });
     if (!res.ok) return [];
     const data: TopUnit[] = await res.json();
@@ -40,7 +40,7 @@ async function fetchTopUnits(): Promise<TopUnit[]> {
 async function fetchTopComps(): Promise<TopComp[]> {
   try {
     const res = await fetch(backendUrl("/api/comps/?top_flex=1"), {
-      next: { revalidate: 120 },
+      cache: "no-store",
     });
     if (!res.ok) return [];
     const json = await res.json();

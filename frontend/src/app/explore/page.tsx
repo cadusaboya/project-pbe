@@ -6,7 +6,7 @@ import { UnitStat } from "../components/StatsTable";
 async function fetchUnits(): Promise<UnitStat[]> {
   try {
     const res = await fetch(backendUrl("/api/unit-stats/?sort=games"), {
-      next: { revalidate: 60 },
+      cache: "no-store",
     });
     if (!res.ok) return [];
     return res.json();
@@ -18,7 +18,7 @@ async function fetchUnits(): Promise<UnitStat[]> {
 async function fetchVersions(): Promise<string[]> {
   try {
     const res = await fetch(backendUrl("/api/versions/"), {
-      next: { revalidate: 60 },
+      cache: "no-store",
     });
     if (!res.ok) return [];
     return res.json();
@@ -29,7 +29,7 @@ async function fetchVersions(): Promise<string[]> {
 
 async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), { next: { revalidate: 60 } });
+    const res = await fetch(backendUrl("/api/traits/"), { cache: "no-store" });
     if (!res.ok) return {};
     return res.json();
   } catch {

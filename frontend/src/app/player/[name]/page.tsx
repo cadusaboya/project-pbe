@@ -4,7 +4,7 @@ import Link from "next/link";
 
 async function fetchPlayerProfile(name: string): Promise<PlayerProfileData> {
   const res = await fetch(backendUrl(`/api/player/${encodeURIComponent(name)}/profile/`), {
-    next: { revalidate: 60 },
+    cache: "no-store",
   });
   if (!res.ok) {
     if (res.status === 404) throw new Error("Player not found");
@@ -15,7 +15,7 @@ async function fetchPlayerProfile(name: string): Promise<PlayerProfileData> {
 
 async function fetchItemData(): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
   try {
-    const res = await fetch(backendUrl("/api/item-assets/"), { next: { revalidate: 60 } });
+    const res = await fetch(backendUrl("/api/item-assets/"), { cache: "no-store" });
     if (!res.ok) return { assets: {}, names: {} };
     return res.json();
   } catch {
@@ -25,7 +25,7 @@ async function fetchItemData(): Promise<{ assets: Record<string, string>; names:
 
 async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), { next: { revalidate: 60 } });
+    const res = await fetch(backendUrl("/api/traits/"), { cache: "no-store" });
     if (!res.ok) return {};
     return res.json();
   } catch {

@@ -13,7 +13,7 @@ type TraitData = Record<string, { breakpoints: number[]; icon: string }>;
 async function fetchChampions(): Promise<Champion[]> {
   try {
     const res = await fetch(backendUrl("/api/champions/"), {
-      next: { revalidate: 300 },
+      cache: "no-store",
     });
     if (!res.ok) return [];
     return res.json();
@@ -25,7 +25,7 @@ async function fetchChampions(): Promise<Champion[]> {
 async function fetchTraits(): Promise<TraitData> {
   try {
     const res = await fetch(backendUrl("/api/traits/"), {
-      next: { revalidate: 300 },
+      cache: "no-store",
     });
     if (!res.ok) return {};
     return res.json();
