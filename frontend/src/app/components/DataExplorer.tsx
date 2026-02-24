@@ -172,12 +172,23 @@ function UnifiedSearch({
   }, []);
 
   const allTraits = useMemo(() => Object.keys(traitData).sort(), [traitData]);
-  const allItems = useMemo(
-    () => Object.keys(itemAssets).filter(
+  const allItems = useMemo(() => {
+    const ids = Object.keys(itemAssets).filter(
       (i) => (i.startsWith("TFT_Item_") || i.startsWith("TFT16_Item_") || i.startsWith("TFT16_TheDarkin")) && !i.includes("Augment")
-    ).sort(),
-    [itemAssets]
-  );
+    );
+    // Deduplicate by display name — keep the canonical ID (no Corrupted/Tutorial/Assist/AcademyCopy)
+    const VARIANT_MARKERS = ["Corrupted", "Tutorial", "Assist", "AcademyCopy", "Encounter", "ChoiceItem"];
+    const seen = new Map<string, string>(); // displayName -> bestId
+    for (const id of ids) {
+      const display = formatItemName(id);
+      const existing = seen.get(display);
+      if (!existing) { seen.set(display, id); continue; }
+      const isVariant = VARIANT_MARKERS.some((m) => id.includes(m));
+      const existingIsVariant = VARIANT_MARKERS.some((m) => existing.includes(m));
+      if (existingIsVariant && !isVariant) seen.set(display, id);
+    }
+    return [...seen.values()].sort();
+  }, [itemAssets]);
 
   // Track requiredCount for each unit already in filters
   const unitFilterCounts = useMemo(() => {
