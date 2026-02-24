@@ -550,38 +550,47 @@ function TraitFilterChip({
           }}
         />
       )}
-      {filter.excluded && <span className="text-red-400 text-xs font-bold">EXCLUDE</span>}
-      <span className="text-tft-text text-sm font-semibold">{filter.trait}</span>
 
-      {breakpoints.length > 0 && (
-        <div className="flex items-center gap-1">
-          <span className="text-tft-muted text-xs">Min</span>
-          <select
-            value={filter.breakpoint}
-            onChange={(e) => onUpdate({ ...filter, breakpoint: Number(e.target.value) })}
-            className="bg-tft-bg border border-tft-border text-tft-text rounded px-1.5 py-0.5 text-xs focus:outline-none focus:border-tft-accent"
-          >
-            {breakpoints.map((bp) => (
-              <option key={bp} value={bp}>
-                {bp}
-              </option>
-            ))}
-          </select>
-          <span className="text-tft-muted text-xs">Max</span>
-          <select
-            value={filter.maxBreakpoint}
-            onChange={(e) => onUpdate({ ...filter, maxBreakpoint: Number(e.target.value) })}
-            className="bg-tft-bg border border-tft-border text-tft-text rounded px-1.5 py-0.5 text-xs focus:outline-none focus:border-tft-accent"
-          >
-            <option value={0}>∞</option>
-            {breakpoints.map((bp) => (
-              <option key={bp} value={bp}>
-                {bp}
-              </option>
-            ))}
-          </select>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-1.5">
+          {filter.excluded && <span className="text-red-400 text-xs font-bold">EXCLUDE</span>}
+          <span className="text-tft-text text-sm font-semibold leading-tight">{filter.trait}</span>
         </div>
-      )}
+
+        {breakpoints.length > 0 && !filter.excluded && (
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <span className="text-tft-muted text-[10px]">Min</span>
+              <select
+                value={filter.breakpoint}
+                onChange={(e) => onUpdate({ ...filter, breakpoint: Number(e.target.value) })}
+                className="bg-tft-bg border border-tft-border text-tft-text rounded px-1 py-0 text-[11px] focus:outline-none focus:border-tft-accent"
+              >
+                {breakpoints.map((bp) => (
+                  <option key={bp} value={bp}>
+                    {bp}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <span className="text-tft-muted text-[10px]">Max</span>
+              <select
+                value={filter.maxBreakpoint}
+                onChange={(e) => onUpdate({ ...filter, maxBreakpoint: Number(e.target.value) })}
+                className="bg-tft-bg border border-tft-border text-tft-text rounded px-1 py-0 text-[11px] focus:outline-none focus:border-tft-accent"
+              >
+                {breakpoints.map((bp) => (
+                  <option key={bp} value={bp}>
+                    {bp}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
 
       <button
         onClick={onRemove}
@@ -744,11 +753,9 @@ function filtersToParams(filters: Filter[], version: string, traitData: TraitDat
         const bps = traitData[f.trait]?.breakpoints ?? [];
         const minTier = bps.indexOf(f.breakpoint) + 1;
         params.append("require_trait_tier", `${f.trait}:${minTier || 1}`);
-        if (f.maxBreakpoint > 0) {
-          const maxTier = bps.indexOf(f.maxBreakpoint) + 1;
-          if (maxTier > 0) {
-            params.append("require_trait_max_tier", `${f.trait}:${maxTier}`);
-          }
+        const maxTier = bps.indexOf(f.maxBreakpoint) + 1;
+        if (maxTier > 0) {
+          params.append("require_trait_max_tier", `${f.trait}:${maxTier}`);
         }
       }
     } else if (f.kind === "item") {
@@ -821,21 +828,23 @@ export default function DataExplorer({
           result.push(f);
         }
       } else if (c.type === "require_trait" && c.trait) {
+        const bps = traitData[c.trait]?.breakpoints ?? [];
         result.push({
           id: uid(),
           kind: "trait",
           trait: c.trait,
           breakpoint: c.count ?? 1,
-          maxBreakpoint: 0,
+          maxBreakpoint: bps.length > 0 ? bps[bps.length - 1] : c.count ?? 1,
           excluded: false,
         });
       } else if (c.type === "exclude_trait" && c.trait) {
+        const bps = traitData[c.trait]?.breakpoints ?? [];
         result.push({
           id: uid(),
           kind: "trait",
           trait: c.trait,
           breakpoint: c.count ?? 1,
-          maxBreakpoint: 0,
+          maxBreakpoint: bps.length > 0 ? bps[bps.length - 1] : c.count ?? 1,
           excluded: true,
         });
       } else if (c.type === "require_unit_count" && c.unit) {
@@ -952,7 +961,7 @@ export default function DataExplorer({
           kind: "trait",
           trait: item.trait,
           breakpoint: bps.length > 0 ? bps[0] : 1,
-          maxBreakpoint: 0,
+          maxBreakpoint: bps.length > 0 ? bps[bps.length - 1] : 1,
           excluded: isExcluded,
         },
       ]);
@@ -1584,7 +1593,7 @@ export default function DataExplorer({
                                   kind: "trait",
                                   trait: row.trait_name,
                                   breakpoint: bpValue,
-                                  maxBreakpoint: 0,
+                                  maxBreakpoint: (traitData[row.trait_name]?.breakpoints ?? []).slice(-1)[0] ?? bpValue,
                                   excluded: false,
                                 },
                               ]);
