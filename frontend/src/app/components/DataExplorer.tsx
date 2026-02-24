@@ -195,7 +195,7 @@ function UnifiedSearch({
   const allTraits = useMemo(() => Object.keys(traitData).sort(), [traitData]);
   const allItems = useMemo(
     () => Object.keys(itemAssets).filter(
-      (i) => (i.startsWith("TFT_Item_") || i.startsWith("TFT16_Item_")) && !i.includes("Augment")
+      (i) => (i.startsWith("TFT_Item_") || i.startsWith("TFT16_Item_") || i.startsWith("TFT16_TheDarkin")) && !i.includes("Augment")
     ).sort(),
     [itemAssets]
   );
