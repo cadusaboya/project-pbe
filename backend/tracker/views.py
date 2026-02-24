@@ -705,6 +705,9 @@ class ExploreView(APIView):
         needs_trait_data = bool(require_traits or excluded_traits or require_trait_tiers or require_trait_max_tiers or include_trait_stats)
         needs_extra_unit_data = bool(exclude_unit_counts or require_unit_counts or require_unit_stars or require_unit_item_counts or require_units)
 
+        if needs_trait_data:
+            _ensure_trait_cache()
+
         qs = Participant.objects.all()
         if game_version:
             qs = qs.filter(match__game_version=game_version)
@@ -720,21 +723,27 @@ class ExploreView(APIView):
 
         match_participant_cache: dict[str, dict[str, dict]] = {}
 
+        def _trait_matches(req_lower: str, api_name: str) -> bool:
+            if req_lower in api_name.lower():
+                return True
+            display = _TRAIT_API_NAME_MAP.get(api_name, "")
+            return bool(display and req_lower in display.lower())
+
         def _max_trait_units(p_data: dict, req_lower: str) -> int:
             matched = 0
             for name, cnt in p_data["trait_unit_counts"].items():
-                if req_lower in name.lower():
+                if _trait_matches(req_lower, name):
                     matched = max(matched, cnt)
             if matched == 0:
                 for name, cnt in p_data.get("derived_trait_counts", {}).items():
-                    if req_lower in name.lower():
+                    if _trait_matches(req_lower, name):
                         matched = max(matched, cnt)
             return matched
 
         def _trait_tier(p_data: dict, req_lower: str) -> int:
             """Return the tier_current for a trait (case-insensitive substring match)."""
             for name, tier in p_data.get("trait_tiers", {}).items():
-                if req_lower in name.lower():
+                if _trait_matches(req_lower, name):
                     return tier
             return 0
 
@@ -1339,23 +1348,29 @@ class CompsView(APIView):
                     derived_trait_counts[name] += count
             b["derived_trait_counts"] = dict(derived_trait_counts)
 
+        def _comp_trait_matches(req_lower: str, api_name: str) -> bool:
+            if req_lower in api_name.lower():
+                return True
+            display = _TRAIT_API_NAME_MAP.get(api_name, "")
+            return bool(display and req_lower in display.lower())
+
         def _max_trait_units(board: dict, req_lower: str) -> int:
             matched_units = 0
             for trait_name, units_count in board["trait_unit_counts"].items():
-                if req_lower in trait_name.lower():
+                if _comp_trait_matches(req_lower, trait_name):
                     matched_units = max(matched_units, units_count)
             # Fallback when participant trait payload does not include the trait
             # but unit metadata still has it.
             if matched_units == 0:
                 for trait_name, units_count in board.get("derived_trait_counts", {}).items():
-                    if req_lower in trait_name.lower():
+                    if _comp_trait_matches(req_lower, trait_name):
                         matched_units = max(matched_units, units_count)
             return matched_units
 
         def _max_trait_tier(board: dict, req_lower: str) -> int:
             matched_tier = 0
             for trait_name, tier in board.get("trait_tiers", {}).items():
-                if req_lower in trait_name.lower():
+                if _comp_trait_matches(req_lower, trait_name):
                     matched_tier = max(matched_tier, tier)
             return matched_tier
 
