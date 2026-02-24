@@ -26,7 +26,12 @@
       "Bash(python -m py_compile:*)",
       "Bash(git diff:*)",
       "Bash(pip3 list:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(git worktree add .claude/worktrees/live-test live-test)",
+      "Bash(git checkout main)",
+      "Bash(git push -u origin live-test)",
+      "Bash(git rm --cached -r .claude/worktrees/live-test)",
+      "Bash(git rm --cached -rf .claude/worktrees/live-test)"
     ]
   }
 }
