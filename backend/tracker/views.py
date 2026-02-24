@@ -38,6 +38,53 @@ _COMPS_CACHE: dict[tuple, dict] = {}
 _COMPS_CACHE_TS: float = 0.0
 _CACHE_TTL_SHORT = 300.0  # 5 minutes
 
+# Canonical item mapping: maps every item_id to a single "canonical" ID
+# so that duplicates (e.g. TFT_Item_InfinityEdge vs TFT_Item_CorruptedInfinityEdge)
+# get merged into one entry.
+_ITEM_CANONICAL_MAP: dict[str, str] | None = None
+
+
+def _get_item_canonical_map() -> dict[str, str]:
+    """Return {item_id: canonical_item_id} mapping, merging IDs that share a display name."""
+    global _ITEM_CANONICAL_MAP, _ITEM_NAMES_CACHE
+    if _ITEM_CANONICAL_MAP is not None:
+        return _ITEM_CANONICAL_MAP
+
+    if _ITEM_NAMES_CACHE is None:
+        try:
+            _ITEM_NAMES_CACHE = json.loads(_ITEM_NAMES_FILE.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            _ITEM_NAMES_CACHE = {}
+
+    # Group IDs by display name
+    from collections import defaultdict as _dd
+    name_to_ids: dict[str, list[str]] = _dd(list)
+    for item_id, display_name in (_ITEM_NAMES_CACHE or {}).items():
+        name_to_ids[display_name].append(item_id)
+
+    # Suffixes/prefixes that indicate a non-canonical variant
+    _VARIANT_MARKERS = ("Corrupted", "Tutorial", "Assist", "AcademyCopy", "Encounter", "ChoiceItem")
+
+    canonical_map: dict[str, str] = {}
+    for display_name, ids in name_to_ids.items():
+        if len(ids) == 1:
+            canonical_map[ids[0]] = ids[0]
+            continue
+
+        # Pick canonical: prefer IDs starting with TFT_Item_ and without variant markers
+        def _score(iid: str) -> tuple:
+            has_marker = any(m in iid for m in _VARIANT_MARKERS)
+            starts_tft_item = iid.startswith("TFT_Item_")
+            return (not has_marker, starts_tft_item, -len(iid), iid)
+
+        ids.sort(key=_score, reverse=True)
+        canonical = ids[0]
+        for iid in ids:
+            canonical_map[iid] = canonical
+
+    _ITEM_CANONICAL_MAP = canonical_map
+    return _ITEM_CANONICAL_MAP
+
 
 def _cc(response: Response, max_age: int) -> Response:
     """Set Cache-Control header on a DRF Response."""
@@ -503,18 +550,20 @@ class UnitStarStatsView(APIView):
             })
 
         # Item stats — aggregate per item name from the JSONField list
+        cmap = _get_item_canonical_map()
         item_agg: dict = defaultdict(lambda: {"games": 0, "total_placement": 0, "top4_count": 0, "win_count": 0})
         for usage in qs.select_related("participant"):
             placement = usage.participant.placement
             for item in (usage.items or []):
                 if not item:
                     continue
-                item_agg[item]["games"] += 1
-                item_agg[item]["total_placement"] += placement
+                canonical = cmap.get(item, item)
+                item_agg[canonical]["games"] += 1
+                item_agg[canonical]["total_placement"] += placement
                 if placement <= 4:
-                    item_agg[item]["top4_count"] += 1
+                    item_agg[canonical]["top4_count"] += 1
                 if placement == 1:
-                    item_agg[item]["win_count"] += 1
+                    item_agg[canonical]["win_count"] += 1
 
         sorted_items = sorted(item_agg.items(), key=lambda x: x[1]["games"], reverse=True)[:6]
         item_result = []
@@ -567,10 +616,15 @@ class ItemStatsView(APIView):
 
         usages = list(qs.values("items", "participant__placement"))
 
+        # Resolve item IDs to canonical to merge duplicates
+        cmap = _get_item_canonical_map()
+
         # Narrow to usages that contain ALL locked items (empty set = no filter)
+        # Resolve selected_items to canonical IDs for matching
+        canonical_selected = {cmap.get(s, s) for s in selected_items}
         filtered = [
             u for u in usages
-            if selected_set.issubset(set(u["items"] or []))
+            if canonical_selected.issubset({cmap.get(i, i) for i in (u["items"] or [])})
         ]
 
         base_games = len(filtered)
@@ -582,14 +636,17 @@ class ItemStatsView(APIView):
         for u in filtered:
             placement = u["participant__placement"]
             for item in (u["items"] or []):
-                if not item or item in selected_set:
+                if not item:
                     continue
-                item_agg[item]["games"] += 1
-                item_agg[item]["total"] += placement
+                canonical = cmap.get(item, item)
+                if canonical in canonical_selected:
+                    continue
+                item_agg[canonical]["games"] += 1
+                item_agg[canonical]["total"] += placement
                 if placement <= 4:
-                    item_agg[item]["top4"] += 1
+                    item_agg[canonical]["top4"] += 1
                 if placement == 1:
-                    item_agg[item]["wins"] += 1
+                    item_agg[canonical]["wins"] += 1
 
         items = []
         for item_name, stats in item_agg.items():
@@ -775,6 +832,12 @@ class ExploreView(APIView):
                     _require_trait_tier_map[trait_lower] = _breakpoint_tier(trait_lower, min_u)
 
         # Build Python-friendly data for each participant
+        cmap = _get_item_canonical_map()
+        # Resolve item filter params to canonical IDs
+        require_items = [(u, cmap.get(i, i)) for u, i in require_items]
+        require_items_any = {cmap.get(i, i) for i in require_items_any}
+        exclude_items = {cmap.get(i, i) for i in exclude_items}
+
         participants = []
         for p in qs:
             unit_map: dict[str, set] = {}
@@ -785,7 +848,7 @@ class ExploreView(APIView):
                 if not uu.unit_id or not uu.unit or not uu.unit.character_id:
                     continue
                 char_id = uu.unit.character_id
-                unit_map[char_id] = set(uu.items or [])
+                unit_map[char_id] = {cmap.get(i, i) for i in (uu.items or []) if i}
                 item_count_by_unit[char_id] = max(
                     item_count_by_unit.get(char_id, 0),
                     len(uu.items or []),
