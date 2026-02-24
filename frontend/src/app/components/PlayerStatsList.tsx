@@ -49,7 +49,7 @@ function avpTextColor(avp: number): string {
 
 type SortKey = "games" | "avg_placement" | "win_rate" | "top4_rate";
 
-export default function PlayerStatsList({ data }: { data: PlayerStat[] }) {
+export default function PlayerStatsList({ data, server }: { data: PlayerStat[]; server: string }) {
   const [sort, setSort] = useState<SortKey>("avg_placement");
   const [sortAsc, setSortAsc] = useState(true);
   const [search, setSearch] = useState("");

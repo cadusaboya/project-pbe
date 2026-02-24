@@ -289,6 +289,7 @@ export default function CompsList({
   selectedMinOccurrences = "100",
   traitData = {},
   totalGames,
+  server,
 }: {
   data: CompStat[];
   versions: string[];
@@ -300,6 +301,7 @@ export default function CompsList({
   selectedMinOccurrences?: string;
   traitData?: TraitData;
   totalGames?: number;
+  server: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -334,6 +336,7 @@ export default function CompsList({
   function handleExploreComp(comp: CompStat) {
     const params = new URLSearchParams();
     if (selectedVersion) params.set("game_version", selectedVersion);
+    if (server) params.set("server", server);
 
     // Count each unit (core_units already expands multi-copy units)
     const unitCounts = new Map<string, number>();

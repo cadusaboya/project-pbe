@@ -309,10 +309,12 @@ export default function ItemsExplorer({
   units,
   versions,
   selectedVersion: initialVersion,
+  server,
 }: {
   units: UnitStat[];
   versions: string[];
   selectedVersion: string;
+  server: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -328,14 +330,14 @@ export default function ItemsExplorer({
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   useEffect(() => {
-    fetch(backendUrl("/api/item-assets/"))
+    fetch(backendUrl(`/api/item-assets/?server=${encodeURIComponent(server)}`))
       .then((r) => (r.ok ? r.json() : { assets: {}, names: {} }))
       .then((data: { assets: Record<string, string>; names: Record<string, string> }) => {
         setItemAssets(data.assets ?? data);
         if (data.names) _itemNamesCache = data.names;
       })
       .catch(() => {});
-  }, []);
+  }, [server]);
 
   useEffect(() => {
     if (!selectedUnit) {
@@ -348,13 +350,14 @@ export default function ItemsExplorer({
     if (selectedVersion) params.set("game_version", selectedVersion);
     if (minGames) params.set("min_games", minGames);
     selectedItems.forEach((item) => params.append("selected_item", item));
+    params.set("server", server);
 
     fetch(backendUrl(`/api/item-stats/?${params.toString()}`))
       .then((r) => (r.ok ? r.json() : null))
       .then(setItemData)
       .catch(() => setItemData(null))
       .finally(() => setLoading(false));
-  }, [selectedUnit, selectedVersion, minGames, selectedItems]);
+  }, [selectedUnit, selectedVersion, minGames, selectedItems, server]);
 
   function handleVersionChange(v: string) {
     setSelectedVersion(v);

@@ -24,9 +24,12 @@ async function fetchItemData(): Promise<{ assets: Record<string, string>; names:
   }
 }
 
-async function fetchUnits(): Promise<UnitStat[]> {
+async function fetchUnits(server?: string): Promise<UnitStat[]> {
   try {
-    const res = await fetch(backendUrl("/api/unit-stats/?sort=games"), { cache: "no-store" });
+    const url = new URL(backendUrl("/api/unit-stats/"));
+    url.searchParams.set("sort", "games");
+    if (server) url.searchParams.set("server", server);
+    const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -34,9 +37,14 @@ async function fetchUnits(): Promise<UnitStat[]> {
   }
 }
 
-export default async function SearchPage() {
+export default async function SearchPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ server?: string }>;
+}) {
+  const { server = "PBE" } = await searchParams;
   const [units, itemData, traitData] = await Promise.all([
-    fetchUnits(),
+    fetchUnits(server),
     fetchItemData(),
     fetchTraitBreakpoints(),
   ]);
@@ -55,6 +63,7 @@ export default async function SearchPage() {
           itemAssets={itemData.assets}
           itemNames={itemData.names}
           traitData={traitData}
+          server={server}
         />
       </Suspense>
     </div>

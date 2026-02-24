@@ -20,6 +20,38 @@ CONCURRENCY_LIMIT = 5
 MAX_RETRIES = 6
 BASE_BACKOFF = 1.0  # seconds; doubles each retry
 
+REGION_ROUTING = {
+    "americas": "https://americas.api.riotgames.com",
+    "europe": "https://europe.api.riotgames.com",
+    "asia": "https://asia.api.riotgames.com",
+    "sea": "https://sea.api.riotgames.com",
+}
+
+PLATFORM_TO_ROUTING = {
+    "PBE": "americas",
+    "NA1": "americas",
+    "BR1": "americas",
+    "LA1": "americas",
+    "LA2": "americas",
+    "EUW1": "europe",
+    "EUNE1": "europe",
+    "TR1": "europe",
+    "RU": "europe",
+    "KR": "asia",
+    "JP1": "asia",
+    "OC1": "sea",
+    "PH2": "sea",
+    "SG2": "sea",
+    "TH2": "sea",
+    "TW2": "sea",
+    "VN2": "sea",
+}
+
+
+def platform_to_server(platform: str) -> str:
+    """Map a platform/region code to the user-facing server name."""
+    return "PBE" if platform == "PBE" else "LIVE"
+
 
 class RiotAPIError(Exception):
     pass
@@ -28,12 +60,19 @@ class RiotAPIError(Exception):
 class RiotAPIService:
     BASE_URL = "https://americas.api.riotgames.com"
 
-    def __init__(self, api_key: str) -> None:
+    def __init__(self, api_key: str, routing: str = "americas") -> None:
         if not api_key:
             raise RiotAPIError("api_key must not be empty")
         self.api_key = api_key
+        self.base_url = REGION_ROUTING.get(routing, REGION_ROUTING["americas"])
         # Semaphore is lazily bound to the running event loop (Python 3.10+).
         self._semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
+
+    @classmethod
+    def for_platform(cls, api_key: str, platform: str) -> "RiotAPIService":
+        """Create an instance routed to the correct region for the given platform."""
+        routing = PLATFORM_TO_ROUTING.get(platform, "americas")
+        return cls(api_key, routing=routing)
 
     # ------------------------------------------------------------------
     # Internal request helper
@@ -116,7 +155,7 @@ class RiotAPIService:
         Returns: {"puuid": "...", "gameName": "...", "tagLine": "..."}
         """
         url = (
-            f"{self.BASE_URL}/riot/account/v1/accounts/by-riot-id"
+            f"{self.base_url}/riot/account/v1/accounts/by-riot-id"
             f"/{quote(game_name, safe='')}/{quote(tag_line, safe='')}"
         )
         return await self._request(client, url)
@@ -135,7 +174,7 @@ class RiotAPIService:
         start_time: optional Unix timestamp (seconds) — only matches after this
                     point are returned.
         """
-        url = f"{self.BASE_URL}/tft/match/v1/matches/by-puuid/{puuid}/ids"
+        url = f"{self.base_url}/tft/match/v1/matches/by-puuid/{puuid}/ids"
         params: dict = {"count": count}
         if start_time is not None:
             params["startTime"] = start_time
@@ -153,5 +192,5 @@ class RiotAPIService:
         GET /tft/match/v1/matches/{matchId}
         Returns full match JSON or None.
         """
-        url = f"{self.BASE_URL}/tft/match/v1/matches/{match_id}"
+        url = f"{self.base_url}/tft/match/v1/matches/{match_id}"
         return await self._request(client, url)

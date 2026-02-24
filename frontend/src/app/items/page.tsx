@@ -3,9 +3,12 @@ import { backendUrl } from "@/lib/backend";
 import ItemsExplorer from "../components/ItemsExplorer";
 import { UnitStat } from "../components/StatsTable";
 
-async function fetchUnits(): Promise<UnitStat[]> {
+async function fetchUnits(server?: string): Promise<UnitStat[]> {
   try {
-    const res = await fetch(backendUrl("/api/unit-stats/?sort=games"), {
+    const url = new URL(backendUrl("/api/unit-stats/"));
+    url.searchParams.set("sort", "games");
+    if (server) url.searchParams.set("server", server);
+    const res = await fetch(url.toString(), {
       cache: "no-store",
     });
     if (!res.ok) return [];
@@ -30,11 +33,11 @@ async function fetchVersions(): Promise<string[]> {
 export default async function ItemsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ game_version?: string }>;
+  searchParams: Promise<{ game_version?: string; server?: string }>;
 }) {
-  const { game_version: gameVersion } = await searchParams;
+  const { game_version: gameVersion, server = "PBE" } = await searchParams;
 
-  const [units, versions] = await Promise.all([fetchUnits(), fetchVersions()]);
+  const [units, versions] = await Promise.all([fetchUnits(server), fetchVersions()]);
 
   return (
     <Suspense fallback={null}>
@@ -42,6 +45,7 @@ export default async function ItemsPage({
         units={units}
         versions={versions}
         selectedVersion={gameVersion ?? ""}
+        server={server}
       />
     </Suspense>
   );

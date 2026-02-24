@@ -1,20 +1,24 @@
 """
-Management command: fetch_pbe
+Management command: fetch_live
 
-Prereq: run 'python manage.py fetch_puuid' once to populate the Player table.
+Fetches recent TFT matches for all tracked Live-server pro players.
+
+Prereq: run 'python manage.py fetch_live_puuid' once to populate the Player table.
 
 Steps:
-  1. Load all players with a stored PUUID from the DB.
-  2. Fetch the last 20 match IDs per player (async), deduplicate.
-  3. Filter out match IDs already in the database.
-  4. Fetch full match JSON for new matches (async).
-  5. Store matches, participants, and unit usages.
-  6. Recompute AggregatedUnitStat for every unit.
+  1. Load all Live players (region != PBE) with a stored PUUID from the DB.
+  2. Group by region, create RiotAPIService per routing.
+  3. Fetch the last 20 match IDs per player (async), deduplicate.
+  4. Filter out match IDs already in the database.
+  5. Fetch full match JSON for new matches (async).
+  6. Store matches, participants, and unit usages (server="LIVE").
+  7. Recompute AggregatedUnitStat for LIVE server.
 
 Usage:
-    python manage.py fetch_pbe
-    python manage.py fetch_pbe --player DarthNub
-    python manage.py fetch_pbe --match PBE1_4525031743
+    python manage.py fetch_live
+    python manage.py fetch_live --player Faker
+    python manage.py fetch_live --region KR
+    python manage.py fetch_live --match NA1_1234567
 """
 
 import asyncio
@@ -29,19 +33,23 @@ from django.core.management.base import BaseCommand
 from tracker.models import Match, Player
 from tracker.services.aggregation import recompute_unit_stats
 from tracker.services.match_processor import process_match
-from tracker.services.riot_api import RiotAPIService
+from tracker.services.riot_api import PLATFORM_TO_ROUTING, RiotAPIService
 
 logger = logging.getLogger(__name__)
 
-GAME_VERSION = "16.6 B"
-DEFAULT_FETCH_CUTOFF_DATE = "2026-02-23"
-DEFAULT_FETCH_CUTOFF_TIME = "00:00"
-DEFAULT_FETCH_CUTOFF_TZ = "America/Cuiaba"
+GAME_VERSION = os.environ.get("LIVE_GAME_VERSION", "16.6")
+DEFAULT_FETCH_CUTOFF_DATE = os.environ.get("LIVE_QUEUE_CUTOFF_DATE", "2026-02-23")
+DEFAULT_FETCH_CUTOFF_TIME = os.environ.get("LIVE_QUEUE_CUTOFF_TIME", "00:00")
+DEFAULT_FETCH_CUTOFF_TZ = os.environ.get("LIVE_QUEUE_CUTOFF_TZ", "UTC")
+
+# Minimum tracked players in a lobby to store the match.
+# 1 = save any game with at least 1 tracked pro.
+MIN_TRACKED_PLAYERS = 1
 
 
 class Command(BaseCommand):
     help = (
-        "Fetch the last 20 TFT matches per tracked player from the Riot PBE API, "
+        "Fetch recent TFT matches for tracked Live-server pro players, "
         "store new matches, and recompute unit statistics."
     )
 
@@ -50,18 +58,23 @@ class Command(BaseCommand):
             "--player",
             type=str,
             default=None,
-            help="Game name to filter (case-insensitive). E.g.: --player DarthNub",
+            help="Game name to filter (case-insensitive). E.g.: --player Faker",
+        )
+        parser.add_argument(
+            "--region",
+            type=str,
+            default=None,
+            help="Region to filter (e.g. KR, NA1, EUW1). Only fetch players from this region.",
         )
         parser.add_argument(
             "--match",
             type=str,
             default=None,
-            help="Fetch and store a specific match ID directly. E.g.: --match PBE1_4525031743",
+            help="Fetch and store a specific match ID directly. E.g.: --match NA1_1234567",
         )
 
     def handle(self, *args, **options):
         fetch_cutoff_utc = self._build_fetch_cutoff_datetime_utc()
-        cooldown_seconds = self._get_player_cooldown_seconds()
         api_key = os.environ.get("RIOT_API_KEY", "").strip()
         if not api_key:
             self.stderr.write(
@@ -69,12 +82,24 @@ class Command(BaseCommand):
             )
             return
 
-        all_players = list(Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid=""))
+        all_players = list(
+            Player.objects.filter(puuid__isnull=False)
+            .exclude(puuid="")
+            .exclude(region="PBE")
+        )
         if not all_players:
             self.stderr.write(
-                self.style.ERROR("No players in DB. Run 'python manage.py fetch_puuid' first.")
+                self.style.ERROR("No Live players in DB. Run 'python manage.py fetch_live_puuid' first.")
             )
             return
+
+        region_filter = options.get("region")
+        if region_filter:
+            region_filter = region_filter.upper()
+            all_players = [p for p in all_players if p.region == region_filter]
+            if not all_players:
+                self.stderr.write(self.style.ERROR(f"No players found for region '{region_filter}'."))
+                return
 
         puuid_to_player: dict[str, Player] = {p.puuid: p for p in all_players}
 
@@ -100,33 +125,21 @@ class Command(BaseCommand):
         fetch_since_ms = int(fetch_cutoff_utc.timestamp() * 1000)
 
         self.stdout.write(
-            f"Processing {len(players)} players - matches on/after {fetch_cutoff_utc.isoformat()} UTC\n"
+            f"Processing {len(players)} Live players - matches on/after {fetch_cutoff_utc.isoformat()} UTC\n"
         )
-        if cooldown_seconds > 0:
-            self.stdout.write(f"Per-player poll cooldown: {cooldown_seconds}s\n")
         self.stdout.write(f"Game version: {GAME_VERSION}\n")
 
         total_stored = 0
 
         for i, player in enumerate(players, 1):
-            label = f"[{i}/{len(players)}] {player}"
-            now_utc = datetime.datetime.now(datetime.timezone.utc)
-            if (
-                cooldown_seconds > 0
-                and player.last_polled_at
-                and (now_utc - player.last_polled_at).total_seconds() < cooldown_seconds
-            ):
-                self.stdout.write(f"  {label} - cooldown active, skipping API poll")
-                continue
+            label = f"[{i}/{len(players)}] {player} ({player.region})"
 
             match_ids = asyncio.run(
-                self._fetch_match_ids_for_player(api_key, player.puuid, fetch_since_ms)
+                self._fetch_match_ids_for_player(api_key, player.puuid, player.region, fetch_since_ms)
             )
 
             if not match_ids:
-                self.stdout.write(f"  {label} - no matches today, skipping")
-                player.last_polled_at = now_utc
-                player.save(update_fields=["last_polled_at"])
+                self.stdout.write(f"  {label} - no matches, skipping")
                 continue
 
             if player.last_seen_match_id and player.last_seen_match_id in match_ids:
@@ -143,8 +156,7 @@ class Command(BaseCommand):
             if not candidate_ids:
                 self.stdout.write(f"  {label} - no new IDs since checkpoint")
                 player.last_seen_match_id = match_ids[0]
-                player.last_polled_at = now_utc
-                player.save(update_fields=["last_seen_match_id", "last_polled_at"])
+                player.save(update_fields=["last_seen_match_id"])
                 continue
 
             if not new_ids:
@@ -152,8 +164,7 @@ class Command(BaseCommand):
                     f"  {label} - {len(candidate_ids)} candidate match(es), all already stored"
                 )
                 player.last_seen_match_id = match_ids[0]
-                player.last_polled_at = now_utc
-                player.save(update_fields=["last_seen_match_id", "last_polled_at"])
+                player.save(update_fields=["last_seen_match_id"])
                 continue
 
             self.stdout.write(
@@ -161,8 +172,11 @@ class Command(BaseCommand):
             )
             had_fetch_fail = False
 
+            # Use the correct routing for this player's region
+            routing = PLATFORM_TO_ROUTING.get(player.region, "americas")
+
             for mid in new_ids:
-                match_data = asyncio.run(self._fetch_single_match_async(api_key, mid))
+                match_data = asyncio.run(self._fetch_single_match_async(api_key, mid, routing))
                 if match_data is None:
                     self.stdout.write(f"    {mid} - fetch failed, skipping")
                     had_fetch_fail = True
@@ -180,12 +194,12 @@ class Command(BaseCommand):
                     p.get("puuid") for p in match_data.get("info", {}).get("participants", [])
                 }
                 tracked_count = sum(1 for p in participant_puuids if p in puuid_to_player)
-                if tracked_count < 6:
+                if tracked_count < MIN_TRACKED_PLAYERS:
                     self.stdout.write(f"    {mid} - skipped ({tracked_count}/8 tracked)")
                     continue
 
                 try:
-                    if process_match(match_data, puuid_to_player, game_version=GAME_VERSION, server="PBE"):
+                    if process_match(match_data, puuid_to_player, game_version=GAME_VERSION, server="LIVE"):
                         total_stored += 1
                         self.stdout.write(f"    {mid} - stored ({game_start_utc.date()}, {GAME_VERSION})")
                     else:
@@ -193,18 +207,15 @@ class Command(BaseCommand):
                 except Exception as exc:
                     logger.error("Error processing %s: %s", mid, exc, exc_info=True)
 
-            player.last_polled_at = now_utc
             if not had_fetch_fail:
                 player.last_seen_match_id = match_ids[0]
-                player.save(update_fields=["last_polled_at", "last_seen_match_id"])
-            else:
-                player.save(update_fields=["last_polled_at"])
+                player.save(update_fields=["last_seen_match_id"])
 
         self.stdout.write(f"\nStored {total_stored} new match(es) in total.")
 
         if total_stored:
-            self.stdout.write("Recomputing unit statistics...")
-            count = recompute_unit_stats(server="PBE")
+            self.stdout.write("Recomputing Live unit statistics...")
+            count = recompute_unit_stats(server="LIVE")
             self.stdout.write(self.style.SUCCESS(f"Done - updated stats for {count} unit(s)."))
         else:
             self.stdout.write(self.style.SUCCESS("Nothing new - stats unchanged."))
@@ -217,26 +228,18 @@ class Command(BaseCommand):
         fetch_cutoff_utc: datetime.datetime,
     ):
         self.stdout.write(f"Fetching specific match: {match_id}")
-        match_data = asyncio.run(self._fetch_single_match_async(api_key, match_id))
+        # Infer routing from match ID prefix (e.g., NA1_, EUW1_, KR_)
+        prefix = match_id.split("_")[0] if "_" in match_id else "NA1"
+        routing = PLATFORM_TO_ROUTING.get(prefix, "americas")
+
+        match_data = asyncio.run(self._fetch_single_match_async(api_key, match_id, routing))
         if match_data is None:
             self.stderr.write(self.style.ERROR(f"{match_id} - fetch failed"))
             return
-        game_ms = match_data.get("info", {}).get("game_datetime", 0)
-        game_start_utc = datetime.datetime.fromtimestamp(
-            game_ms / 1000, tz=datetime.timezone.utc
-        )
-        if game_start_utc < fetch_cutoff_utc:
-            self.stderr.write(
-                self.style.ERROR(
-                    f"{match_id} - old ({game_start_utc.isoformat()}), cutoff is "
-                    f"{fetch_cutoff_utc.isoformat()} UTC"
-                )
-            )
-            return
         try:
-            if process_match(match_data, puuid_to_player, game_version=GAME_VERSION, server="PBE"):
+            if process_match(match_data, puuid_to_player, game_version=GAME_VERSION, server="LIVE"):
                 self.stdout.write(self.style.SUCCESS(f"{match_id} - stored"))
-                count = recompute_unit_stats(server="PBE")
+                count = recompute_unit_stats(server="LIVE")
                 self.stdout.write(self.style.SUCCESS(f"Done - updated stats for {count} unit(s)."))
             else:
                 self.stdout.write(f"{match_id} - already existed")
@@ -245,9 +248,9 @@ class Command(BaseCommand):
             self.stderr.write(self.style.ERROR(str(exc)))
 
     def _build_fetch_cutoff_datetime_utc(self) -> datetime.datetime:
-        cutoff_date = os.environ.get("PBE_QUEUE_CUTOFF_DATE", DEFAULT_FETCH_CUTOFF_DATE).strip()
-        cutoff_time = os.environ.get("PBE_QUEUE_CUTOFF_TIME", DEFAULT_FETCH_CUTOFF_TIME).strip()
-        tz_name = os.environ.get("PBE_QUEUE_CUTOFF_TZ", DEFAULT_FETCH_CUTOFF_TZ).strip()
+        cutoff_date = DEFAULT_FETCH_CUTOFF_DATE.strip()
+        cutoff_time = DEFAULT_FETCH_CUTOFF_TIME.strip()
+        tz_name = DEFAULT_FETCH_CUTOFF_TZ.strip()
 
         try:
             tz = ZoneInfo(tz_name)
@@ -261,20 +264,14 @@ class Command(BaseCommand):
         local_cutoff = naive_cutoff.replace(tzinfo=tz)
         return local_cutoff.astimezone(datetime.timezone.utc)
 
-    def _get_player_cooldown_seconds(self) -> int:
-        raw = os.environ.get("FETCH_PBE_PLAYER_COOLDOWN_SECONDS", "0").strip()
-        try:
-            return max(0, int(raw))
-        except ValueError:
-            return 0
-
     async def _fetch_match_ids_for_player(
         self,
         api_key: str,
         puuid: str,
+        region: str,
         start_time: int,
     ) -> list[str]:
-        service = RiotAPIService(api_key)
+        service = RiotAPIService.for_platform(api_key, region)
         async with httpx.AsyncClient(timeout=httpx.Timeout(30.0), follow_redirects=True) as client:
             return await service.get_match_ids(client, puuid, count=20, start_time=start_time)
 
@@ -282,7 +279,8 @@ class Command(BaseCommand):
         self,
         api_key: str,
         match_id: str,
+        routing: str = "americas",
     ):
-        service = RiotAPIService(api_key)
+        service = RiotAPIService(api_key, routing=routing)
         async with httpx.AsyncClient(timeout=httpx.Timeout(30.0), follow_redirects=True) as client:
             return await service.get_match(client, match_id)

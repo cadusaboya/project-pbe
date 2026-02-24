@@ -2,8 +2,10 @@ import PlayerProfile, { PlayerProfileData, TraitInfo } from "../../components/Pl
 import { backendUrl } from "@/lib/backend";
 import Link from "next/link";
 
-async function fetchPlayerProfile(name: string): Promise<PlayerProfileData> {
-  const res = await fetch(backendUrl(`/api/player/${encodeURIComponent(name)}/profile/`), {
+async function fetchPlayerProfile(name: string, server?: string): Promise<PlayerProfileData> {
+  const url = new URL(backendUrl(`/api/player/${encodeURIComponent(name)}/profile/`));
+  if (server) url.searchParams.set("server", server);
+  const res = await fetch(url.toString(), {
     cache: "no-store",
   });
   if (!res.ok) {
@@ -35,10 +37,13 @@ async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
 
 export default async function PlayerPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ name: string }>;
+  searchParams: Promise<{ server?: string }>;
 }) {
   const { name } = await params;
+  const { server = "PBE" } = await searchParams;
   const decodedName = decodeURIComponent(name);
 
   let profile: PlayerProfileData | null = null;
@@ -50,7 +55,7 @@ export default async function PlayerPage({
   try {
     let itemData: { assets: Record<string, string>; names: Record<string, string> };
     [profile, itemData, traitData] = await Promise.all([
-      fetchPlayerProfile(decodedName),
+      fetchPlayerProfile(decodedName, server),
       fetchItemData(),
       fetchTraitBreakpoints(),
     ]);
@@ -79,7 +84,7 @@ export default async function PlayerPage({
           </p>
         </div>
       ) : profile ? (
-        <PlayerProfile data={profile} itemAssets={itemAssets} itemNames={itemNames} traitData={traitData} />
+        <PlayerProfile data={profile} itemAssets={itemAssets} itemNames={itemNames} traitData={traitData} server={server} />
       ) : null}
     </div>
   );

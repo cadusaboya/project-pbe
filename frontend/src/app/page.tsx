@@ -24,9 +24,13 @@ interface TopComp {
   flex_combos: FlexCombo[];
 }
 
-async function fetchTopUnits(): Promise<TopUnit[]> {
+async function fetchTopUnits(server?: string): Promise<TopUnit[]> {
   try {
-    const res = await fetch(backendUrl("/api/unit-stats/?sort=avg_placement&min_games=20"), {
+    const url = new URL(backendUrl("/api/unit-stats/"));
+    url.searchParams.set("sort", "avg_placement");
+    url.searchParams.set("min_games", "20");
+    if (server) url.searchParams.set("server", server);
+    const res = await fetch(url.toString(), {
       cache: "no-store",
     });
     if (!res.ok) return [];
@@ -37,9 +41,12 @@ async function fetchTopUnits(): Promise<TopUnit[]> {
   }
 }
 
-async function fetchTopComps(): Promise<TopComp[]> {
+async function fetchTopComps(server?: string): Promise<TopComp[]> {
   try {
-    const res = await fetch(backendUrl("/api/comps/?top_flex=1"), {
+    const url = new URL(backendUrl("/api/comps/"));
+    url.searchParams.set("top_flex", "1");
+    if (server) url.searchParams.set("server", server);
+    const res = await fetch(url.toString(), {
       cache: "no-store",
     });
     if (!res.ok) return [];
@@ -173,8 +180,13 @@ const features = [
   },
 ];
 
-export default async function Home() {
-  const [topUnits, topComps] = await Promise.all([fetchTopUnits(), fetchTopComps()]);
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ server?: string }>;
+}) {
+  const { server = "PBE" } = await searchParams;
+  const [topUnits, topComps] = await Promise.all([fetchTopUnits(server), fetchTopComps(server)]);
   const hasQuickStats = topUnits.length > 0 || topComps.length > 0;
 
   return (

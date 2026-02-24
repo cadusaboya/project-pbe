@@ -1,9 +1,10 @@
 import StatsTable, { UnitStat } from "../components/StatsTable";
 import { backendUrl } from "@/lib/backend";
 
-async function fetchStats(gameVersion?: string): Promise<UnitStat[]> {
+async function fetchStats(gameVersion?: string, server?: string): Promise<UnitStat[]> {
   const url = new URL(backendUrl("/api/unit-stats/"));
   if (gameVersion) url.searchParams.set("game_version", gameVersion);
+  if (server) url.searchParams.set("server", server);
 
   const res = await fetch(url.toString(), { cache: "no-store" });
 
@@ -26,10 +27,11 @@ async function fetchVersions(): Promise<string[]> {
   }
 }
 
-async function fetchMatchesAnalyzed(gameVersion?: string): Promise<number> {
+async function fetchMatchesAnalyzed(gameVersion?: string, server?: string): Promise<number> {
   try {
     const url = new URL(backendUrl("/api/stats/"));
     if (gameVersion) url.searchParams.set("game_version", gameVersion);
+    if (server) url.searchParams.set("server", server);
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return 0;
     const data = await res.json();
@@ -42,9 +44,9 @@ async function fetchMatchesAnalyzed(gameVersion?: string): Promise<number> {
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ game_version?: string }>;
+  searchParams: Promise<{ game_version?: string; server?: string }>;
 }) {
-  const { game_version: gameVersion } = await searchParams;
+  const { game_version: gameVersion, server = "PBE" } = await searchParams;
   let data: UnitStat[] = [];
   let versions: string[] = [];
   let matchesAnalyzed = 0;
@@ -52,9 +54,9 @@ export default async function Home({
 
   try {
     [data, versions, matchesAnalyzed] = await Promise.all([
-      fetchStats(gameVersion),
+      fetchStats(gameVersion, server),
       fetchVersions(),
-      fetchMatchesAnalyzed(gameVersion),
+      fetchMatchesAnalyzed(gameVersion, server),
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";
@@ -90,6 +92,7 @@ export default async function Home({
           versions={versions}
           selectedVersion={gameVersion ?? ""}
           matchesAnalyzed={matchesAnalyzed}
+          server={server}
         />
       )}
     </div>

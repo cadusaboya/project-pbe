@@ -275,11 +275,13 @@ function CompCard({
   itemAssets,
   itemNames,
   traitData,
+  server,
 }: {
   comp: WinningComp;
   itemAssets: Record<string, string>;
   itemNames?: Record<string, string>;
   traitData: Record<string, TraitInfo>;
+  server: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [lobby, setLobby] = useState<LobbyParticipant[] | null>(null);
@@ -291,7 +293,7 @@ function CompCard({
       setLoading(true);
       setLobbyError(null);
       try {
-        const res = await fetch(`/api/match/${comp.match_id}/lobby`);
+        const res = await fetch(`/api/match/${comp.match_id}/lobby?server=${encodeURIComponent(server)}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         setLobby(await res.json());
       } catch (e) {
@@ -423,6 +425,7 @@ export default function WinningCompsList({
   versions,
   selectedVersion,
   traitData,
+  server,
 }: {
   data: WinningComp[];
   itemAssets: Record<string, string>;
@@ -430,6 +433,7 @@ export default function WinningCompsList({
   versions: string[];
   selectedVersion: string;
   traitData: Record<string, TraitInfo>;
+  server: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -509,7 +513,7 @@ export default function WinningCompsList({
       ) : (
         <div className="grid gap-4">
           {filtered.map((comp) => (
-            <CompCard key={comp.match_id} comp={comp} itemAssets={itemAssets} itemNames={itemNames} traitData={traitData} />
+            <CompCard key={comp.match_id} comp={comp} itemAssets={itemAssets} itemNames={itemNames} traitData={traitData} server={server} />
           ))}
         </div>
       )}

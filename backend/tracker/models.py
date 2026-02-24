@@ -1,15 +1,18 @@
 from django.db import models
 
+SERVER_CHOICES = [("PBE", "PBE"), ("LIVE", "Live")]
+
 
 class Player(models.Model):
     game_name = models.CharField(max_length=100)
     tag_line = models.CharField(max_length=50)
     puuid = models.CharField(max_length=200, unique=True, blank=True, null=True)
+    region = models.CharField(max_length=10, default="PBE", db_index=True)
     last_seen_match_id = models.CharField(max_length=100, blank=True, null=True)
     last_polled_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
-        unique_together = [("game_name", "tag_line")]
+        unique_together = [("game_name", "tag_line", "region")]
 
     def __str__(self):
         return f"{self.game_name}#{self.tag_line}"
@@ -19,6 +22,7 @@ class Match(models.Model):
     match_id = models.CharField(max_length=100, primary_key=True)
     game_datetime = models.DateTimeField(db_index=True)
     game_version = models.CharField(max_length=100, default="16.6 PBE Alpha - No Items THex", db_index=True)
+    server = models.CharField(max_length=10, choices=SERVER_CHOICES, default="PBE", db_index=True)
     raw_json = models.JSONField()
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -75,9 +79,10 @@ class UnitUsage(models.Model):
 
 
 class AggregatedUnitStat(models.Model):
-    unit = models.OneToOneField(
+    unit = models.ForeignKey(
         Unit, on_delete=models.CASCADE, related_name="stats"
     )
+    server = models.CharField(max_length=10, choices=SERVER_CHOICES, default="PBE", db_index=True)
     games = models.IntegerField(default=0)
     total_placement = models.IntegerField(default=0)
     avg_placement = models.FloatField(default=0.0)
@@ -85,12 +90,16 @@ class AggregatedUnitStat(models.Model):
     win_rate = models.FloatField(default=0.0)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        unique_together = [("unit", "server")]
+
     def __str__(self):
-        return f"Stats for {self.unit.character_id}"
+        return f"Stats for {self.unit.character_id} ({self.server})"
 
 
 class Comp(models.Model):
-    name = models.CharField(max_length=120, unique=True)
+    name = models.CharField(max_length=120)
+    server = models.CharField(max_length=10, choices=SERVER_CHOICES, default="PBE", db_index=True)
     units = models.JSONField(default=list)
     target_level = models.PositiveSmallIntegerField(default=9)
     excluded_units = models.JSONField(default=list)
@@ -106,6 +115,7 @@ class Comp(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        unique_together = [("name", "server")]
         ordering = ["name"]
 
     def __str__(self):

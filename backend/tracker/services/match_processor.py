@@ -15,13 +15,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "16.6 B") -> bool:
+def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "16.6 B", server: str = "PBE") -> bool:
     """
     Store a match and the unit data for every participant (all 8 slots).
 
     Args:
         match_data:       Full match JSON from Riot API.
         puuid_to_player:  {puuid: Player instance} for all tracked players.
+        server:           "PBE" or "LIVE".
 
     Returns:
         True  — match was new and has been stored.
@@ -40,6 +41,7 @@ def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "
         defaults={
             "game_datetime": game_datetime,
             "game_version": game_version,
+            "server": server,
             "raw_json": match_data,
         },
     )

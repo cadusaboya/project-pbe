@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { Analytics } from "@vercel/analytics/react";
 import StatsBar from "./components/StatsBar";
 import Nav from "./components/Nav";
+import ServerSelector from "./components/ServerSelector";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -76,6 +77,9 @@ export default function RootLayout({
                   TFT Pro Radar
                 </span>
               </Link>
+              <Suspense fallback={null}>
+                <ServerSelector />
+              </Suspense>
               <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
                 <a
                   href="https://x.com/TFTProRadar"

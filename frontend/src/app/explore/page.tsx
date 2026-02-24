@@ -3,9 +3,12 @@ import { backendUrl } from "@/lib/backend";
 import DataExplorer from "../components/DataExplorer";
 import { UnitStat } from "../components/StatsTable";
 
-async function fetchUnits(): Promise<UnitStat[]> {
+async function fetchUnits(server?: string): Promise<UnitStat[]> {
   try {
-    const res = await fetch(backendUrl("/api/unit-stats/?sort=games"), {
+    const url = new URL(backendUrl("/api/unit-stats/"));
+    url.searchParams.set("sort", "games");
+    if (server) url.searchParams.set("server", server);
+    const res = await fetch(url.toString(), {
       cache: "no-store",
     });
     if (!res.ok) return [];
@@ -50,6 +53,7 @@ type RawParams = {
   require_unit_star?: string | string[];
   require_unit_item_count?: string | string[];
   exclude_trait?: string | string[];
+  server?: string;
 };
 
 function toArray(v: string | string[] | undefined): string[] {
@@ -71,6 +75,7 @@ export default async function ExplorePage({
 }) {
   const params = await searchParams;
   const gameVersion = params.game_version ?? "";
+  const server = params.server ?? "PBE";
 
   const initialConditions = [
     ...toArray(params.require_unit).map((unit) => ({ type: "require_unit" as const, unit })),
@@ -116,7 +121,7 @@ export default async function ExplorePage({
     }),
   ];
 
-  const [units, versions, traitData] = await Promise.all([fetchUnits(), fetchVersions(), fetchTraits()]);
+  const [units, versions, traitData] = await Promise.all([fetchUnits(server), fetchVersions(), fetchTraits()]);
 
   return (
     <Suspense fallback={null}>
@@ -126,6 +131,7 @@ export default async function ExplorePage({
         selectedVersion={gameVersion}
         initialConditions={initialConditions}
         traitData={traitData}
+        server={server}
       />
     </Suspense>
   );

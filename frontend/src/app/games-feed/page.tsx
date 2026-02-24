@@ -11,10 +11,11 @@ async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
   }
 }
 
-async function fetchWinningComps(gameVersion?: string): Promise<WinningComp[]> {
+async function fetchWinningComps(gameVersion?: string, server?: string): Promise<WinningComp[]> {
   const url = new URL(backendUrl("/api/winning-comps/"));
   url.searchParams.set("limit", "200");
   if (gameVersion) url.searchParams.set("game_version", gameVersion);
+  if (server) url.searchParams.set("server", server);
 
   const res = await fetch(url.toString(), { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to fetch winning comps: ${res.status}`);
@@ -48,9 +49,9 @@ async function fetchVersions(): Promise<string[]> {
 export default async function GamesFeedPage({
   searchParams,
 }: {
-  searchParams: Promise<{ game_version?: string }>;
+  searchParams: Promise<{ game_version?: string; server?: string }>;
 }) {
-  const { game_version: gameVersion } = await searchParams;
+  const { game_version: gameVersion, server = "PBE" } = await searchParams;
   let data: WinningComp[] = [];
   let itemAssets: Record<string, string> = {};
   let itemNames: Record<string, string> = {};
@@ -61,7 +62,7 @@ export default async function GamesFeedPage({
   try {
     let itemData: { assets: Record<string, string>; names: Record<string, string> };
     [data, itemData, versions, traitBreakpoints] = await Promise.all([
-      fetchWinningComps(gameVersion),
+      fetchWinningComps(gameVersion, server),
       fetchItemData(),
       fetchVersions(),
       fetchTraitBreakpoints(),
@@ -104,6 +105,7 @@ export default async function GamesFeedPage({
           versions={versions}
           selectedVersion={gameVersion ?? ""}
           traitData={traitBreakpoints}
+          server={server}
         />
       )}
     </div>

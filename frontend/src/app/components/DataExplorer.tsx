@@ -781,12 +781,14 @@ export default function DataExplorer({
   selectedVersion: initialVersion,
   initialConditions = [],
   traitData = {},
+  server,
 }: {
   units: UnitStat[];
   versions: string[];
   selectedVersion: string;
   initialConditions?: { type: string; unit?: string; trait?: string; count?: number; star?: number; level?: number; item?: string; itemCount?: number }[];
   traitData?: TraitData;
+  server: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -885,14 +887,14 @@ export default function DataExplorer({
   const [tableSearch, setTableSearch] = useState("");
 
   useEffect(() => {
-    fetch(backendUrl("/api/item-assets/"))
+    fetch(backendUrl(`/api/item-assets/?server=${encodeURIComponent(server)}`))
       .then((r) => (r.ok ? r.json() : { assets: {}, names: {} }))
       .then((data: { assets: Record<string, string>; names: Record<string, string> }) => {
         setItemAssets(data.assets ?? data);
         if (data.names) _itemNamesCache = data.names;
       })
       .catch(() => {});
-  }, []);
+  }, [server]);
 
   const fetchData = useCallback(() => {
     if (filters.length === 0) {
@@ -902,12 +904,13 @@ export default function DataExplorer({
     setLoading(true);
     const params = filtersToParams(filters, selectedVersion, traitData);
     params.set("include_trait_stats", "1");
+    params.set("server", server);
     fetch(backendUrl(`/api/explore/?${params.toString()}`))
       .then((r) => (r.ok ? r.json() : null))
       .then(setExploreData)
       .catch(() => setExploreData(null))
       .finally(() => setLoading(false));
-  }, [filters, selectedVersion, traitData]);
+  }, [filters, selectedVersion, traitData, server]);
 
   useEffect(() => {
     fetchData();

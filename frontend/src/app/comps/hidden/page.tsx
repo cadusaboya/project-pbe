@@ -5,12 +5,14 @@ async function fetchHiddenCompStats(
   gameVersion?: string,
   coreSizes?: string,
   minOccurrences?: string,
+  server?: string,
 ): Promise<CompStat[]> {
   const url = new URL(backendUrl("/api/comps/hidden/"));
   url.searchParams.set("limit", "20");
   if (gameVersion) url.searchParams.set("game_version", gameVersion);
   if (coreSizes) url.searchParams.set("core_sizes", coreSizes);
   if (minOccurrences) url.searchParams.set("min_occurrences", minOccurrences);
+  if (server) url.searchParams.set("server", server);
 
   const res = await fetch(url.toString(), { cache: "no-store" });
   if (!res.ok) {
@@ -42,12 +44,13 @@ async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; ic
 export default async function HiddenCompsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ game_version?: string; core_sizes?: string; min_occurrences?: string }>;
+  searchParams: Promise<{ game_version?: string; core_sizes?: string; min_occurrences?: string; server?: string }>;
 }) {
   const {
     game_version: gameVersion,
     core_sizes: coreSizes = "4,5,6",
     min_occurrences: minOccurrences = "100",
+    server = "PBE",
   } = await searchParams;
   let data: CompStat[] = [];
   let versions: string[] = [];
@@ -56,7 +59,7 @@ export default async function HiddenCompsPage({
 
   try {
     [data, versions, traitData] = await Promise.all([
-      fetchHiddenCompStats(gameVersion, coreSizes, minOccurrences),
+      fetchHiddenCompStats(gameVersion, coreSizes, minOccurrences, server),
       fetchVersions(),
       fetchTraits(),
     ]);
@@ -90,6 +93,7 @@ export default async function HiddenCompsPage({
           selectedCoreSizes={coreSizes}
           selectedMinOccurrences={minOccurrences}
           traitData={traitData}
+          server={server}
         />
       )}
     </div>

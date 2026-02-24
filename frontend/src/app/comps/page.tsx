@@ -6,9 +6,10 @@ interface CompsResponse {
   comps: CompStat[];
 }
 
-async function fetchCompStats(gameVersion?: string): Promise<CompsResponse> {
+async function fetchCompStats(gameVersion?: string, server?: string): Promise<CompsResponse> {
   const url = new URL(backendUrl("/api/comps/"));
   if (gameVersion) url.searchParams.set("game_version", gameVersion);
+  if (server) url.searchParams.set("server", server);
 
   const res = await fetch(url.toString(), { cache: "no-store" });
   if (!res.ok) {
@@ -40,9 +41,9 @@ async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; ic
 export default async function CompsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ game_version?: string }>;
+  searchParams: Promise<{ game_version?: string; server?: string }>;
 }) {
-  const { game_version: gameVersion } = await searchParams;
+  const { game_version: gameVersion, server = "PBE" } = await searchParams;
   let data: CompStat[] = [];
   let totalGames = 0;
   let versions: string[] = [];
@@ -51,7 +52,7 @@ export default async function CompsPage({
 
   try {
     const [compsRes, v, t] = await Promise.all([
-      fetchCompStats(gameVersion),
+      fetchCompStats(gameVersion, server),
       fetchVersions(),
       fetchTraits(),
     ]);
@@ -92,6 +93,7 @@ export default async function CompsPage({
           showCompMeta={false}
           traitData={traitData}
           totalGames={totalGames}
+          server={server}
         />
       )}
     </div>

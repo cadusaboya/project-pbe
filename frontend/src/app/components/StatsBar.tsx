@@ -1,21 +1,13 @@
+"use client";
+
+import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { backendUrl } from "@/lib/backend";
 
 interface GlobalStats {
   matches_analyzed: number;
   participants_recorded: number;
   last_fetch_at: string | null;
-}
-
-async function fetchGlobalStats(): Promise<GlobalStats | null> {
-  try {
-    const res = await fetch(backendUrl("/api/stats/"), {
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
-  }
 }
 
 function formatRelativeUtc(iso: string): string {
@@ -43,8 +35,19 @@ function formatRelativeUtc(iso: string): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-export default async function StatsBar() {
-  const stats = await fetchGlobalStats();
+export default function StatsBar() {
+  const searchParams = useSearchParams();
+  const server = searchParams.get("server") ?? "PBE";
+  const [stats, setStats] = useState<GlobalStats | null>(null);
+
+  useEffect(() => {
+    const url = new URL(backendUrl("/api/stats/"));
+    url.searchParams.set("server", server);
+    fetch(url.toString())
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setStats)
+      .catch(() => setStats(null));
+  }, [server]);
 
   if (!stats) return null;
 

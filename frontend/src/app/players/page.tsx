@@ -1,20 +1,27 @@
 import PlayerStatsList, { PlayerStat } from "../components/PlayerStatsList";
 import { backendUrl } from "@/lib/backend";
 
-async function fetchPlayerStats(): Promise<PlayerStat[]> {
-  const res = await fetch(backendUrl("/api/player-stats/"), { cache: "no-store" });
+async function fetchPlayerStats(server?: string): Promise<PlayerStat[]> {
+  const url = new URL(backendUrl("/api/player-stats/"));
+  if (server) url.searchParams.set("server", server);
+  const res = await fetch(url.toString(), { cache: "no-store" });
   if (!res.ok) {
     throw new Error(`Failed to fetch player stats: ${res.status}`);
   }
   return res.json();
 }
 
-export default async function PlayersPage() {
+export default async function PlayersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ server?: string }>;
+}) {
+  const { server = "PBE" } = await searchParams;
   let data: PlayerStat[] = [];
   let error: string | null = null;
 
   try {
-    data = await fetchPlayerStats();
+    data = await fetchPlayerStats(server);
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";
   }
@@ -50,7 +57,7 @@ export default async function PlayersPage() {
           No player data available.
         </div>
       ) : (
-        <PlayerStatsList data={data} />
+        <PlayerStatsList data={data} server={server} />
       )}
     </div>
   );
