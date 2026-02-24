@@ -882,6 +882,7 @@ export default function DataExplorer({
   const [itemSortDir, setItemSortDir] = useState<SortDir>("desc");
   const [traitSortKey, setTraitSortKey] = useState<"games" | "avg_placement" | "top4_rate" | "win_rate" | "delta">("games");
   const [traitSortDir, setTraitSortDir] = useState<SortDir>("desc");
+  const [tableSearch, setTableSearch] = useState("");
 
   useEffect(() => {
     fetch(backendUrl("/api/item-assets/"))
@@ -1075,6 +1076,8 @@ export default function DataExplorer({
   );
 
   // Merge unit_count_stats into unit_stats as normal rows with a count label
+  const searchLower = tableSearch.trim().toLowerCase();
+
   const sortedUnits = useMemo(() => {
     if (!exploreData) return [];
     const rows: (UnitResult & { countLabel?: string })[] = [
@@ -1092,34 +1095,46 @@ export default function DataExplorer({
           countLabel: row.count === 2 ? "2nd" : row.count === 3 ? "3rd" : `${row.count}th`,
         })),
     ];
-    return rows.sort((a, b) => {
+    const filtered = searchLower
+      ? rows.filter((row) => formatUnit(row.unit_name).toLowerCase().includes(searchLower))
+      : rows;
+    return filtered.sort((a, b) => {
       const av = a[unitSortKey],
         bv = b[unitSortKey];
       return unitSortDir === "asc" ? av - bv : bv - av;
     });
-  }, [exploreData, unitSortKey, unitSortDir, requiredUnits, minFrequency]);
+  }, [exploreData, unitSortKey, unitSortDir, requiredUnits, minFrequency, searchLower]);
 
   const sortedItems = useMemo(() => {
     if (!exploreData) return [];
-    return [...exploreData.item_stats]
-      .filter((row) => row.games >= minFrequency)
-      .sort((a, b) => {
-        const av = a[itemSortKey],
-          bv = b[itemSortKey];
-        return itemSortDir === "asc" ? av - bv : bv - av;
-      });
-  }, [exploreData, itemSortKey, itemSortDir, minFrequency]);
+    const filtered = searchLower
+      ? exploreData.item_stats.filter((row) =>
+          row.games >= minFrequency &&
+          (formatUnit(row.unit_name).toLowerCase().includes(searchLower) ||
+           row.item_name.toLowerCase().includes(searchLower))
+        )
+      : exploreData.item_stats.filter((row) => row.games >= minFrequency);
+    return [...filtered].sort((a, b) => {
+      const av = a[itemSortKey],
+        bv = b[itemSortKey];
+      return itemSortDir === "asc" ? av - bv : bv - av;
+    });
+  }, [exploreData, itemSortKey, itemSortDir, minFrequency, searchLower]);
 
   const sortedTraits = useMemo(() => {
     if (!exploreData?.trait_stats) return [];
-    return [...exploreData.trait_stats]
-      .filter((row) => row.games >= minFrequency)
-      .sort((a, b) => {
-        const av = a[traitSortKey],
-          bv = b[traitSortKey];
-        return traitSortDir === "asc" ? av - bv : bv - av;
-      });
-  }, [exploreData, traitSortKey, traitSortDir, minFrequency]);
+    const filtered = searchLower
+      ? exploreData.trait_stats.filter((row) =>
+          row.games >= minFrequency &&
+          row.trait_name.toLowerCase().includes(searchLower)
+        )
+      : exploreData.trait_stats.filter((row) => row.games >= minFrequency);
+    return [...filtered].sort((a, b) => {
+      const av = a[traitSortKey],
+        bv = b[traitSortKey];
+      return traitSortDir === "asc" ? av - bv : bv - av;
+    });
+  }, [exploreData, traitSortKey, traitSortDir, minFrequency, searchLower]);
 
   return (
     <div className="space-y-6">
@@ -1275,21 +1290,30 @@ export default function DataExplorer({
             </div>
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-1 border-b border-tft-border">
-            {(["units", "items", "traits"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
-                  activeTab === tab
-                    ? "border-tft-accent text-tft-text"
-                    : "border-transparent text-tft-muted hover:text-tft-text"
-                }`}
-              >
-                {tab === "units" ? "Units" : tab === "items" ? "Items on Units" : "Traits"}
-              </button>
-            ))}
+          {/* Tabs + Search */}
+          <div className="flex items-center justify-between border-b border-tft-border">
+            <div className="flex gap-1">
+              {(["units", "items", "traits"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => { setActiveTab(tab); setTableSearch(""); }}
+                  className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
+                    activeTab === tab
+                      ? "border-tft-accent text-tft-text"
+                      : "border-transparent text-tft-muted hover:text-tft-text"
+                  }`}
+                >
+                  {tab === "units" ? "Units" : tab === "items" ? "Items on Units" : "Traits"}
+                </button>
+              ))}
+            </div>
+            <input
+              type="text"
+              placeholder={`Search ${activeTab}...`}
+              value={tableSearch}
+              onChange={(e) => setTableSearch(e.target.value)}
+              className="bg-tft-bg border border-tft-border text-tft-text rounded-lg px-3 py-1.5 text-sm w-48 focus:outline-none focus:border-tft-accent placeholder:text-tft-muted"
+            />
           </div>
 
           {/* Units table */}

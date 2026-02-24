@@ -39,11 +39,22 @@ class Command(BaseCommand):
         try:
             while True:
                 cycle += 1
-                self.stdout.write(self.style.HTTP_INFO(f"[cycle {cycle}] running fetch_pbe..."))
-                call_command("fetch_pbe")
 
-                self.stdout.write(self.style.HTTP_INFO(f"[cycle {cycle}] refreshing unit stats..."))
-                call_command("update_unit_stats")
+                try:
+                    self.stdout.write(self.style.HTTP_INFO(f"[cycle {cycle}] running fetch_pbe..."))
+                    call_command("fetch_pbe")
+                except Exception as exc:
+                    self.stderr.write(
+                        self.style.ERROR(f"[cycle {cycle}] fetch_pbe failed: {exc}")
+                    )
+
+                try:
+                    self.stdout.write(self.style.HTTP_INFO(f"[cycle {cycle}] refreshing unit stats..."))
+                    call_command("update_unit_stats")
+                except Exception as exc:
+                    self.stderr.write(
+                        self.style.ERROR(f"[cycle {cycle}] update_unit_stats failed: {exc}")
+                    )
 
                 if max_cycles and cycle >= max_cycles:
                     self.stdout.write(self.style.SUCCESS(f"Reached max_cycles={max_cycles}. Exiting."))
