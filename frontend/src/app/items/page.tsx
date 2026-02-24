@@ -6,7 +6,7 @@ import { UnitStat } from "../components/StatsTable";
 async function fetchUnits(): Promise<UnitStat[]> {
   try {
     const res = await fetch(backendUrl("/api/unit-stats/?sort=games"), {
-      cache: "no-store",
+      next: { revalidate: 60 },
     });
     if (!res.ok) return [];
     return res.json();
@@ -18,7 +18,7 @@ async function fetchUnits(): Promise<UnitStat[]> {
 async function fetchVersions(): Promise<string[]> {
   try {
     const res = await fetch(backendUrl("/api/versions/"), {
-      cache: "no-store",
+      next: { revalidate: 60 },
     });
     if (!res.ok) return [];
     return res.json();

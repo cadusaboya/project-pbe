@@ -3,7 +3,7 @@ import { backendUrl } from "@/lib/backend";
 
 async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), { cache: "no-store" });
+    const res = await fetch(backendUrl("/api/traits/"), { next: { revalidate: 60 } });
     if (!res.ok) return {};
     return res.json();
   } catch {
@@ -16,7 +16,7 @@ async function fetchWinningComps(gameVersion?: string): Promise<WinningComp[]> {
   url.searchParams.set("limit", "200");
   if (gameVersion) url.searchParams.set("game_version", gameVersion);
 
-  const res = await fetch(url.toString(), { cache: "no-store" });
+  const res = await fetch(url.toString(), { next: { revalidate: 60 } });
   if (!res.ok) throw new Error(`Failed to fetch winning comps: ${res.status}`);
   return res.json();
 }
@@ -24,7 +24,7 @@ async function fetchWinningComps(gameVersion?: string): Promise<WinningComp[]> {
 async function fetchItemData(): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
   try {
     const res = await fetch(backendUrl("/api/item-assets/"), {
-      cache: "no-store",
+      next: { revalidate: 60 },
     });
     if (!res.ok) return { assets: {}, names: {} };
     return res.json();
@@ -36,7 +36,7 @@ async function fetchItemData(): Promise<{ assets: Record<string, string>; names:
 async function fetchVersions(): Promise<string[]> {
   try {
     const res = await fetch(backendUrl("/api/versions/"), {
-      cache: "no-store",
+      next: { revalidate: 60 },
     });
     if (!res.ok) return [];
     return res.json();

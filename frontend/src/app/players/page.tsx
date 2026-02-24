@@ -2,7 +2,7 @@ import PlayerStatsList, { PlayerStat } from "../components/PlayerStatsList";
 import { backendUrl } from "@/lib/backend";
 
 async function fetchPlayerStats(): Promise<PlayerStat[]> {
-  const res = await fetch(backendUrl("/api/player-stats/"), { cache: "no-store" });
+  const res = await fetch(backendUrl("/api/player-stats/"), { next: { revalidate: 60 } });
   if (!res.ok) {
     throw new Error(`Failed to fetch player stats: ${res.status}`);
   }
