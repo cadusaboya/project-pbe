@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 interface CompUnit {
@@ -307,6 +307,9 @@ export default function CompsList({
   type SortKey = "avg_placement" | "comps" | "win_rate" | "top4_rate";
   const [sort, setSort] = useState<SortKey>("avg_placement");
   const [sortAsc, setSortAsc] = useState(true);
+  const PAGE_SIZE = 10;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   function handleSort(key: SortKey) {
     if (sort === key) setSortAsc((v) => !v);
@@ -402,6 +405,27 @@ export default function CompsList({
     }
     pushParams(params);
   }
+
+  // Reset visible count when filters/sort change
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [search, sort, sortAsc, data]);
+
+  const loadMore = useCallback(() => {
+    setVisibleCount((prev) => prev + PAGE_SIZE);
+  }, []);
+
+  // Auto-load more when sentinel scrolls into view
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) loadMore(); },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   const filtered = useMemo(() => {
     let rows = data.filter((comp) => comp.comps > 0);
@@ -525,7 +549,7 @@ export default function CompsList({
         </div>
       ) : (
         <div className="grid gap-3">
-          {filtered.map((comp, i) => (
+          {filtered.slice(0, visibleCount).map((comp, i) => (
             <CompCard
               key={`${i}-${comp.core_units.map((u) => u.character_id).join("|")}`}
               onExplore={handleExploreComp}
@@ -538,6 +562,11 @@ export default function CompsList({
               }}
             />
           ))}
+          {visibleCount < filtered.length && (
+            <div ref={sentinelRef} className="py-4 text-center text-tft-muted text-sm">
+              Loading more...
+            </div>
+          )}
         </div>
       )}
     </div>

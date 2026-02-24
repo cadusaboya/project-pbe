@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 export interface WinningUnit {
@@ -435,6 +435,28 @@ export default function WinningCompsList({
   const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [unitFilter, setUnitFilter] = useState("");
+  const PAGE_SIZE = 10;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const loadMore = useCallback(() => {
+    setVisibleCount((prev) => prev + PAGE_SIZE);
+  }, []);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [search, unitFilter, data]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) loadMore(); },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   function handleVersionChange(v: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -508,9 +530,14 @@ export default function WinningCompsList({
         </div>
       ) : (
         <div className="grid gap-4">
-          {filtered.map((comp) => (
+          {filtered.slice(0, visibleCount).map((comp) => (
             <CompCard key={comp.match_id} comp={comp} itemAssets={itemAssets} itemNames={itemNames} traitData={traitData} />
           ))}
+          {visibleCount < filtered.length && (
+            <div ref={sentinelRef} className="py-4 text-center text-tft-muted text-sm">
+              Loading more...
+            </div>
+          )}
         </div>
       )}
     </div>
