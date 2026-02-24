@@ -2,5 +2,5 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "cd backend && python manage.py migrate --noinput && (while true; do python manage.py fetch_pbe_loop --interval 300; echo 'fetch_pbe_loop exited, restarting in 30s...'; sleep 30; done) & gunicorn tft_tracker.wsgi --bind 0.0.0.0:$PORT --workers 4 --threads 4 --timeout 60"
+startCommand = "cd backend && bash start.sh"
 restartPolicyType = "on_failure"
