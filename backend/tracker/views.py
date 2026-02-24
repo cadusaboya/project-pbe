@@ -644,6 +644,7 @@ class ExploreView(APIView):
         require_units = set(request.query_params.getlist("require_unit"))
         ban_units = set(request.query_params.getlist("ban_unit"))
         require_items_raw = request.query_params.getlist("require_item_on_unit")
+        require_items_any = set(request.query_params.getlist("require_item"))
         exclude_items = set(request.query_params.getlist("exclude_item"))
         player_levels_raw = request.query_params.getlist("player_level")
         player_levels = {int(v) for v in player_levels_raw if v.isdigit()}
@@ -853,6 +854,12 @@ class ExploreView(APIView):
                 return False
             for unit_id, item_id in require_items:
                 if unit_id not in unit_items or item_id not in unit_items[unit_id]:
+                    return False
+            if require_items_any:
+                all_items_set: set = set()
+                for item_set in unit_items.values():
+                    all_items_set |= item_set
+                if not require_items_any.issubset(all_items_set):
                     return False
             if exclude_items:
                 all_items: set = set()

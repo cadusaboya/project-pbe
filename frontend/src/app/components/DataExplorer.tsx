@@ -763,8 +763,9 @@ function filtersToParams(filters: Filter[], version: string, traitData: TraitDat
         params.append("exclude_item", f.item);
       } else if (f.holder) {
         params.append("require_item_on_unit", `${f.holder}::${f.item}`);
+      } else {
+        params.append("require_item", f.item);
       }
-      // If included with holder = "" (Any), no specific API param — item presence isn't filtered
     } else if (f.kind === "level") {
       params.append("player_level", String(f.level));
     }
