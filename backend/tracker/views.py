@@ -749,17 +749,46 @@ class ExploreView(APIView):
                     return tier
             return 0
 
+        def _breakpoint_tier(display_name: str, min_units: int) -> int:
+            """Convert a min_units value to a 1-based tier using CDragon breakpoints."""
+            tdata = _TRAIT_CACHE.get(display_name)
+            if not tdata:
+                for dname, td in _TRAIT_CACHE.items():
+                    if dname.lower() == display_name.lower():
+                        tdata = td
+                        break
+            if not tdata:
+                return 0
+            bps = tdata.get("breakpoints", [])
+            tier = 0
+            for i, bp in enumerate(bps):
+                if min_units >= bp:
+                    tier = i + 1
+            return tier
+
+        # Precompute required tier for each require_trait with min_units > 1
+        _require_trait_tier_map: dict[str, int] = {}
+        if require_traits and needs_trait_data:
+            for trait_lower, min_u in require_traits.items():
+                if min_u > 1:
+                    _require_trait_tier_map[trait_lower] = _breakpoint_tier(trait_lower, min_u)
+
         # Build Python-friendly data for each participant
         participants = []
         for p in qs:
             unit_map: dict[str, set] = {}
             unit_count_by_unit: dict[str, int] = {}
             unit_max_star_by_unit: dict[str, int] = {}
+            item_count_by_unit: dict[str, int] = {}
             for uu in p.unit_usages.all():
                 if not uu.unit_id or not uu.unit or not uu.unit.character_id:
                     continue
                 char_id = uu.unit.character_id
                 unit_map[char_id] = set(uu.items or [])
+                item_count_by_unit[char_id] = max(
+                    item_count_by_unit.get(char_id, 0),
+                    len(uu.items or []),
+                )
                 if needs_extra_unit_data or needs_trait_data:
                     unit_count_by_unit[char_id] = unit_count_by_unit.get(char_id, 0) + 1
                     unit_max_star_by_unit[char_id] = max(
@@ -773,6 +802,7 @@ class ExploreView(APIView):
                 "unit_items": unit_map,
                 "unit_count_by_unit": unit_count_by_unit,
                 "unit_max_star_by_unit": unit_max_star_by_unit,
+                "item_count_by_unit": item_count_by_unit,
                 "trait_unit_counts": {},
                 "derived_trait_counts": {},
             }
@@ -832,8 +862,14 @@ class ExploreView(APIView):
                     return False
             if require_traits:
                 for trait_lower, min_u in require_traits.items():
-                    if _max_trait_units(p_data, trait_lower) < min_u:
-                        return False
+                    req_tier = _require_trait_tier_map.get(trait_lower, 0)
+                    if req_tier > 0:
+                        board_tier = _trait_tier(p_data, trait_lower)
+                        if board_tier < req_tier:
+                            return False
+                    else:
+                        if _max_trait_units(p_data, trait_lower) < min_u:
+                            return False
             if require_trait_tiers:
                 for trait_lower, min_tier in require_trait_tiers.items():
                     board_tier = _trait_tier(p_data, trait_lower)
@@ -856,8 +892,7 @@ class ExploreView(APIView):
                         return False
             if require_unit_item_counts:
                 for unit_id, min_items in require_unit_item_counts.items():
-                    items = p_data["unit_items"].get(unit_id, set())
-                    if len(items) < min_items:
+                    if p_data["item_count_by_unit"].get(unit_id, 0) < min_items:
                         return False
             if excluded_traits:
                 for trait_lower, threshold in excluded_traits.items():
