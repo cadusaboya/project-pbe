@@ -53,7 +53,6 @@ export default async function GamesFeedPage({
   const { game_version: gameVersion } = await searchParams;
   let data: WinningComp[] = [];
   let itemAssets: Record<string, string> = {};
-  let itemNames: Record<string, string> = {};
   let versions: string[] = [];
   let error: string | null = null;
 
@@ -67,7 +66,6 @@ export default async function GamesFeedPage({
       fetchTraitBreakpoints(),
     ]);
     itemAssets = itemData.assets;
-    itemNames = itemData.names;
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";
   }
@@ -100,7 +98,6 @@ export default async function GamesFeedPage({
         <WinningCompsList
           data={data}
           itemAssets={itemAssets}
-          itemNames={itemNames}
           versions={versions}
           selectedVersion={gameVersion ?? ""}
           traitData={traitBreakpoints}

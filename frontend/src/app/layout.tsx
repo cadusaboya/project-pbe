@@ -61,6 +61,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="dns-prefetch" href="https://raw.communitydragon.org" />
+        <link rel="preconnect" href="https://raw.communitydragon.org" crossOrigin="anonymous" />
+      </head>
       <body className="min-h-screen bg-tft-bg text-tft-text antialiased">
         <header className="border-b border-tft-border bg-gradient-to-b from-tft-surface to-tft-bg/95 backdrop-blur-sm sticky top-0 z-20">
           <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 sm:py-3 space-y-2 sm:space-y-3">

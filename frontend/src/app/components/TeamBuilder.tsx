@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import { UnitImage } from "./TftImage";
+import { formatUnit, costBorderColor } from "@/lib/tftUtils";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,15 +35,6 @@ const ROWS = 4;
 const COLS = 7;
 const HEX_SIZE = 68;
 const ROW_HEIGHT = HEX_SIZE * 0.76;
-
-const COST_COLORS: Record<number, string> = {
-  1: "border-gray-500",
-  2: "border-green-600",
-  3: "border-blue-500",
-  4: "border-purple-500",
-  5: "border-yellow-400",
-  7: "border-yellow-400",
-};
 
 const COST_BG_COLORS: Record<number, string> = {
   1: "bg-gray-500/20",
@@ -113,22 +106,8 @@ const UNLOCK_CONDITIONS: Record<string, string> = {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function costBorderColor(cost: number): string {
-  return COST_COLORS[cost] ?? "border-gray-500";
-}
-
-function formatUnit(name: string): string {
-  return name.replace(/^TFT\d+_/, "");
-}
-
 function formatTrait(name: string): string {
   return name.replace(/^TFT\d+_/, "").replace(/^Set\d+_/, "");
-}
-
-function unitImageUrl(characterId: string): string {
-  const lower = characterId.toLowerCase();
-  const setNum = lower.match(/^tft(\d+)_/)?.[1] ?? "16";
-  return `https://raw.communitydragon.org/pbe/game/assets/characters/${lower}/hud/${lower}_square.tft_set${setNum}.png`;
 }
 
 function isUnlockable(apiName: string): boolean {
@@ -393,22 +372,11 @@ export default function TeamBuilder({
         {selectedChampion && (
           <div className="flex items-center gap-2 text-sm text-tft-muted">
             <span>Placing:</span>
-            <div
-              className={`w-8 h-8 rounded border-2 ${costBorderColor(selectedChampion.cost)} overflow-hidden`}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={unitImageUrl(selectedChampion.apiName)}
-                alt={selectedChampion.name}
-                width={32}
-                height={32}
-                className="w-8 h-8 object-cover"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.visibility =
-                    "hidden";
-                }}
-              />
-            </div>
+            <UnitImage
+              characterId={selectedChampion.apiName}
+              cost={selectedChampion.cost}
+              size={32}
+            />
             <span className="text-tft-text font-medium">
               {selectedChampion.name}
             </span>
@@ -462,18 +430,11 @@ export default function TeamBuilder({
                             : "hover:brightness-125"
                         }`}
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={unitImageUrl(champ.apiName)}
-                          alt={champ.name}
-                          width={44}
-                          height={44}
-                          className="w-11 h-11 object-cover"
-                          onError={(e) => {
-                            (
-                              e.currentTarget as HTMLImageElement
-                            ).style.visibility = "hidden";
-                          }}
+                        <UnitImage
+                          characterId={champ.apiName}
+                          cost={champ.cost}
+                          size={44}
+                          className="!border-0 !rounded-none"
                         />
                         {/* Lock icon for unlockable */}
                         {unlockable && (
@@ -574,18 +535,11 @@ function HexGrid({
                 >
                   {hasChamp ? (
                     <div className="relative w-10 h-10">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={unitImageUrl(slot.champion!.apiName)}
-                        alt={slot.champion!.name}
-                        width={40}
-                        height={40}
-                        className="w-10 h-10 object-cover rounded"
-                        onError={(e) => {
-                          (
-                            e.currentTarget as HTMLImageElement
-                          ).style.visibility = "hidden";
-                        }}
+                      <UnitImage
+                        characterId={slot.champion!.apiName}
+                        cost={slot.champion!.cost}
+                        size={40}
+                        className="!border-0"
                       />
                     </div>
                   ) : (

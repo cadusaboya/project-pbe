@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { UnitImage, ItemImage } from "./TftImage";
+import { formatUnit, costBorderColor } from "@/lib/tftUtils";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -68,10 +70,6 @@ export interface PlayerProfileData {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatUnit(id: string): string {
-  return id.replace(/^TFT\d+_/, "");
-}
-
 function formatItem(id: string, itemNames?: Record<string, string>): string {
   if (itemNames?.[id]) return itemNames[id];
   return id
@@ -79,30 +77,6 @@ function formatItem(id: string, itemNames?: Record<string, string>): string {
     .replace(/^TFT_Item_/, "")
     .replace(/([A-Z])/g, " $1")
     .trim();
-}
-
-function unitImageUrl(characterId: string): string {
-  const lower = characterId.toLowerCase();
-  const setNum = lower.match(/^tft(\d+)_/)?.[1] ?? "16";
-  return `https://raw.communitydragon.org/pbe/game/assets/characters/${lower}/hud/${lower}_square.tft_set${setNum}.png`;
-}
-
-function itemImageUrl(itemId: string): string {
-  const setMatch = itemId.match(/^TFT(\d+)_Item_(.+)$/i);
-  if (setMatch) {
-    const setNum = setMatch[1];
-    const lower = itemId.toLowerCase();
-    return `https://raw.communitydragon.org/pbe/game/assets/maps/particles/tft/item_icons/tft${setNum}/${lower}.tft_set${setNum}.png`;
-  }
-  const stdMatch = itemId.match(/^TFT_Item_(.+)$/i);
-  if (stdMatch) {
-    const name = stdMatch[1]
-      .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
-      .replace(/([a-z])([A-Z])/g, "$1_$2")
-      .toLowerCase();
-    return `https://raw.communitydragon.org/pbe/game/assets/maps/particles/tft/item_icons/standard/${name}.png`;
-  }
-  return "";
 }
 
 function formatDate(iso: string): string {
@@ -118,19 +92,6 @@ function displayPlayerName(name: string): string {
 }
 
 // ── Cost colors ──────────────────────────────────────────────────────────────
-
-const COST_COLORS: Record<number, string> = {
-  1: "border-gray-500",
-  2: "border-green-600",
-  3: "border-blue-500",
-  4: "border-purple-500",
-  5: "border-yellow-400",
-  7: "border-yellow-400",
-};
-
-function costColor(cost: number): string {
-  return COST_COLORS[cost] ?? "border-gray-500";
-}
 
 const COST_BG: Record<number, string> = {
   1: "bg-gray-500/10 border-gray-500/40 text-gray-400",
@@ -280,39 +241,31 @@ function UnitChip({
   itemNames?: Record<string, string>;
   size?: "normal" | "small";
 }) {
-  const border = costColor(unit.cost);
-  const dim = size === "small" ? "w-9 h-9" : "w-11 h-11";
-  const itemDim = size === "small" ? "w-3 h-3" : "w-3.5 h-3.5";
+  const px = size === "small" ? 36 : 44;
+  const itemPx = size === "small" ? 12 : 14;
 
   return (
-    <div className={`relative border-2 rounded-md ${border}`} title={formatUnit(unit.character_id)}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={unitImageUrl(unit.character_id)}
-        alt={formatUnit(unit.character_id)}
-        className={`${dim} block rounded object-cover`}
-        onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
+    <div className="relative" title={formatUnit(unit.character_id)}>
+      <UnitImage
+        characterId={unit.character_id}
+        cost={unit.cost}
+        size={px}
+        borderWidth={2}
+        className="rounded-md"
       />
       <div className="absolute -top-2.5 left-0 right-0 flex justify-center z-10 pointer-events-none">
         <StarLevel level={unit.star_level} />
       </div>
       {unit.items.length > 0 && (
         <div className="absolute -bottom-2 left-0 right-0 flex justify-center z-10 pointer-events-none">
-          {unit.items.map((item, i) => {
-            const src = itemAssets[item] || itemImageUrl(item);
-            if (!src) return null;
-            return (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={i}
-                src={src}
-                alt={formatItem(item, itemNames)}
-                title={formatItem(item, itemNames)}
-                className={`${itemDim} rounded object-cover`}
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-              />
-            );
-          })}
+          {unit.items.map((item, i) => (
+            <ItemImage
+              key={i}
+              itemId={item}
+              itemAssets={itemAssets}
+              size={itemPx}
+            />
+          ))}
         </div>
       )}
     </div>
@@ -633,12 +586,11 @@ function TopUnitRow({ unit, totalGames }: { unit: TopUnit; totalGames: number })
 
   return (
     <div className="flex items-center gap-2 py-1.5 px-2 rounded">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={unitImageUrl(unit.character_id)}
-        alt={formatUnit(unit.character_id)}
-        className={`w-8 h-8 rounded border-2 ${costColor(unit.cost)} object-cover shrink-0`}
-        onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
+      <UnitImage
+        characterId={unit.character_id}
+        cost={unit.cost}
+        size={32}
+        borderWidth={2}
       />
       <div className="flex-1 min-w-0">
         <span className="text-xs font-medium text-tft-text truncate block">{formatUnit(unit.character_id)}</span>

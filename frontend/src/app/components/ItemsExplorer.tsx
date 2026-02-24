@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { backendUrl } from "@/lib/backend";
 import { UnitStat } from "./StatsTable";
+import { UnitImage, ItemImage } from "./TftImage";
+import { formatUnit, costBorderColor } from "@/lib/tftUtils";
 
 interface ItemStat {
   item_name: string;
@@ -25,34 +27,11 @@ const MAX_SELECTED_ITEMS = 2;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function formatUnit(name: string): string {
-  return name.replace(/^TFT\d+_/, "");
-}
-
-function unitImageUrl(characterId: string): string {
-  const lower = characterId.toLowerCase();
-  const setNum = lower.match(/^tft(\d+)_/)?.[1] ?? "16";
-  return `https://raw.communitydragon.org/pbe/game/assets/characters/${lower}/hud/${lower}_square.tft_set${setNum}.png`;
-}
-
 let _itemNamesCache: Record<string, string> = {};
 
 function formatItemName(itemName: string): string {
   if (_itemNamesCache[itemName]) return _itemNamesCache[itemName];
   return itemName.replace(/^TFT\d*_Item_/, "").replace(/([A-Z])/g, " $1").trim();
-}
-
-const COST_COLORS: Record<number, string> = {
-  1: "border-gray-500",
-  2: "border-green-600",
-  3: "border-blue-500",
-  4: "border-purple-500",
-  5: "border-yellow-400",
-  7: "border-yellow-400",
-};
-
-function costBorderColor(cost: number): string {
-  return COST_COLORS[cost] ?? "border-gray-500";
 }
 
 function placementColor(placement: number): string {
@@ -153,16 +132,11 @@ function ChampionSelector({
       >
         {selectedUnit ? (
           <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={unitImageUrl(selectedUnit.unit_name)}
-              alt={formatUnit(selectedUnit.unit_name)}
-              width={24}
-              height={24}
-              className={`w-6 h-6 rounded border ${costBorderColor(selectedUnit.cost)}`}
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
+            <UnitImage
+              characterId={selectedUnit.unit_name}
+              cost={selectedUnit.cost}
+              size={24}
+              borderWidth={1}
             />
             <span className="text-tft-text text-sm flex-1">
               {formatUnit(selectedUnit.unit_name)}
@@ -206,16 +180,11 @@ function ChampionSelector({
                   i === highlightedIndex ? "bg-tft-hover" : "hover:bg-tft-hover"
                 }`}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={unitImageUrl(unit.unit_name)}
-                  alt={formatUnit(unit.unit_name)}
-                  width={24}
-                  height={24}
-                  className={`w-6 h-6 rounded border ${costBorderColor(unit.cost)}`}
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = "none";
-                  }}
+                <UnitImage
+                  characterId={unit.unit_name}
+                  cost={unit.cost}
+                  size={24}
+                  borderWidth={1}
                 />
                 <span className="text-tft-text text-sm">{formatUnit(unit.unit_name)}</span>
               </button>
@@ -245,19 +214,11 @@ function ItemChip({
 }) {
   return (
     <div className="flex items-center gap-2 bg-tft-bg border border-tft-accent rounded-lg px-3 py-2">
-      {itemAssets[itemName] && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={itemAssets[itemName]}
-          alt={formatItemName(itemName)}
-          width={20}
-          height={20}
-          className="w-5 h-5 rounded object-cover flex-shrink-0"
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = "none";
-          }}
-        />
-      )}
+      <ItemImage
+        itemId={itemName}
+        itemAssets={itemAssets}
+        size={20}
+      />
       <span className="text-tft-text text-sm font-medium">
         {formatItemName(itemName)}
       </span>
@@ -473,16 +434,10 @@ export default function ItemsExplorer({
         <div className="space-y-4">
           {/* Champion + base stats header */}
           <div className="flex flex-wrap items-center gap-4 bg-tft-surface border border-tft-border rounded-xl px-5 py-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={unitImageUrl(selectedUnit.unit_name)}
-              alt={formatUnit(selectedUnit.unit_name)}
-              width={56}
-              height={56}
-              className={`w-14 h-14 object-cover rounded-xl border-2 ${costBorderColor(selectedUnit.cost)}`}
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
+            <UnitImage
+              characterId={selectedUnit.unit_name}
+              cost={selectedUnit.cost}
+              size={56}
             />
             <div>
               <h2 className="text-xl font-bold text-tft-text">
@@ -559,21 +514,11 @@ export default function ItemsExplorer({
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          {itemAssets[item.item_name] ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={itemAssets[item.item_name]}
-                              alt={formatItemName(item.item_name)}
-                              width={28}
-                              height={28}
-                              className="w-7 h-7 rounded object-cover flex-shrink-0"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).style.display = "none";
-                              }}
-                            />
-                          ) : (
-                            <div className="w-7 h-7 rounded bg-tft-surface border border-tft-border flex-shrink-0" />
-                          )}
+                          <ItemImage
+                            itemId={item.item_name}
+                            itemAssets={itemAssets}
+                            size={28}
+                          />
                           <span className="text-tft-text">
                             {formatItemName(item.item_name)}
                           </span>

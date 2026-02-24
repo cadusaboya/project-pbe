@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { backendUrl } from "@/lib/backend";
+import { UnitImage } from "./components/TftImage";
+import { formatUnit } from "@/lib/tftUtils";
 
 interface TopUnit {
   unit_name: string;
@@ -49,25 +51,6 @@ async function fetchTopComps(): Promise<TopComp[]> {
   } catch {
     return [];
   }
-}
-
-const COST_COLORS: Record<number, string> = {
-  1: "border-gray-500",
-  2: "border-green-600",
-  3: "border-blue-500",
-  4: "border-purple-500",
-  5: "border-yellow-400",
-  7: "border-yellow-400",
-};
-
-function unitImageUrl(characterId: string): string {
-  const lower = characterId.toLowerCase();
-  const setNum = lower.match(/^tft(\d+)_/)?.[1] ?? "16";
-  return `https://raw.communitydragon.org/pbe/game/assets/characters/${lower}/hud/${lower}_square.tft_set${setNum}.png`;
-}
-
-function formatUnit(name: string): string {
-  return name.replace(/^TFT\d+_/, "");
 }
 
 function avpColor(avp: number): string {
@@ -240,13 +223,10 @@ export default async function Home() {
                   {topUnits.map((unit, i) => (
                     <div key={unit.unit_name} className="flex items-center gap-3">
                       <span className="text-sm font-bold text-tft-muted/50 w-5 tabular-nums">{i + 1}</span>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={unitImageUrl(unit.unit_name)}
-                        alt={formatUnit(unit.unit_name)}
-                        width={36}
-                        height={36}
-                        className={`w-9 h-9 rounded-lg border-2 ${COST_COLORS[unit.cost] ?? "border-gray-500"} object-cover`}
+                      <UnitImage
+                        characterId={unit.unit_name}
+                        cost={unit.cost}
+                        size={36}
                       />
                       <span className="text-sm font-medium text-tft-text flex-1">{formatUnit(unit.unit_name)}</span>
                       <span className={`text-sm font-semibold tabular-nums ${avpColor(unit.avg_placement)}`}>
@@ -277,14 +257,11 @@ export default async function Home() {
                         </span>
                         <div className="flex items-center gap-1 flex-1">
                           {[...comp.core_units, ...(bestFlex?.units ?? [])].map((u) => (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
+                            <UnitImage
                               key={u.character_id}
-                              src={unitImageUrl(u.character_id)}
-                              alt={formatUnit(u.character_id)}
-                              width={28}
-                              height={28}
-                              className={`w-7 h-7 rounded border-2 ${COST_COLORS[u.cost] ?? "border-gray-500"} object-cover`}
+                              characterId={u.character_id}
+                              cost={u.cost}
+                              size={28}
                             />
                           ))}
                         </div>
