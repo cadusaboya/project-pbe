@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Suspense } from "react";
 import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import StatsBar from "./components/StatsBar";
 import Nav from "./components/Nav";
 import "./globals.css";
@@ -119,6 +120,7 @@ export default function RootLayout({
         </header>
         <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">{children}</main>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
