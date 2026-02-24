@@ -22,7 +22,8 @@
       "WebFetch(domain:mobalytics.gg)",
       "WebFetch(domain:tftflow.com)",
       "WebFetch(domain:tftprotracker.com)",
-      "WebFetch(domain:tftproradar.com)"
+      "WebFetch(domain:tftproradar.com)",
+      "Bash(python -m py_compile:*)"
     ]
   }
 }

@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from collections import Counter, defaultdict
 from itertools import combinations
@@ -21,6 +22,7 @@ _CDRAGON_TFT_URL = "https://raw.communitydragon.org/pbe/cdragon/tft/en_us.json"
 _TRAIT_CACHE: dict | None = None
 _TRAIT_CACHE_TS: float = 0.0
 _TRAIT_CACHE_TTL = 3600.0  # seconds
+_TRAIT_API_NAME_MAP: dict[str, str] = {}  # apiName -> displayName (e.g. "TFT16_Sorcerer" -> "Arcanist")
 
 _CHAMPIONS_CACHE: list | None = None
 _CHAMPIONS_CACHE_TS: float = 0.0
@@ -99,6 +101,58 @@ def _weighted_flex_combos(unit_pool: list[str], target_slots: int) -> set[tuple[
     return combos
 
 
+def _ensure_trait_cache() -> dict:
+    """Populate _TRAIT_CACHE and _TRAIT_API_NAME_MAP from CDragon if stale."""
+    global _TRAIT_CACHE, _TRAIT_CACHE_TS, _TRAIT_API_NAME_MAP
+
+    now = time.time()
+    if _TRAIT_CACHE is not None and (now - _TRAIT_CACHE_TS) < _TRAIT_CACHE_TTL:
+        return _TRAIT_CACHE
+
+    try:
+        with httpx.Client(timeout=120) as client:
+            resp = client.get(_CDRAGON_TFT_URL)
+            resp.raise_for_status()
+            data = resp.json()
+
+        traits: dict = {}
+        api_map: dict[str, str] = {}
+        current_set = data.get("sets", {}).get("16", {})
+        for trait in current_set.get("traits", []):
+            name = trait.get("name")
+            if not name:
+                continue
+            api_name = trait.get("apiName", "")
+            breakpoints = [
+                e["minUnits"]
+                for e in (trait.get("effects") or [])
+                if e.get("minUnits", 0) > 0
+            ]
+            if not breakpoints:
+                continue
+            raw_icon = trait.get("icon", "")
+            icon = ""
+            if raw_icon:
+                icon = (
+                    "https://raw.communitydragon.org/pbe/game/"
+                    + raw_icon.replace("ASSETS/", "assets/")
+                              .replace(".tex", ".png")
+                              .lower()
+                )
+            traits[name] = {"breakpoints": breakpoints, "icon": icon}
+            if api_name:
+                api_map[api_name] = name
+
+        _TRAIT_CACHE = traits
+        _TRAIT_CACHE_TS = now
+        _TRAIT_API_NAME_MAP = api_map
+    except Exception:
+        if _TRAIT_CACHE is None:
+            _TRAIT_CACHE = {}
+
+    return _TRAIT_CACHE
+
+
 class TraitDataView(APIView):
     """
     GET /api/traits/
@@ -110,50 +164,8 @@ class TraitDataView(APIView):
     """
 
     def get(self, request):
-        global _TRAIT_CACHE, _TRAIT_CACHE_TS
-
-        now = time.time()
-        if _TRAIT_CACHE is not None and (now - _TRAIT_CACHE_TS) < _TRAIT_CACHE_TTL:
-            return _cc(Response(_TRAIT_CACHE), 300)
-
-        try:
-            with httpx.Client(timeout=120) as client:
-                resp = client.get(_CDRAGON_TFT_URL)
-                resp.raise_for_status()
-                data = resp.json()
-
-            traits: dict = {}
-            # Only include traits from the current set (16)
-            current_set = data.get("sets", {}).get("16", {})
-            for trait in current_set.get("traits", []):
-                name = trait.get("name")
-                if not name:
-                    continue
-                breakpoints = [
-                    e["minUnits"]
-                    for e in (trait.get("effects") or [])
-                    if e.get("minUnits", 0) > 0
-                ]
-                if not breakpoints:
-                    continue
-                raw_icon = trait.get("icon", "")
-                icon = ""
-                if raw_icon:
-                    icon = (
-                        "https://raw.communitydragon.org/pbe/game/"
-                        + raw_icon.replace("ASSETS/", "assets/")
-                                  .replace(".tex", ".png")
-                                  .lower()
-                    )
-                traits[name] = {"breakpoints": breakpoints, "icon": icon}
-
-            _TRAIT_CACHE = traits
-            _TRAIT_CACHE_TS = now
-        except Exception:
-            if _TRAIT_CACHE is None:
-                _TRAIT_CACHE = {}
-
-        return _cc(Response(_TRAIT_CACHE), 300)
+        traits = _ensure_trait_cache()
+        return _cc(Response(traits), 300)
 
 
 class ChampionsView(APIView):
@@ -626,6 +638,7 @@ class ExploreView(APIView):
 
     def get(self, request):
         game_version = request.query_params.get("game_version")
+        include_trait_stats = request.query_params.get("include_trait_stats") == "1"
         require_units = set(request.query_params.getlist("require_unit"))
         ban_units = set(request.query_params.getlist("ban_unit"))
         require_items_raw = request.query_params.getlist("require_item_on_unit")
@@ -686,8 +699,10 @@ class ExploreView(APIView):
         require_unit_stars = {k: max(1, min(v, 3)) for k, v in _parse_unit_int("require_unit_star").items()}
         require_unit_item_counts = {k: max(0, min(v, 3)) for k, v in _parse_unit_int("require_unit_item_count").items()}
         excluded_traits = _parse_trait_int("exclude_trait")
+        require_trait_tiers = _parse_trait_int("require_trait_tier")  # {trait_lower: min_tier}
+        require_trait_max_tiers = _parse_trait_int("require_trait_max_tier")  # {trait_lower: max_tier}
 
-        needs_trait_data = bool(require_traits or excluded_traits)
+        needs_trait_data = bool(require_traits or excluded_traits or require_trait_tiers or require_trait_max_tiers or include_trait_stats)
         needs_extra_unit_data = bool(exclude_unit_counts or require_unit_counts or require_unit_stars or require_unit_item_counts or require_units)
 
         qs = Participant.objects.all()
@@ -715,6 +730,13 @@ class ExploreView(APIView):
                     if req_lower in name.lower():
                         matched = max(matched, cnt)
             return matched
+
+        def _trait_tier(p_data: dict, req_lower: str) -> int:
+            """Return the tier_current for a trait (case-insensitive substring match)."""
+            for name, tier in p_data.get("trait_tiers", {}).items():
+                if req_lower in name.lower():
+                    return tier
+            return 0
 
         # Build Python-friendly data for each participant
         participants = []
@@ -746,6 +768,7 @@ class ExploreView(APIView):
 
             if needs_trait_data:
                 trait_unit_counts: dict[str, int] = {}
+                trait_tiers: dict[str, int] = {}
                 match_map = match_participant_cache.get(p.match_id)
                 if match_map is None:
                     pp_list = (p.match.raw_json or {}).get("info", {}).get("participants", [])
@@ -764,7 +787,10 @@ class ExploreView(APIView):
                             name = str(t.get("name", "")).strip()
                             if name:
                                 trait_unit_counts[name] = max(int(num_units), trait_unit_counts.get(name, 0))
+                                if tier_current > 0:
+                                    trait_tiers[name] = max(tier_current, trait_tiers.get(name, 0))
                 p_data["trait_unit_counts"] = trait_unit_counts
+                p_data["trait_tiers"] = trait_tiers
                 derived: dict[str, int] = defaultdict(int)
                 for uid, cnt in unit_count_by_unit.items():
                     for t in unit_traits_map.get(uid) or []:
@@ -796,6 +822,14 @@ class ExploreView(APIView):
             if require_traits:
                 for trait_lower, min_u in require_traits.items():
                     if _max_trait_units(p_data, trait_lower) < min_u:
+                        return False
+            if require_trait_tiers:
+                for trait_lower, min_tier in require_trait_tiers.items():
+                    board_tier = _trait_tier(p_data, trait_lower)
+                    if board_tier < min_tier:
+                        return False
+                    max_tier = require_trait_max_tiers.get(trait_lower, 0)
+                    if max_tier > 0 and board_tier > max_tier:
                         return False
             if exclude_unit_counts:
                 for unit_id, min_count in exclude_unit_counts.items():
@@ -917,7 +951,42 @@ class ExploreView(APIView):
             })
         item_stats.sort(key=lambda x: -x["games"])
 
-        return _cc(Response({
+        # Per (trait, tier) stats across filtered comps
+        trait_stats = []
+        if include_trait_stats:
+            _ensure_trait_cache()
+            trait_agg: dict = defaultdict(lambda: {"games": 0, "total": 0, "top4": 0, "wins": 0, "num_units_sum": 0})
+            for p in filtered:
+                for trait_name, tier in p.get("trait_tiers", {}).items():
+                    if tier <= 0:
+                        continue
+                    num_units = p["trait_unit_counts"].get(trait_name, 0)
+                    key = (trait_name, tier)
+                    trait_agg[key]["games"] += 1
+                    trait_agg[key]["total"] += p["placement"]
+                    trait_agg[key]["num_units_sum"] += num_units
+                    if p["placement"] <= 4:
+                        trait_agg[key]["top4"] += 1
+                    if p["placement"] == 1:
+                        trait_agg[key]["wins"] += 1
+
+            for (trait_name, tier), agg in trait_agg.items():
+                g = agg["games"]
+                avg_p = round(agg["total"] / g, 2) if g else 0.0
+                display_name = _TRAIT_API_NAME_MAP.get(trait_name, re.sub(r'^Set\d+_', '', trait_name))
+                trait_stats.append({
+                    "trait_name": display_name,
+                    "tier": tier,
+                    "num_units": round(agg["num_units_sum"] / g) if g else 0,
+                    "games": g,
+                    "avg_placement": avg_p,
+                    "top4_rate": round(agg["top4"] / g, 4) if g else 0.0,
+                    "win_rate": round(agg["wins"] / g, 4) if g else 0.0,
+                    "delta": round(avg_p - base_avg, 2),
+                })
+            trait_stats.sort(key=lambda x: -x["games"])
+
+        response_data = {
             "base_games": base_games,
             "base_avg_placement": base_avg,
             "base_top4_rate": base_top4_rate,
@@ -925,7 +994,10 @@ class ExploreView(APIView):
             "unit_stats": unit_stats,
             "unit_count_stats": unit_count_stats,
             "item_stats": item_stats,
-        }), 30)
+        }
+        if include_trait_stats:
+            response_data["trait_stats"] = trait_stats
+        return _cc(Response(response_data), 30)
 
 
 class HiddenCompsView(APIView):
@@ -1210,6 +1282,7 @@ class CompsView(APIView):
 
             active_traits = set()
             trait_unit_counts: dict[str, int] = {}
+            trait_tiers: dict[str, int] = {}
             match_map = match_participant_cache.get(p.match_id)
             if match_map is None:
                 participants_data = (p.match.raw_json or {}).get("info", {}).get("participants", [])
@@ -1232,6 +1305,7 @@ class CompsView(APIView):
                                 trait_unit_counts[name] = max(int(num_units), trait_unit_counts.get(name, 0))
                             except (TypeError, ValueError):
                                 trait_unit_counts[name] = max(0, trait_unit_counts.get(name, 0))
+                            trait_tiers[name] = max(int(tier_current), trait_tiers.get(name, 0))
 
             boards.append({
                 "match_id": p.match_id,
@@ -1243,6 +1317,7 @@ class CompsView(APIView):
                 "unit_max_star_by_unit": unit_max_star_by_unit,
                 "active_traits": active_traits,
                 "trait_unit_counts": trait_unit_counts,
+                "trait_tiers": trait_tiers,
             })
             all_units |= unit_set
 
@@ -1276,6 +1351,33 @@ class CompsView(APIView):
                     if req_lower in trait_name.lower():
                         matched_units = max(matched_units, units_count)
             return matched_units
+
+        def _max_trait_tier(board: dict, req_lower: str) -> int:
+            matched_tier = 0
+            for trait_name, tier in board.get("trait_tiers", {}).items():
+                if req_lower in trait_name.lower():
+                    matched_tier = max(matched_tier, tier)
+            return matched_tier
+
+        _ensure_trait_cache()
+
+        def _breakpoint_tier(display_name: str, min_units: int) -> int:
+            """Convert a min_units value to a 1-based tier using CDragon breakpoints."""
+            tdata = _TRAIT_CACHE.get(display_name)
+            if not tdata:
+                # Try case-insensitive match
+                for dname, td in _TRAIT_CACHE.items():
+                    if dname.lower() == display_name.lower():
+                        tdata = td
+                        break
+            if not tdata:
+                return 0
+            bps = tdata.get("breakpoints", [])
+            tier = 0
+            for i, bp in enumerate(bps):
+                if min_units >= bp:
+                    tier = i + 1
+            return tier
 
         result = []
         for comp in comps:
@@ -1348,6 +1450,13 @@ class CompsView(APIView):
                     required_trait_breakpoints[trait_name] = max(1, int(cnt))
                 except (TypeError, ValueError):
                     continue
+
+            # Precompute required tier for each trait breakpoint
+            required_trait_tier_map: dict[str, int] = {}
+            for trait_name, min_units in required_trait_breakpoints.items():
+                required_trait_tier_map[trait_name.lower()] = _breakpoint_tier(
+                    trait_name, min_units
+                )
 
             raw_excluded_traits = (
                 comp.excluded_traits
@@ -1432,10 +1541,18 @@ class CompsView(APIView):
                     ok_breakpoints = True
                     for req_trait, min_units in required_trait_breakpoints.items():
                         req_lower = req_trait.lower()
-                        matched_units = _max_trait_units(b, req_lower)
-                        if matched_units < min_units:
-                            ok_breakpoints = False
-                            break
+                        req_tier = required_trait_tier_map.get(req_lower, 0)
+                        if req_tier > 0:
+                            board_tier = _max_trait_tier(b, req_lower)
+                            if board_tier < req_tier:
+                                ok_breakpoints = False
+                                break
+                        else:
+                            # Fallback to num_units if trait not in CDragon cache
+                            matched_units = _max_trait_units(b, req_lower)
+                            if matched_units < min_units:
+                                ok_breakpoints = False
+                                break
                     if not ok_breakpoints:
                         continue
                 if excluded_traits:

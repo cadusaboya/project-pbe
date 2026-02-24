@@ -21,8 +21,9 @@ interface TraitFilter {
   id: string;
   kind: "trait";
   trait: string;
-  breakpoint: number;
-  excluded: boolean; // true = exclude boards where trait reaches this breakpoint
+  breakpoint: number;      // min breakpoint (unit count)
+  maxBreakpoint: number;   // max breakpoint (unit count), 0 = no limit
+  excluded: boolean;       // true = exclude boards where trait reaches this breakpoint
 }
 
 interface ItemFilter {
@@ -70,6 +71,17 @@ interface UnitCountResult {
   delta: number;
 }
 
+interface TraitResult {
+  trait_name: string;
+  tier: number;
+  num_units: number;
+  games: number;
+  avg_placement: number;
+  top4_rate: number;
+  win_rate: number;
+  delta: number;
+}
+
 interface ExploreResponse {
   base_games: number;
   base_avg_placement: number;
@@ -78,6 +90,7 @@ interface ExploreResponse {
   unit_stats: UnitResult[];
   unit_count_stats: UnitCountResult[];
   item_stats: ItemResult[];
+  trait_stats?: TraitResult[];
 }
 
 type SortDir = "asc" | "desc";
@@ -129,6 +142,14 @@ function deltaColor(d: number) {
   if (d <= 0.5) return "text-red-400";
   return "text-red-400 font-bold";
 }
+
+const TRAIT_TIER_STYLES: Record<number, { chip: string; num: string; iconColor: string }> = {
+  0: { chip: "bg-red-950/40 border-red-700/60",       num: "text-red-500",    iconColor: "#ef4444" },
+  1: { chip: "bg-amber-950/40 border-amber-700/60",   num: "text-amber-600",  iconColor: "#d97706" },
+  2: { chip: "bg-slate-800/40 border-slate-400/60",   num: "text-slate-300",  iconColor: "#cbd5e1" },
+  3: { chip: "bg-yellow-950/40 border-yellow-600/60", num: "text-yellow-500", iconColor: "#eab308" },
+  4: { chip: "bg-violet-950/40 border-violet-500/60", num: "text-violet-400", iconColor: "#a78bfa" },
+};
 
 function uid() {
   return Math.random().toString(36).slice(2);
@@ -534,12 +555,25 @@ function TraitFilterChip({
 
       {breakpoints.length > 0 && (
         <div className="flex items-center gap-1">
-          {!filter.excluded && <span className="text-tft-muted text-xs">Min</span>}
+          <span className="text-tft-muted text-xs">Min</span>
           <select
             value={filter.breakpoint}
             onChange={(e) => onUpdate({ ...filter, breakpoint: Number(e.target.value) })}
             className="bg-tft-bg border border-tft-border text-tft-text rounded px-1.5 py-0.5 text-xs focus:outline-none focus:border-tft-accent"
           >
+            {breakpoints.map((bp) => (
+              <option key={bp} value={bp}>
+                {bp}
+              </option>
+            ))}
+          </select>
+          <span className="text-tft-muted text-xs">Max</span>
+          <select
+            value={filter.maxBreakpoint}
+            onChange={(e) => onUpdate({ ...filter, maxBreakpoint: Number(e.target.value) })}
+            className="bg-tft-bg border border-tft-border text-tft-text rounded px-1.5 py-0.5 text-xs focus:outline-none focus:border-tft-accent"
+          >
+            <option value={0}>∞</option>
             {breakpoints.map((bp) => (
               <option key={bp} value={bp}>
                 {bp}
@@ -683,7 +717,7 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 
 // ── Convert filters to API params ──────────────────────────────────────────────
 
-function filtersToParams(filters: Filter[], version: string): URLSearchParams {
+function filtersToParams(filters: Filter[], version: string, traitData: TraitData): URLSearchParams {
   const params = new URLSearchParams();
   if (version) params.set("game_version", version);
 
@@ -707,8 +741,15 @@ function filtersToParams(filters: Filter[], version: string): URLSearchParams {
       if (f.excluded) {
         params.append("exclude_trait", `${f.trait}:${f.breakpoint}`);
       } else {
-        const val = f.breakpoint > 1 ? `${f.trait}:${f.breakpoint}` : f.trait;
-        params.append("require_trait", val);
+        const bps = traitData[f.trait]?.breakpoints ?? [];
+        const minTier = bps.indexOf(f.breakpoint) + 1;
+        params.append("require_trait_tier", `${f.trait}:${minTier || 1}`);
+        if (f.maxBreakpoint > 0) {
+          const maxTier = bps.indexOf(f.maxBreakpoint) + 1;
+          if (maxTier > 0) {
+            params.append("require_trait_max_tier", `${f.trait}:${maxTier}`);
+          }
+        }
       }
     } else if (f.kind === "item") {
       if (f.excluded) {
@@ -785,6 +826,7 @@ export default function DataExplorer({
           kind: "trait",
           trait: c.trait,
           breakpoint: c.count ?? 1,
+          maxBreakpoint: 0,
           excluded: false,
         });
       } else if (c.type === "exclude_trait" && c.trait) {
@@ -793,6 +835,7 @@ export default function DataExplorer({
           kind: "trait",
           trait: c.trait,
           breakpoint: c.count ?? 1,
+          maxBreakpoint: 0,
           excluded: true,
         });
       } else if (c.type === "require_unit_count" && c.unit) {
@@ -823,11 +866,13 @@ export default function DataExplorer({
   const [itemAssets, setItemAssets] = useState<Record<string, string>>({});
 
   // Table
-  const [activeTab, setActiveTab] = useState<"units" | "items">("units");
+  const [activeTab, setActiveTab] = useState<"units" | "items" | "traits">("units");
   const [unitSortKey, setUnitSortKey] = useState<"games" | "avg_placement" | "top4_rate" | "win_rate" | "delta">("games");
   const [unitSortDir, setUnitSortDir] = useState<SortDir>("desc");
   const [itemSortKey, setItemSortKey] = useState<"games" | "avg_placement" | "top4_rate" | "win_rate" | "delta">("games");
   const [itemSortDir, setItemSortDir] = useState<SortDir>("desc");
+  const [traitSortKey, setTraitSortKey] = useState<"games" | "avg_placement" | "top4_rate" | "win_rate" | "delta">("games");
+  const [traitSortDir, setTraitSortDir] = useState<SortDir>("desc");
 
   useEffect(() => {
     fetch(backendUrl("/api/item-assets/"))
@@ -845,13 +890,14 @@ export default function DataExplorer({
       return;
     }
     setLoading(true);
-    const params = filtersToParams(filters, selectedVersion);
+    const params = filtersToParams(filters, selectedVersion, traitData);
+    params.set("include_trait_stats", "1");
     fetch(backendUrl(`/api/explore/?${params.toString()}`))
       .then((r) => (r.ok ? r.json() : null))
       .then(setExploreData)
       .catch(() => setExploreData(null))
       .finally(() => setLoading(false));
-  }, [filters, selectedVersion]);
+  }, [filters, selectedVersion, traitData]);
 
   useEffect(() => {
     fetchData();
@@ -906,6 +952,7 @@ export default function DataExplorer({
           kind: "trait",
           trait: item.trait,
           breakpoint: bps.length > 0 ? bps[0] : 1,
+          maxBreakpoint: 0,
           excluded: isExcluded,
         },
       ]);
@@ -981,6 +1028,14 @@ export default function DataExplorer({
     }
   }
 
+  function handleTraitSort(key: typeof traitSortKey) {
+    if (traitSortKey === key) setTraitSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setTraitSortKey(key);
+      setTraitSortDir(key === "avg_placement" || key === "delta" ? "asc" : "desc");
+    }
+  }
+
   function rateColor(v: number) {
     if (v >= 0.6) return "text-yellow-400 font-semibold";
     if (v >= 0.45) return "text-green-400";
@@ -1045,6 +1100,17 @@ export default function DataExplorer({
         return itemSortDir === "asc" ? av - bv : bv - av;
       });
   }, [exploreData, itemSortKey, itemSortDir, minFrequency]);
+
+  const sortedTraits = useMemo(() => {
+    if (!exploreData?.trait_stats) return [];
+    return [...exploreData.trait_stats]
+      .filter((row) => row.games >= minFrequency)
+      .sort((a, b) => {
+        const av = a[traitSortKey],
+          bv = b[traitSortKey];
+        return traitSortDir === "asc" ? av - bv : bv - av;
+      });
+  }, [exploreData, traitSortKey, traitSortDir, minFrequency]);
 
   return (
     <div className="space-y-6">
@@ -1202,7 +1268,7 @@ export default function DataExplorer({
 
           {/* Tabs */}
           <div className="flex gap-1 border-b border-tft-border">
-            {(["units", "items"] as const).map((tab) => (
+            {(["units", "items", "traits"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -1212,7 +1278,7 @@ export default function DataExplorer({
                     : "border-transparent text-tft-muted hover:text-tft-text"
                 }`}
               >
-                {tab === "units" ? "Units" : "Items on Units"}
+                {tab === "units" ? "Units" : tab === "items" ? "Items on Units" : "Traits"}
               </button>
             ))}
           </div>
@@ -1457,6 +1523,136 @@ export default function DataExplorer({
               </table>
               <p className="text-tft-muted text-xs px-4 py-2 border-t border-tft-border">
                 Click a row to add that unit as a filter.
+              </p>
+            </div>
+          )}
+
+          {/* Traits table */}
+          {activeTab === "traits" && (
+            <div className="overflow-x-auto rounded-xl border border-tft-border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-tft-surface border-b border-tft-border">
+                    <th className="px-4 py-3 text-left font-semibold text-tft-muted">Trait</th>
+                    {(["games", "avg_placement", "top4_rate", "win_rate", "delta"] as const).map((col) => (
+                      <th
+                        key={col}
+                        onClick={() => handleTraitSort(col)}
+                        className={`px-4 py-3 text-right font-semibold cursor-pointer select-none hover:text-tft-text transition-colors ${
+                          traitSortKey === col ? "text-tft-gold" : "text-tft-muted"
+                        }`}
+                      >
+                        {col === "games"
+                          ? "Frequency"
+                          : col === "avg_placement"
+                          ? "Avg Place"
+                          : col === "top4_rate"
+                          ? "Top 4 %"
+                          : col === "win_rate"
+                          ? "Win %"
+                          : "Delta"}
+                        <SortIcon active={traitSortKey === col} dir={traitSortDir} />
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedTraits.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-10 text-center text-tft-muted">
+                        No data.
+                      </td>
+                    </tr>
+                  ) : (
+                    sortedTraits.map((row, i) => {
+                      const traitInfo = traitData[row.trait_name];
+                      const breakpoints = traitInfo?.breakpoints ?? [];
+                      const style = TRAIT_TIER_STYLES[row.tier] ?? TRAIT_TIER_STYLES[1];
+                      const bpValue = breakpoints[row.tier - 1] ?? row.num_units;
+                      return (
+                        <tr
+                          key={`${row.trait_name}-${row.tier}`}
+                          onClick={() => {
+                            const already = filters.some(
+                              (f) => f.kind === "trait" && f.trait === row.trait_name && !f.excluded
+                            );
+                            if (!already) {
+                              setFilters((prev) => [
+                                ...prev,
+                                {
+                                  id: uid(),
+                                  kind: "trait",
+                                  trait: row.trait_name,
+                                  breakpoint: bpValue,
+                                  maxBreakpoint: 0,
+                                  excluded: false,
+                                },
+                              ]);
+                            }
+                          }}
+                          title={`Filter by ${row.trait_name} (${bpValue})`}
+                          className={`border-b border-tft-border cursor-pointer hover:bg-tft-hover transition-colors ${
+                            i % 2 === 0 ? "bg-tft-bg" : "bg-tft-surface/40"
+                          }`}
+                        >
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`inline-flex items-center gap-0.5 pl-0.5 pr-1.5 h-6 rounded border text-xs font-bold ${style.chip}`}
+                              >
+                                {traitInfo?.icon && (
+                                  <span
+                                    className="w-4 h-4 shrink-0 inline-block"
+                                    style={{
+                                      backgroundColor: style.iconColor,
+                                      WebkitMaskImage: `url(${traitInfo.icon})`,
+                                      maskImage: `url(${traitInfo.icon})`,
+                                      WebkitMaskSize: "contain",
+                                      maskSize: "contain",
+                                      WebkitMaskRepeat: "no-repeat",
+                                      maskRepeat: "no-repeat",
+                                      WebkitMaskPosition: "center",
+                                      maskPosition: "center",
+                                    }}
+                                  />
+                                )}
+                                <span className={style.num}>{bpValue}</span>
+                              </span>
+                              <span className="text-tft-text">{row.trait_name}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-tft-muted tabular-nums">
+                            {row.games}
+                          </td>
+                          <td
+                            className={`px-4 py-2.5 text-right tabular-nums ${placementColor(
+                              row.avg_placement
+                            )}`}
+                          >
+                            {row.avg_placement.toFixed(2)}
+                          </td>
+                          <td className={`px-4 py-2.5 text-right tabular-nums ${rateColor(row.top4_rate)}`}>
+                            {(row.top4_rate * 100).toFixed(1)}%
+                          </td>
+                          <td className={`px-4 py-2.5 text-right tabular-nums ${winRateColor(row.win_rate)}`}>
+                            {(row.win_rate * 100).toFixed(1)}%
+                          </td>
+                          <td
+                            className={`px-4 py-2.5 text-right tabular-nums font-semibold ${deltaColor(
+                              row.delta
+                            )}`}
+                          >
+                            {row.delta > 0 ? "+" : ""}
+                            {row.delta.toFixed(2)}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+              <p className="text-tft-muted text-xs px-4 py-2 border-t border-tft-border">
+                Click a trait to add it as a filter.
               </p>
             </div>
           )}
