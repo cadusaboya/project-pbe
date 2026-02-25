@@ -1,5 +1,5 @@
 import TeamBuilder from "../components/TeamBuilder";
-import { backendUrl } from "@/lib/backend";
+import { getDataVersion, fetchApi } from "@/lib/api";
 
 interface Champion {
   apiName: string;
@@ -10,11 +10,9 @@ interface Champion {
 
 type TraitData = Record<string, { breakpoints: number[]; icon: string }>;
 
-async function fetchChampions(): Promise<Champion[]> {
+async function fetchChampions(dv: number): Promise<Champion[]> {
   try {
-    const res = await fetch(backendUrl("/api/champions/"), {
-      next: { revalidate: 60 },
-    });
+    const res = await fetchApi("/api/champions/", { revalidate: 60 }, dv);
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -22,11 +20,9 @@ async function fetchChampions(): Promise<Champion[]> {
   }
 }
 
-async function fetchTraits(): Promise<TraitData> {
+async function fetchTraits(dv: number): Promise<TraitData> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), {
-      next: { revalidate: 60 },
-    });
+    const res = await fetchApi("/api/traits/", { revalidate: 60 }, dv);
     if (!res.ok) return {};
     return res.json();
   } catch {
@@ -35,9 +31,10 @@ async function fetchTraits(): Promise<TraitData> {
 }
 
 export default async function TeamBuilderPage() {
+  const dv = await getDataVersion();
   const [champions, traitData] = await Promise.all([
-    fetchChampions(),
-    fetchTraits(),
+    fetchChampions(dv),
+    fetchTraits(dv),
   ]);
 
   return (

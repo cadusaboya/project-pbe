@@ -3,16 +3,24 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
+const COOLDOWN_KEY = "freshness_reload_at";
+const COOLDOWN_MS = 60_000; // 60s — skip check if we just reloaded
+
 /**
  * Checks whether the server-rendered data version is still current.
  * If the backend has newer data, shows a notification bar and reloads
- * so the user gets fresh content.
+ * so the user gets fresh content. Skips if a reload happened recently
+ * to avoid loops when many games are added quickly.
  */
 export default function FreshnessGuard({ dataVersion }: { dataVersion: number }) {
   const pathname = usePathname();
   const [stale, setStale] = useState(false);
 
   useEffect(() => {
+    // Skip if we reloaded recently (prevents reload loop)
+    const lastReload = Number(sessionStorage.getItem(COOLDOWN_KEY) || "0");
+    if (Date.now() - lastReload < COOLDOWN_MS) return;
+
     let cancelled = false;
 
     fetch(`/api/freshness?_t=${Date.now()}`, { cache: "no-store" })
@@ -21,6 +29,7 @@ export default function FreshnessGuard({ dataVersion }: { dataVersion: number })
         if (cancelled || !data) return;
         if (data.data_version !== dataVersion) {
           setStale(true);
+          sessionStorage.setItem(COOLDOWN_KEY, String(Date.now()));
           setTimeout(() => window.location.reload(), 600);
         }
       })

@@ -2123,7 +2123,7 @@ class PlayerStatsView(APIView):
         else:
             result.sort(key=lambda x: x["avg_placement"])
 
-        return Response(result)
+        return _cc(Response(result), 300)
 
 
 class VersionsView(APIView):
