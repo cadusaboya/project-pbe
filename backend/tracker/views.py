@@ -31,12 +31,11 @@ _CHAMPIONS_CACHE_TS: float = 0.0
 _ITEM_ASSETS_CACHE: dict | None = None
 _ITEM_NAMES_CACHE: dict | None = None
 _VERSIONS_CACHE: list | None = None
-_VERSIONS_CACHE_TS: float = 0.0
+_VERSIONS_CACHE_VERSION: int = -1
 _PLAYERS_CACHE: list | None = None
-_PLAYERS_CACHE_TS: float = 0.0
+_PLAYERS_CACHE_VERSION: int = -1
 _COMPS_CACHE: dict[tuple, dict] = {}
-_COMPS_CACHE_TS: float = 0.0
-_CACHE_TTL_SHORT = 300.0  # 5 minutes
+_COMPS_CACHE_VERSION: int = -1
 
 # Canonical item mapping: maps every item_id to a single "canonical" ID
 # so that duplicates (e.g. TFT_Item_InfinityEdge vs TFT_Item_CorruptedInfinityEdge)
@@ -1348,10 +1347,10 @@ class CompsView(APIView):
         except ValueError:
             top_flex = 3
 
-        global _COMPS_CACHE, _COMPS_CACHE_TS
-        now = time.time()
+        global _COMPS_CACHE, _COMPS_CACHE_VERSION
+        match_count = Match.objects.count()
         cache_key = (game_version, limit, top_flex)
-        if (now - _COMPS_CACHE_TS) < _CACHE_TTL_SHORT and cache_key in _COMPS_CACHE:
+        if match_count == _COMPS_CACHE_VERSION and cache_key in _COMPS_CACHE:
             return _cc(Response(_COMPS_CACHE[cache_key]), 300)
 
         comps_qs = Comp.objects.filter(is_active=True).order_by("name")
@@ -1795,9 +1794,9 @@ class CompsView(APIView):
         result.sort(key=lambda x: (-x["comps"], x["avg_placement"], x["name"]))
         comps_list = result[:limit] if limit is not None else result
         response_data = {"total_games": total_games, "comps": comps_list}
-        if (now - _COMPS_CACHE_TS) >= _CACHE_TTL_SHORT:
+        if match_count != _COMPS_CACHE_VERSION:
             _COMPS_CACHE.clear()
-            _COMPS_CACHE_TS = now
+            _COMPS_CACHE_VERSION = match_count
         _COMPS_CACHE[cache_key] = response_data
         return _cc(Response(response_data), 300)
 
@@ -1993,9 +1992,9 @@ class PlayerListView(APIView):
     """
 
     def get(self, request):
-        global _PLAYERS_CACHE, _PLAYERS_CACHE_TS
-        now = time.time()
-        if _PLAYERS_CACHE is not None and (now - _PLAYERS_CACHE_TS) < _CACHE_TTL_SHORT:
+        global _PLAYERS_CACHE, _PLAYERS_CACHE_VERSION
+        player_count = Player.objects.filter(puuid__isnull=False).exclude(puuid="").count()
+        if _PLAYERS_CACHE is not None and player_count == _PLAYERS_CACHE_VERSION:
             return _cc(Response(_PLAYERS_CACHE), 300)
         players = Player.objects.filter(puuid__isnull=False).exclude(puuid="")
         result = []
@@ -2006,7 +2005,7 @@ class PlayerListView(APIView):
             })
         result.sort(key=lambda x: x["game_name"].lower())
         _PLAYERS_CACHE = result
-        _PLAYERS_CACHE_TS = now
+        _PLAYERS_CACHE_VERSION = player_count
         return _cc(Response(result), 300)
 
 
@@ -2093,9 +2092,9 @@ class VersionsView(APIView):
     """GET /api/versions/ — list distinct game versions stored in DB."""
 
     def get(self, request):
-        global _VERSIONS_CACHE, _VERSIONS_CACHE_TS
-        now = time.time()
-        if _VERSIONS_CACHE is not None and (now - _VERSIONS_CACHE_TS) < _CACHE_TTL_SHORT:
+        global _VERSIONS_CACHE, _VERSIONS_CACHE_VERSION
+        match_count = Match.objects.count()
+        if _VERSIONS_CACHE is not None and match_count == _VERSIONS_CACHE_VERSION:
             return _cc(Response(_VERSIONS_CACHE), 300)
         versions = list(
             Match.objects.values_list("game_version", flat=True)
@@ -2103,5 +2102,5 @@ class VersionsView(APIView):
             .order_by("-game_version")
         )
         _VERSIONS_CACHE = versions
-        _VERSIONS_CACHE_TS = now
+        _VERSIONS_CACHE_VERSION = match_count
         return _cc(Response(versions), 300)
