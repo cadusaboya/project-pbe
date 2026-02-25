@@ -32,6 +32,15 @@ body {
   background: #c89b3c;
 }
 
+/* Loading bar animation */
+@keyframes loading-bar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+.animate-loading-bar {
+  animation: loading-bar 1.2s ease-in-out infinite;
+}
+
 /* Hide scrollbar for nav */
 .scrollbar-hide {
   -ms-overflow-style: none;

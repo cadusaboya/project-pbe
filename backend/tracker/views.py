@@ -8,7 +8,7 @@ import datetime
 
 import httpx
 from django.conf import settings
-from django.db.models import Count, Prefetch, Q, Sum
+from django.db.models import Count, Max, Prefetch, Q, Sum
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -39,12 +39,60 @@ _CHAMPIONS_CACHE_TS: dict[str, float] = {}
 _ITEM_ASSETS_CACHE: dict | None = None
 _ITEM_NAMES_CACHE: dict | None = None
 _VERSIONS_CACHE: dict[str, list] = {}
-_VERSIONS_CACHE_TS: dict[str, float] = {}
+_VERSIONS_CACHE_VERSION: dict[str, int] = {}
 _PLAYERS_CACHE: dict[str, list] = {}
-_PLAYERS_CACHE_TS: dict[str, float] = {}
+_PLAYERS_CACHE_VERSION: dict[str, int] = {}
 _COMPS_CACHE: dict[tuple, dict] = {}
-_COMPS_CACHE_TS: dict[str, float] = {}
-_CACHE_TTL_SHORT = 300.0  # 5 minutes
+_COMPS_CACHE_VERSION: dict[str, int] = {}
+_EXPLORE_BASE_CACHE: dict[str, list[dict]] = {}  # (server, game_version) -> participant dicts
+_EXPLORE_CACHE_VERSION: dict[str, int] = {}
+
+# Canonical item mapping: maps every item_id to a single "canonical" ID
+# so that duplicates (e.g. TFT_Item_InfinityEdge vs TFT_Item_CorruptedInfinityEdge)
+# get merged into one entry.
+_ITEM_CANONICAL_MAP: dict[str, str] | None = None
+
+
+def _get_item_canonical_map() -> dict[str, str]:
+    """Return {item_id: canonical_item_id} mapping, merging IDs that share a display name."""
+    global _ITEM_CANONICAL_MAP, _ITEM_NAMES_CACHE
+    if _ITEM_CANONICAL_MAP is not None:
+        return _ITEM_CANONICAL_MAP
+
+    if _ITEM_NAMES_CACHE is None:
+        try:
+            _ITEM_NAMES_CACHE = json.loads(_ITEM_NAMES_FILE.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            _ITEM_NAMES_CACHE = {}
+
+    # Group IDs by display name
+    from collections import defaultdict as _dd
+    name_to_ids: dict[str, list[str]] = _dd(list)
+    for item_id, display_name in (_ITEM_NAMES_CACHE or {}).items():
+        name_to_ids[display_name].append(item_id)
+
+    # Suffixes/prefixes that indicate a non-canonical variant
+    _VARIANT_MARKERS = ("Corrupted", "Tutorial", "Assist", "AcademyCopy", "Encounter", "ChoiceItem")
+
+    canonical_map: dict[str, str] = {}
+    for display_name, ids in name_to_ids.items():
+        if len(ids) == 1:
+            canonical_map[ids[0]] = ids[0]
+            continue
+
+        # Pick canonical: prefer IDs starting with TFT_Item_ and without variant markers
+        def _score(iid: str) -> tuple:
+            has_marker = any(m in iid for m in _VARIANT_MARKERS)
+            starts_tft_item = iid.startswith("TFT_Item_")
+            return (not has_marker, starts_tft_item, -len(iid), iid)
+
+        ids.sort(key=_score, reverse=True)
+        canonical = ids[0]
+        for iid in ids:
+            canonical_map[iid] = canonical
+
+    _ITEM_CANONICAL_MAP = canonical_map
+    return _ITEM_CANONICAL_MAP
 
 
 def _cc(response: Response, max_age: int) -> Response:
@@ -332,24 +380,10 @@ class StatsView(APIView):
         if game_version:
             match_qs = match_qs.filter(game_version=game_version)
 
-        last_run = None
-        latest_match = match_qs.order_by("-game_datetime").first()
-        if latest_match:
-            info = (latest_match.raw_json or {}).get("info", {})
-            game_length_s = info.get("game_length") or 0
-            try:
-                game_length_s = max(float(game_length_s), 0.0)
-            except (TypeError, ValueError):
-                game_length_s = 0.0
-
-            game_start = latest_match.game_datetime
-            if game_start.tzinfo is None:
-                game_start = game_start.replace(tzinfo=datetime.timezone.utc)
-
-            game_end = game_start.astimezone(datetime.timezone.utc) + datetime.timedelta(
-                seconds=game_length_s
-            )
-            last_run = game_end.isoformat()
+        last_recomputed = AggregatedUnitStat.objects.aggregate(
+            latest=Max("updated_at")
+        )["latest"]
+        last_run = last_recomputed.isoformat() if last_recomputed else None
 
         if server == "PBE":
             players_count = Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid="").count()
@@ -361,7 +395,15 @@ class StatsView(APIView):
             "players_tracked": players_count,
             "participants_recorded": Participant.objects.filter(match__server=server).count(),
             "last_fetch_at": last_run,
+            "data_version": Match.objects.count(),
         })
+
+
+class DataVersionView(APIView):
+    """GET /api/data-version/ — lightweight data version for cache busting."""
+
+    def get(self, request):
+        return _cc(Response({"data_version": Match.objects.count()}), 30)
 
 
 class ItemAssetsView(APIView):
@@ -530,18 +572,20 @@ class UnitStarStatsView(APIView):
             })
 
         # Item stats — aggregate per item name from the JSONField list
+        cmap = _get_item_canonical_map()
         item_agg: dict = defaultdict(lambda: {"games": 0, "total_placement": 0, "top4_count": 0, "win_count": 0})
         for usage in qs.select_related("participant"):
             placement = usage.participant.placement
             for item in (usage.items or []):
                 if not item:
                     continue
-                item_agg[item]["games"] += 1
-                item_agg[item]["total_placement"] += placement
+                canonical = cmap.get(item, item)
+                item_agg[canonical]["games"] += 1
+                item_agg[canonical]["total_placement"] += placement
                 if placement <= 4:
-                    item_agg[item]["top4_count"] += 1
+                    item_agg[canonical]["top4_count"] += 1
                 if placement == 1:
-                    item_agg[item]["win_count"] += 1
+                    item_agg[canonical]["win_count"] += 1
 
         sorted_items = sorted(item_agg.items(), key=lambda x: x[1]["games"], reverse=True)[:6]
         item_result = []
@@ -598,10 +642,15 @@ class ItemStatsView(APIView):
 
         usages = list(qs.values("items", "participant__placement"))
 
+        # Resolve item IDs to canonical to merge duplicates
+        cmap = _get_item_canonical_map()
+
         # Narrow to usages that contain ALL locked items (empty set = no filter)
+        # Resolve selected_items to canonical IDs for matching
+        canonical_selected = {cmap.get(s, s) for s in selected_items}
         filtered = [
             u for u in usages
-            if selected_set.issubset(set(u["items"] or []))
+            if canonical_selected.issubset({cmap.get(i, i) for i in (u["items"] or [])})
         ]
 
         base_games = len(filtered)
@@ -613,14 +662,17 @@ class ItemStatsView(APIView):
         for u in filtered:
             placement = u["participant__placement"]
             for item in (u["items"] or []):
-                if not item or item in selected_set:
+                if not item:
                     continue
-                item_agg[item]["games"] += 1
-                item_agg[item]["total"] += placement
+                canonical = cmap.get(item, item)
+                if canonical in canonical_selected:
+                    continue
+                item_agg[canonical]["games"] += 1
+                item_agg[canonical]["total"] += placement
                 if placement <= 4:
-                    item_agg[item]["top4"] += 1
+                    item_agg[canonical]["top4"] += 1
                 if placement == 1:
-                    item_agg[item]["wins"] += 1
+                    item_agg[canonical]["wins"] += 1
 
         items = []
         for item_name, stats in item_agg.items():
@@ -669,6 +721,118 @@ class ExploreView(APIView):
       exclude_trait          – "TraitName:Threshold" — exclude boards where trait has >= Threshold active units
     """
 
+    @staticmethod
+    def _build_participant_data(game_version: str | None, server: str = "PBE") -> list[dict]:
+        """Build pre-processed participant dicts (cacheable, filter-independent)."""
+        cmap = _get_item_canonical_map()
+        unit_traits_map: dict[str, list] = dict(
+            Unit.objects.values_list("character_id", "traits")
+        )
+
+        qs = Participant.objects.filter(match__server=server)
+        if game_version:
+            qs = qs.filter(match__game_version=game_version)
+        # Defer raw_json to avoid loading ~22KB per match in the JOIN;
+        # load it separately as a dict keyed by match_id.
+        qs = qs.select_related("match").defer("match__raw_json").prefetch_related(
+            Prefetch(
+                "unit_usages",
+                queryset=UnitUsage.objects.select_related("unit"),
+            )
+        )
+
+        match_ids = set()
+        participants_raw = list(qs)
+        for p in participants_raw:
+            match_ids.add(p.match_id)
+        raw_jsons: dict[str, dict] = dict(
+            Match.objects.filter(match_id__in=match_ids).values_list(
+                "match_id", "raw_json"
+            )
+        )
+
+        match_participant_cache: dict[str, dict[str, dict]] = {}
+        participants: list[dict] = []
+        for p in participants_raw:
+            unit_map: dict[str, set] = {}
+            unit_count_by_unit: dict[str, int] = {}
+            unit_max_star_by_unit: dict[str, int] = {}
+            item_count_by_unit: dict[str, int] = {}
+            for uu in p.unit_usages.all():
+                if not uu.unit_id or not uu.unit or not uu.unit.character_id:
+                    continue
+                char_id = uu.unit.character_id
+                unit_map[char_id] = {
+                    cmap.get(i, i) for i in (uu.items or []) if i
+                }
+                item_count_by_unit[char_id] = max(
+                    item_count_by_unit.get(char_id, 0),
+                    len(uu.items or []),
+                )
+                unit_count_by_unit[char_id] = (
+                    unit_count_by_unit.get(char_id, 0) + 1
+                )
+                unit_max_star_by_unit[char_id] = max(
+                    unit_max_star_by_unit.get(char_id, 0),
+                    int(uu.star_level or 0),
+                )
+
+            p_data: dict = {
+                "placement": p.placement,
+                "level": p.level,
+                "unit_set": set(unit_map.keys()),
+                "unit_items": unit_map,
+                "unit_count_by_unit": unit_count_by_unit,
+                "unit_max_star_by_unit": unit_max_star_by_unit,
+                "item_count_by_unit": item_count_by_unit,
+                "trait_unit_counts": {},
+                "derived_trait_counts": {},
+                "trait_tiers": {},
+            }
+
+            # Trait data from raw_json
+            trait_unit_counts: dict[str, int] = {}
+            trait_tiers: dict[str, int] = {}
+            match_map = match_participant_cache.get(p.match_id)
+            if match_map is None:
+                rj = raw_jsons.get(p.match_id) or {}
+                pp_list = rj.get("info", {}).get("participants", [])
+                match_map = {
+                    str(pp.get("puuid", "")): pp
+                    for pp in pp_list
+                    if pp.get("puuid")
+                }
+                match_participant_cache[p.match_id] = match_map
+            pdata = match_map.get(p.puuid)
+            if pdata:
+                for t in pdata.get("traits", []) or []:
+                    tier_current = t.get("tier_current", 0) or 0
+                    num_units = t.get("num_units", 0) or 0
+                    if tier_current > 0 or num_units > 0:
+                        name = str(t.get("name", "")).strip()
+                        if name:
+                            trait_unit_counts[name] = max(
+                                int(num_units),
+                                trait_unit_counts.get(name, 0),
+                            )
+                            if tier_current > 0:
+                                trait_tiers[name] = max(
+                                    tier_current,
+                                    trait_tiers.get(name, 0),
+                                )
+            p_data["trait_unit_counts"] = trait_unit_counts
+            p_data["trait_tiers"] = trait_tiers
+            derived: dict[str, int] = defaultdict(int)
+            for uid, cnt in unit_count_by_unit.items():
+                for t in unit_traits_map.get(uid) or []:
+                    t_name = str(t).strip()
+                    if t_name:
+                        derived[t_name] += cnt
+            p_data["derived_trait_counts"] = dict(derived)
+
+            participants.append(p_data)
+        return participants
+
     def get(self, request):
         server = request.query_params.get("server", "PBE").upper()
         game_version = request.query_params.get("game_version")
@@ -676,6 +840,7 @@ class ExploreView(APIView):
         require_units = set(request.query_params.getlist("require_unit"))
         ban_units = set(request.query_params.getlist("ban_unit"))
         require_items_raw = request.query_params.getlist("require_item_on_unit")
+        require_items_any = set(request.query_params.getlist("require_item"))
         exclude_items = set(request.query_params.getlist("exclude_item"))
         player_levels_raw = request.query_params.getlist("player_level")
         player_levels = {int(v) for v in player_levels_raw if v.isdigit()}
@@ -742,20 +907,22 @@ class ExploreView(APIView):
         if needs_trait_data:
             _ensure_trait_cache(server)
 
-        qs = Participant.objects.filter(match__server=server)
-        if game_version:
-            qs = qs.filter(match__game_version=game_version)
-        if needs_trait_data:
-            qs = qs.select_related("match")
-        qs = qs.prefetch_related(
-            Prefetch("unit_usages", queryset=UnitUsage.objects.select_related("unit"))
-        )
+        # --- In-process cache: reuse pre-built participant dicts when match count unchanged ---
+        global _EXPLORE_BASE_CACHE, _EXPLORE_CACHE_VERSION
+        match_count = Match.objects.filter(server=server).count()
+        cache_key = (server, game_version or "")
+        if match_count != _EXPLORE_CACHE_VERSION.get(server, -1):
+            stale_keys = [k for k in _EXPLORE_BASE_CACHE if k[0] == server]
+            for k in stale_keys:
+                _EXPLORE_BASE_CACHE.pop(k, None)
+            _EXPLORE_CACHE_VERSION[server] = match_count
 
-        unit_traits_map: dict[str, list] = {}
-        if needs_trait_data:
-            unit_traits_map = dict(Unit.objects.values_list("character_id", "traits"))
+        if cache_key in _EXPLORE_BASE_CACHE:
+            participants = _EXPLORE_BASE_CACHE[cache_key]
+        else:
+            participants = self._build_participant_data(game_version, server)
+            _EXPLORE_BASE_CACHE[cache_key] = participants
 
-        match_participant_cache: dict[str, dict[str, dict]] = {}
         _server_api_name_map = _TRAIT_API_NAME_MAP.get(server, {})
 
         def _trait_matches(req_lower: str, api_name: str) -> bool:
@@ -782,68 +949,35 @@ class ExploreView(APIView):
                     return tier
             return 0
 
-        # Build Python-friendly data for each participant
-        participants = []
-        for p in qs:
-            unit_map: dict[str, set] = {}
-            unit_count_by_unit: dict[str, int] = {}
-            unit_max_star_by_unit: dict[str, int] = {}
-            for uu in p.unit_usages.all():
-                if not uu.unit_id or not uu.unit or not uu.unit.character_id:
-                    continue
-                char_id = uu.unit.character_id
-                unit_map[char_id] = set(uu.items or [])
-                if needs_extra_unit_data or needs_trait_data:
-                    unit_count_by_unit[char_id] = unit_count_by_unit.get(char_id, 0) + 1
-                    unit_max_star_by_unit[char_id] = max(
-                        unit_max_star_by_unit.get(char_id, 0), int(uu.star_level or 0)
-                    )
+        def _breakpoint_tier(display_name: str, min_units: int) -> int:
+            """Convert a min_units value to a 1-based tier using CDragon breakpoints."""
+            tdata = _TRAIT_CACHE.get(display_name)
+            if not tdata:
+                for dname, td in _TRAIT_CACHE.items():
+                    if dname.lower() == display_name.lower():
+                        tdata = td
+                        break
+            if not tdata:
+                return 0
+            bps = tdata.get("breakpoints", [])
+            tier = 0
+            for i, bp in enumerate(bps):
+                if min_units >= bp:
+                    tier = i + 1
+            return tier
 
-            p_data: dict = {
-                "placement": p.placement,
-                "level": p.level,
-                "unit_set": set(unit_map.keys()),
-                "unit_items": unit_map,
-                "unit_count_by_unit": unit_count_by_unit,
-                "unit_max_star_by_unit": unit_max_star_by_unit,
-                "trait_unit_counts": {},
-                "derived_trait_counts": {},
-            }
+        # Precompute required tier for each require_trait with min_units > 1
+        _require_trait_tier_map: dict[str, int] = {}
+        if require_traits and needs_trait_data:
+            for trait_lower, min_u in require_traits.items():
+                if min_u > 1:
+                    _require_trait_tier_map[trait_lower] = _breakpoint_tier(trait_lower, min_u)
 
-            if needs_trait_data:
-                trait_unit_counts: dict[str, int] = {}
-                trait_tiers: dict[str, int] = {}
-                match_map = match_participant_cache.get(p.match_id)
-                if match_map is None:
-                    pp_list = (p.match.raw_json or {}).get("info", {}).get("participants", [])
-                    match_map = {
-                        str(pp.get("puuid", "")): pp
-                        for pp in pp_list
-                        if pp.get("puuid")
-                    }
-                    match_participant_cache[p.match_id] = match_map
-                pdata = match_map.get(p.puuid)
-                if pdata:
-                    for t in pdata.get("traits", []) or []:
-                        tier_current = t.get("tier_current", 0) or 0
-                        num_units = t.get("num_units", 0) or 0
-                        if tier_current > 0 or num_units > 0:
-                            name = str(t.get("name", "")).strip()
-                            if name:
-                                trait_unit_counts[name] = max(int(num_units), trait_unit_counts.get(name, 0))
-                                if tier_current > 0:
-                                    trait_tiers[name] = max(tier_current, trait_tiers.get(name, 0))
-                p_data["trait_unit_counts"] = trait_unit_counts
-                p_data["trait_tiers"] = trait_tiers
-                derived: dict[str, int] = defaultdict(int)
-                for uid, cnt in unit_count_by_unit.items():
-                    for t in unit_traits_map.get(uid) or []:
-                        t_name = str(t).strip()
-                        if t_name:
-                            derived[t_name] += cnt
-                p_data["derived_trait_counts"] = dict(derived)
-
-            participants.append(p_data)
+        # Resolve item filter params to canonical IDs
+        cmap = _get_item_canonical_map()
+        require_items = [(u, cmap.get(i, i)) for u, i in require_items]
+        require_items_any = {cmap.get(i, i) for i in require_items_any}
+        exclude_items = {cmap.get(i, i) for i in exclude_items}
 
         def matches(p_data: dict) -> bool:
             unit_set = p_data["unit_set"]
@@ -857,6 +991,12 @@ class ExploreView(APIView):
             for unit_id, item_id in require_items:
                 if unit_id not in unit_items or item_id not in unit_items[unit_id]:
                     return False
+            if require_items_any:
+                all_items_set: set = set()
+                for item_set in unit_items.values():
+                    all_items_set |= item_set
+                if not require_items_any.issubset(all_items_set):
+                    return False
             if exclude_items:
                 all_items: set = set()
                 for item_set in unit_items.values():
@@ -865,8 +1005,14 @@ class ExploreView(APIView):
                     return False
             if require_traits:
                 for trait_lower, min_u in require_traits.items():
-                    if _max_trait_units(p_data, trait_lower) < min_u:
-                        return False
+                    req_tier = _require_trait_tier_map.get(trait_lower, 0)
+                    if req_tier > 0:
+                        board_tier = _trait_tier(p_data, trait_lower)
+                        if board_tier < req_tier:
+                            return False
+                    else:
+                        if _max_trait_units(p_data, trait_lower) < min_u:
+                            return False
             if require_trait_tiers:
                 for trait_lower, min_tier in require_trait_tiers.items():
                     board_tier = _trait_tier(p_data, trait_lower)
@@ -889,8 +1035,7 @@ class ExploreView(APIView):
                         return False
             if require_unit_item_counts:
                 for unit_id, min_items in require_unit_item_counts.items():
-                    items = p_data["unit_items"].get(unit_id, set())
-                    if len(items) < min_items:
+                    if p_data["item_count_by_unit"].get(unit_id, 0) < min_items:
                         return False
             if excluded_traits:
                 for trait_lower, threshold in excluded_traits.items():
@@ -1041,7 +1186,7 @@ class ExploreView(APIView):
         }
         if include_trait_stats:
             response_data["trait_stats"] = trait_stats
-        return Response(response_data)
+        return _cc(Response(response_data), 300)
 
 
 class HiddenCompsView(APIView):
@@ -1279,10 +1424,10 @@ class CompsView(APIView):
         except ValueError:
             top_flex = 3
 
-        global _COMPS_CACHE, _COMPS_CACHE_TS
-        now = time.time()
+        global _COMPS_CACHE, _COMPS_CACHE_VERSION
+        match_count = Match.objects.filter(server=server).count()
         cache_key = (server, game_version, limit, top_flex)
-        if (now - _COMPS_CACHE_TS.get(server, 0)) < _CACHE_TTL_SHORT and cache_key in _COMPS_CACHE:
+        if match_count == _COMPS_CACHE_VERSION.get(server, -1) and cache_key in _COMPS_CACHE:
             return _cc(Response(_COMPS_CACHE[cache_key]), 300)
 
         comps_qs = Comp.objects.filter(is_active=True, server=server).order_by("name")
@@ -1729,12 +1874,11 @@ class CompsView(APIView):
         result.sort(key=lambda x: (-x["comps"], x["avg_placement"], x["name"]))
         comps_list = result[:limit] if limit is not None else result
         response_data = {"total_games": total_games, "comps": comps_list}
-        if (now - _COMPS_CACHE_TS.get(server, 0)) >= _CACHE_TTL_SHORT:
-            # Clear all entries for this server
+        if match_count != _COMPS_CACHE_VERSION.get(server, -1):
             stale_keys = [k for k in _COMPS_CACHE if k[0] == server]
             for k in stale_keys:
                 _COMPS_CACHE.pop(k, None)
-            _COMPS_CACHE_TS[server] = now
+            _COMPS_CACHE_VERSION[server] = match_count
         _COMPS_CACHE[cache_key] = response_data
         return _cc(Response(response_data), 300)
 
@@ -1932,15 +2076,15 @@ class PlayerListView(APIView):
     """
 
     def get(self, request):
-        global _PLAYERS_CACHE, _PLAYERS_CACHE_TS
+        global _PLAYERS_CACHE, _PLAYERS_CACHE_VERSION
         server = request.query_params.get("server", "PBE").upper()
-        now = time.time()
-        if server in _PLAYERS_CACHE and (now - _PLAYERS_CACHE_TS.get(server, 0)) < _CACHE_TTL_SHORT:
-            return _cc(Response(_PLAYERS_CACHE[server]), 300)
         if server == "PBE":
             players = Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid="")
         else:
             players = Player.objects.filter(puuid__isnull=False).exclude(puuid="").exclude(region="PBE")
+        player_count = players.count()
+        if server in _PLAYERS_CACHE and player_count == _PLAYERS_CACHE_VERSION.get(server, -1):
+            return _cc(Response(_PLAYERS_CACHE[server]), 300)
         result = []
         for p in players:
             result.append({
@@ -1950,7 +2094,7 @@ class PlayerListView(APIView):
             })
         result.sort(key=lambda x: x["game_name"].lower())
         _PLAYERS_CACHE[server] = result
-        _PLAYERS_CACHE_TS[server] = now
+        _PLAYERS_CACHE_VERSION[server] = player_count
         return _cc(Response(result), 300)
 
 
@@ -2034,17 +2178,17 @@ class PlayerStatsView(APIView):
         else:
             result.sort(key=lambda x: x["avg_placement"])
 
-        return Response(result)
+        return _cc(Response(result), 300)
 
 
 class VersionsView(APIView):
     """GET /api/versions/ — list distinct game versions stored in DB."""
 
     def get(self, request):
-        global _VERSIONS_CACHE, _VERSIONS_CACHE_TS
+        global _VERSIONS_CACHE, _VERSIONS_CACHE_VERSION
         server = request.query_params.get("server", "PBE").upper()
-        now = time.time()
-        if server in _VERSIONS_CACHE and (now - _VERSIONS_CACHE_TS.get(server, 0)) < _CACHE_TTL_SHORT:
+        match_count = Match.objects.filter(server=server).count()
+        if server in _VERSIONS_CACHE and match_count == _VERSIONS_CACHE_VERSION.get(server, -1):
             return _cc(Response(_VERSIONS_CACHE[server]), 300)
         versions = list(
             Match.objects.filter(server=server)
@@ -2053,5 +2197,5 @@ class VersionsView(APIView):
             .order_by("-game_version")
         )
         _VERSIONS_CACHE[server] = versions
-        _VERSIONS_CACHE_TS[server] = now
+        _VERSIONS_CACHE_VERSION[server] = match_count
         return _cc(Response(versions), 300)

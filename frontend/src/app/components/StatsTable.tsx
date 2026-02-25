@@ -3,6 +3,8 @@
 import { useState, useMemo, Fragment, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { backendUrl } from "@/lib/backend";
+import { UnitImage, ItemImage } from "./TftImage";
+import { formatUnit, costBorderColor } from "@/lib/tftUtils";
 
 export interface UnitStat {
   unit_name: string;
@@ -45,24 +47,11 @@ const COLUMNS: { key: SortKey; label: string; defaultDir: SortDir }[] = [
   { key: "win_rate", label: "Win %", defaultDir: "desc" },
 ];
 
-const COST_COLORS: Record<number, string> = {
-  1: "border-gray-500",
-  2: "border-green-600",
-  3: "border-blue-500",
-  4: "border-purple-500",
-  5: "border-yellow-400",
-  7: "border-yellow-400",
-};
-
 const STAR_LABELS: Record<number, string> = {
   1: "★",
   2: "★★",
   3: "★★★",
 };
-
-function costBorderColor(cost: number): string {
-  return COST_COLORS[cost] ?? "border-gray-500";
-}
 
 function placementColor(placement: number): string {
   if (placement <= 2) return "text-yellow-400 font-semibold";
@@ -96,16 +85,6 @@ function placementBarColor(avp: number): string {
   if (avp <= 4.5) return "bg-tft-muted/15";
   if (avp <= 5.5) return "bg-orange-400/15";
   return "bg-red-400/15";
-}
-
-function formatUnit(name: string): string {
-  return name.replace(/^TFT\d+_/, "");
-}
-
-function unitImageUrl(characterId: string): string {
-  const lower = characterId.toLowerCase();
-  const setNum = lower.match(/^tft(\d+)_/)?.[1] ?? "16";
-  return `https://raw.communitydragon.org/pbe/game/assets/characters/${lower}/hud/${lower}_square.tft_set${setNum}.png`;
 }
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
@@ -189,25 +168,15 @@ function ItemStatsTable({ stats, itemAssets }: { stats: ItemStat[]; itemAssets: 
           </tr>
         </thead>
         <tbody>
-          {stats.map((s) => {
-            const imgUrl = itemAssets[s.item_name];
-            return (
+          {stats.map((s) => (
               <tr key={s.item_name} className="border-t border-tft-border/50">
                 <td className="pr-3 sm:pr-8 py-1.5">
                   <div className="flex items-center gap-1.5">
-                    {imgUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={imgUrl}
-                        alt={formatItemName(s.item_name)}
-                        width={24}
-                        height={24}
-                        className="w-5 h-5 sm:w-6 sm:h-6 rounded object-cover"
-                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                      />
-                    ) : (
-                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded bg-tft-surface border border-tft-border flex-shrink-0" />
-                    )}
+                    <ItemImage
+                      itemId={s.item_name}
+                      itemAssets={itemAssets}
+                      size={24}
+                    />
                     <span className="text-tft-text">{formatItemName(s.item_name)}</span>
                   </div>
                 </td>
@@ -222,8 +191,7 @@ function ItemStatsTable({ stats, itemAssets }: { stats: ItemStat[]; itemAssets: 
                   {(s.win_rate * 100).toFixed(1)}%
                 </td>
               </tr>
-            );
-          })}
+          ))}
         </tbody>
       </table>
     </div>
@@ -469,17 +437,12 @@ export default function StatsTable({
                       {/* Unit: image + name + cost tag */}
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-3">
-                          <div className="relative">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={unitImageUrl(row.unit_name)}
-                              alt={formatUnit(row.unit_name)}
-                              width={44}
-                              height={44}
-                              className={`w-11 h-11 object-cover rounded-lg border-2 ${costBorderColor(row.cost)} transition-transform hover:scale-110`}
-                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
-                            />
-                          </div>
+                          <UnitImage
+                            characterId={row.unit_name}
+                            cost={row.cost}
+                            size={44}
+                            className="transition-transform hover:scale-110"
+                          />
                           <span className="text-tft-text font-semibold text-sm truncate">
                             {formatUnit(row.unit_name)}
                           </span>
@@ -526,14 +489,11 @@ export default function StatsTable({
                       >
                         <td colSpan={6} className="px-3 sm:px-6 py-3 sm:py-4">
                           <div className="flex items-center gap-2 mb-3">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={unitImageUrl(row.unit_name)}
-                              alt={formatUnit(row.unit_name)}
-                              width={28}
-                              height={28}
-                              className={`w-7 h-7 object-cover rounded-md border-2 ${costBorderColor(row.cost)}`}
-                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                            <UnitImage
+                              characterId={row.unit_name}
+                              cost={row.cost}
+                              size={28}
+                              className="rounded-md"
                             />
                             <span className="text-tft-text font-semibold">
                               {formatUnit(row.unit_name)}

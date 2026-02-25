@@ -10,6 +10,7 @@ interface GlobalStats {
   last_fetch_at: string | null;
 }
 
+
 function formatRelativeUtc(iso: string): string {
   const then = new Date(iso).getTime();
   const now = Date.now();

@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { backendUrl } from "@/lib/backend";
 import { UnitStat } from "./StatsTable";
+import { UnitImage, ItemImage } from "./TftImage";
+import { formatUnit, costBorderColor } from "@/lib/tftUtils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -98,34 +100,11 @@ type TraitData = Record<string, { breakpoints: number[]; icon: string }>;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatUnit(name: string): string {
-  return name.replace(/^TFT\d+_/, "");
-}
-
-function unitImageUrl(characterId: string): string {
-  const lower = characterId.toLowerCase();
-  const setNum = lower.match(/^tft(\d+)_/)?.[1] ?? "16";
-  return `https://raw.communitydragon.org/pbe/game/assets/characters/${lower}/hud/${lower}_square.tft_set${setNum}.png`;
-}
-
 let _itemNamesCache: Record<string, string> = {};
 
 function formatItemName(name: string): string {
   if (_itemNamesCache[name]) return _itemNamesCache[name];
   return name.replace(/^TFT\d*_Item_/, "").replace(/([A-Z])/g, " $1").trim();
-}
-
-const COST_COLORS: Record<number, string> = {
-  1: "border-gray-500",
-  2: "border-green-600",
-  3: "border-blue-500",
-  4: "border-purple-500",
-  5: "border-yellow-400",
-  7: "border-yellow-400",
-};
-
-function costBorderColor(cost: number) {
-  return COST_COLORS[cost] ?? "border-gray-500";
 }
 
 function placementColor(v: number) {
@@ -193,12 +172,23 @@ function UnifiedSearch({
   }, []);
 
   const allTraits = useMemo(() => Object.keys(traitData).sort(), [traitData]);
-  const allItems = useMemo(
-    () => Object.keys(itemAssets).filter(
-      (i) => (i.startsWith("TFT_Item_") || i.startsWith("TFT16_Item_")) && !i.includes("Augment")
-    ).sort(),
-    [itemAssets]
-  );
+  const allItems = useMemo(() => {
+    const ids = Object.keys(itemAssets).filter(
+      (i) => (i.startsWith("TFT_Item_") || i.startsWith("TFT16_Item_") || i.startsWith("TFT16_TheDarkin")) && !i.includes("Augment")
+    );
+    // Deduplicate by display name — keep the canonical ID (no Corrupted/Tutorial/Assist/AcademyCopy)
+    const VARIANT_MARKERS = ["Corrupted", "Tutorial", "Assist", "AcademyCopy", "Encounter", "ChoiceItem"];
+    const seen = new Map<string, string>(); // displayName -> bestId
+    for (const id of ids) {
+      const display = formatItemName(id);
+      const existing = seen.get(display);
+      if (!existing) { seen.set(display, id); continue; }
+      const isVariant = VARIANT_MARKERS.some((m) => id.includes(m));
+      const existingIsVariant = VARIANT_MARKERS.some((m) => existing.includes(m));
+      if (existingIsVariant && !isVariant) seen.set(display, id);
+    }
+    return [...seen.values()].sort();
+  }, [itemAssets]);
 
   // Track requiredCount for each unit already in filters
   const unitFilterCounts = useMemo(() => {
@@ -327,16 +317,11 @@ function UnifiedSearch({
                 >
                   {item.kind === "unit" && (
                     <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={unitImageUrl(item.unit.unit_name)}
-                        alt=""
-                        width={28}
-                        height={28}
-                        className={`w-7 h-7 rounded-lg border-2 ${costBorderColor(item.unit.cost)} ${item.excluded ? "grayscale opacity-50" : ""}`}
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).style.display = "none";
-                        }}
+                      <UnitImage
+                        characterId={item.unit.unit_name}
+                        cost={item.unit.cost}
+                        size={28}
+                        className={item.excluded ? "grayscale opacity-50" : ""}
                       />
                       <span className={`text-sm font-medium ${item.excluded ? "text-red-400" : "text-tft-text"}`}>
                         {item.excluded ? `Exclude ${formatUnit(item.unit.unit_name)}` : formatUnit(item.unit.unit_name)}
@@ -345,16 +330,10 @@ function UnifiedSearch({
                   )}
                   {item.kind === "unit_count" && (
                     <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={unitImageUrl(item.unit.unit_name)}
-                        alt=""
-                        width={28}
-                        height={28}
-                        className={`w-7 h-7 rounded-lg border-2 ${costBorderColor(item.unit.cost)}`}
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).style.display = "none";
-                        }}
+                      <UnitImage
+                        characterId={item.unit.unit_name}
+                        cost={item.unit.cost}
+                        size={28}
                       />
                       <span className="text-sm font-medium text-amber-400">
                         {item.count === 2 ? "2nd" : `${item.count}rd`} {formatUnit(item.unit.unit_name)}
@@ -387,19 +366,12 @@ function UnifiedSearch({
                   )}
                   {item.kind === "item" && (
                     <>
-                      {item.icon && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={item.icon}
-                          alt=""
-                          width={24}
-                          height={24}
-                          className={`w-6 h-6 rounded object-cover ${item.excluded ? "grayscale opacity-50" : ""}`}
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).style.display = "none";
-                          }}
-                        />
-                      )}
+                      <ItemImage
+                        itemId={item.item}
+                        itemAssets={itemAssets}
+                        size={24}
+                        className={item.excluded ? "grayscale opacity-50" : ""}
+                      />
                       <span className={`text-sm font-medium ${item.excluded ? "text-red-400" : "text-tft-text"}`}>
                         {item.excluded ? `Exclude ${formatItemName(item.item)}` : formatItemName(item.item)}
                       </span>
@@ -450,16 +422,10 @@ function UnitFilterChip({
       }`}
     >
       {/* Unit image */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={unitImageUrl(filter.unit)}
-        alt=""
-        width={36}
-        height={36}
-        className={`w-9 h-9 rounded-lg border-2 ${costBorderColor(unitInfo?.cost ?? 0)}`}
-        onError={(e) => {
-          (e.currentTarget as HTMLImageElement).style.display = "none";
-        }}
+      <UnitImage
+        characterId={filter.unit}
+        cost={unitInfo?.cost ?? 0}
+        size={36}
       />
 
       {/* Name + dropdowns stacked */}
@@ -616,8 +582,6 @@ function ItemFilterChip({
   onUpdate: (updated: ItemFilter) => void;
   onRemove: () => void;
 }) {
-  const imgUrl = itemAssets[filter.item];
-
   return (
     <div
       className={`flex items-center gap-3 border rounded-xl px-3 py-2 ${
@@ -626,19 +590,12 @@ function ItemFilterChip({
           : "border-blue-600 bg-blue-950/30"
       }`}
     >
-      {imgUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={imgUrl}
-          alt=""
-          width={28}
-          height={28}
-          className={`w-7 h-7 rounded object-cover ${filter.excluded ? "grayscale opacity-50" : ""}`}
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = "none";
-          }}
-        />
-      )}
+      <ItemImage
+        itemId={filter.item}
+        itemAssets={itemAssets}
+        size={28}
+        className={filter.excluded ? "grayscale opacity-50" : ""}
+      />
       <div className="flex flex-col gap-1">
         <span className="text-tft-text text-sm font-semibold leading-tight">
           {formatItemName(filter.item)}
@@ -763,8 +720,9 @@ function filtersToParams(filters: Filter[], version: string, traitData: TraitDat
         params.append("exclude_item", f.item);
       } else if (f.holder) {
         params.append("require_item_on_unit", `${f.holder}::${f.item}`);
+      } else {
+        params.append("require_item", f.item);
       }
-      // If included with holder = "" (Any), no specific API param — item presence isn't filtered
     } else if (f.kind === "level") {
       params.append("player_level", String(f.level));
     }
@@ -896,25 +854,32 @@ export default function DataExplorer({
       .catch(() => {});
   }, [server]);
 
-  const fetchData = useCallback(() => {
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
     if (filters.length === 0) {
       setExploreData(null);
       return;
     }
-    setLoading(true);
-    const params = filtersToParams(filters, selectedVersion, traitData);
-    params.set("include_trait_stats", "1");
-    params.set("server", server);
-    fetch(backendUrl(`/api/explore/?${params.toString()}`))
-      .then((r) => (r.ok ? r.json() : null))
-      .then(setExploreData)
-      .catch(() => setExploreData(null))
-      .finally(() => setLoading(false));
-  }, [filters, selectedVersion, traitData, server]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    setLoading(true);
+    debounceRef.current = setTimeout(() => {
+      const params = filtersToParams(filters, selectedVersion, traitData);
+      params.set("include_trait_stats", "1");
+      params.set("server", server);
+      fetch(backendUrl(`/api/explore/?${params.toString()}`))
+        .then((r) => (r.ok ? r.json() : null))
+        .then(setExploreData)
+        .catch(() => setExploreData(null))
+        .finally(() => setLoading(false));
+    }, 400);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [filters, selectedVersion, traitData, server]);
 
   function handleVersionChange(v: string) {
     setSelectedVersion(v);
@@ -1381,18 +1346,10 @@ export default function DataExplorer({
                         >
                           <td className="px-4 py-2.5">
                             <div className="flex items-center gap-2">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={unitImageUrl(row.unit_name)}
-                                alt={formatUnit(row.unit_name)}
-                                width={32}
-                                height={32}
-                                className={`w-8 h-8 rounded-lg object-cover border-2 ${costBorderColor(
-                                  unitInfo?.cost ?? 0
-                                )}`}
-                                onError={(e) => {
-                                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                                }}
+                              <UnitImage
+                                characterId={row.unit_name}
+                                cost={unitInfo?.cost ?? 0}
+                                size={32}
                               />
                               {isCountRow && (
                                 <span className="text-amber-400 text-xs font-bold">{row.countLabel}</span>
@@ -1476,7 +1433,6 @@ export default function DataExplorer({
                   ) : (
                     sortedItems.map((row, i) => {
                       const unitInfo = unitMap[row.unit_name];
-                      const imgUrl = itemAssets[row.item_name];
                       return (
                         <tr
                           key={`${row.unit_name}::${row.item_name}`}
@@ -1488,39 +1444,22 @@ export default function DataExplorer({
                         >
                           <td className="px-4 py-2.5">
                             <div className="flex items-center gap-2">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={unitImageUrl(row.unit_name)}
-                                alt={formatUnit(row.unit_name)}
-                                width={28}
-                                height={28}
-                                className={`w-7 h-7 rounded-lg object-cover border-2 ${costBorderColor(
-                                  unitInfo?.cost ?? 0
-                                )}`}
-                                onError={(e) => {
-                                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                                }}
+                              <UnitImage
+                                characterId={row.unit_name}
+                                cost={unitInfo?.cost ?? 0}
+                                size={28}
+                                borderWidth={2}
                               />
                               <span className="text-tft-text">{formatUnit(row.unit_name)}</span>
                             </div>
                           </td>
                           <td className="px-4 py-2.5">
                             <div className="flex items-center gap-2">
-                              {imgUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={imgUrl}
-                                  alt={formatItemName(row.item_name)}
-                                  width={24}
-                                  height={24}
-                                  className="w-6 h-6 rounded object-cover flex-shrink-0"
-                                  onError={(e) => {
-                                    (e.currentTarget as HTMLImageElement).style.display = "none";
-                                  }}
-                                />
-                              ) : (
-                                <div className="w-6 h-6 rounded bg-tft-surface border border-tft-border flex-shrink-0" />
-                              )}
+                              <ItemImage
+                                itemId={row.item_name}
+                                itemAssets={itemAssets}
+                                size={24}
+                              />
                               <span className="text-tft-text">{formatItemName(row.item_name)}</span>
                             </div>
                           </td>

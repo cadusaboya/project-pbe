@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { UnitImage } from "./TftImage";
+import { formatUnit } from "@/lib/tftUtils";
 
 interface TopUnit {
   character_id: string;
@@ -17,28 +19,6 @@ export interface PlayerStat {
   top4_rate: number;
   win_rate: number;
   top_units: TopUnit[];
-}
-
-const COST_COLORS: Record<number, string> = {
-  1: "border-gray-400",
-  2: "border-green-400",
-  3: "border-blue-400",
-  4: "border-purple-400",
-  5: "border-yellow-400",
-};
-
-function costBorderColor(cost: number): string {
-  return COST_COLORS[cost] ?? "border-gray-500";
-}
-
-function formatUnit(name: string): string {
-  return name.replace(/^TFT\d+_/, "");
-}
-
-function unitImageUrl(characterId: string): string {
-  const lower = characterId.toLowerCase();
-  const setNum = lower.match(/^tft(\d+)_/)?.[1] ?? "16";
-  return `https://raw.communitydragon.org/pbe/game/assets/characters/${lower}/hud/${lower}_square.tft_set${setNum}.png`;
 }
 
 function avpTextColor(avp: number): string {
@@ -169,17 +149,14 @@ export default function PlayerStatsList({ data, server }: { data: PlayerStat[]; 
                 <td className="px-2 sm:px-4 py-2 sm:py-2.5">
                   <div className="flex gap-1">
                     {p.top_units.map((u) => (
-                      <div
+                      <UnitImage
                         key={u.character_id}
-                        className={`w-6 h-6 sm:w-7 sm:h-7 rounded border ${costBorderColor(u.cost)} overflow-hidden shrink-0`}
-                        title={formatUnit(u.character_id)}
-                      >
-                        <img
-                          src={unitImageUrl(u.character_id)}
-                          alt={formatUnit(u.character_id)}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
+                        characterId={u.character_id}
+                        cost={u.cost}
+                        size={28}
+                        borderWidth={1}
+                        className="rounded"
+                      />
                     ))}
                   </div>
                 </td>

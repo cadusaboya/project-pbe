@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { UnitImage } from "./TftImage";
+import { formatUnit } from "@/lib/tftUtils";
 
 interface CompUnit {
   character_id: string;
@@ -43,31 +45,8 @@ export interface CompStat {
 
 type TraitData = Record<string, { breakpoints: number[]; icon: string }>;
 
-const COST_COLORS: Record<number, string> = {
-  1: "border-gray-500",
-  2: "border-green-600",
-  3: "border-blue-500",
-  4: "border-purple-500",
-  5: "border-yellow-400",
-  7: "border-yellow-400",
-};
-
-function costBorderColor(cost: number): string {
-  return COST_COLORS[cost] ?? "border-gray-500";
-}
-
-function formatUnit(name: string): string {
-  return name.replace(/^TFT\d+_/, "");
-}
-
 function formatTrait(name: string): string {
   return name.replace(/^TFT\d+_/, "").replace(/^Set\d+_/, "");
-}
-
-function unitImageUrl(characterId: string): string {
-  const lower = characterId.toLowerCase();
-  const setNum = lower.match(/^tft(\d+)_/)?.[1] ?? "16";
-  return `https://raw.communitydragon.org/pbe/game/assets/characters/${lower}/hud/${lower}_square.tft_set${setNum}.png`;
 }
 
 function avpTextColor(avp: number): string {
@@ -89,24 +68,13 @@ function compTier(avp: number): { label: string; color: string; bg: string } {
 
 
 function UnitChip({ unit, size = 48 }: { unit: CompUnit; size?: number }) {
-  const dim = size >= 48 ? "w-12 h-12" : size >= 40 ? "w-10 h-10" : "w-9 h-9";
   return (
-    <div
-      className={`${dim} rounded-lg border-2 ${costBorderColor(unit.cost)} overflow-hidden shrink-0 transition-transform hover:scale-110 hover:z-10`}
-      title={formatUnit(unit.character_id)}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={unitImageUrl(unit.character_id)}
-        alt={formatUnit(unit.character_id)}
-        width={size}
-        height={size}
-        className={`${dim} object-cover`}
-        onError={(e) => {
-          (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
-        }}
-      />
-    </div>
+    <UnitImage
+      characterId={unit.character_id}
+      cost={unit.cost}
+      size={size}
+      className="transition-transform hover:scale-110 hover:z-10"
+    />
   );
 }
 
@@ -309,6 +277,9 @@ export default function CompsList({
   type SortKey = "avg_placement" | "comps" | "win_rate" | "top4_rate";
   const [sort, setSort] = useState<SortKey>("avg_placement");
   const [sortAsc, setSortAsc] = useState(true);
+  const PAGE_SIZE = 10;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   function handleSort(key: SortKey) {
     if (sort === key) setSortAsc((v) => !v);
@@ -405,6 +376,27 @@ export default function CompsList({
     }
     pushParams(params);
   }
+
+  // Reset visible count when filters/sort change
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [search, sort, sortAsc, data]);
+
+  const loadMore = useCallback(() => {
+    setVisibleCount((prev) => prev + PAGE_SIZE);
+  }, []);
+
+  // Auto-load more when sentinel scrolls into view
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) loadMore(); },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   const filtered = useMemo(() => {
     let rows = data.filter((comp) => comp.comps > 0);
@@ -528,7 +520,7 @@ export default function CompsList({
         </div>
       ) : (
         <div className="grid gap-3">
-          {filtered.map((comp, i) => (
+          {filtered.slice(0, visibleCount).map((comp, i) => (
             <CompCard
               key={`${i}-${comp.core_units.map((u) => u.character_id).join("|")}`}
               onExplore={handleExploreComp}
@@ -541,6 +533,11 @@ export default function CompsList({
               }}
             />
           ))}
+          {visibleCount < filtered.length && (
+            <div ref={sentinelRef} className="py-4 text-center text-tft-muted text-sm">
+              Loading more...
+            </div>
+          )}
         </div>
       )}
     </div>
