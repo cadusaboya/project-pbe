@@ -4,7 +4,9 @@ import Image from "next/image";
 import { Suspense } from "react";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { getDataVersion } from "@/lib/api";
 import StatsBar from "./components/StatsBar";
+import FreshnessGuard from "./components/FreshnessGuard";
 import Nav from "./components/Nav";
 import "./globals.css";
 
@@ -54,11 +56,13 @@ export const metadata: Metadata = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const dv = await getDataVersion();
+
   return (
     <html lang="en">
       <head>
@@ -122,6 +126,7 @@ export default function RootLayout({
             <StatsBar />
           </Suspense>
         </header>
+        <FreshnessGuard dataVersion={dv} />
         <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">{children}</main>
         <Analytics />
         <SpeedInsights />
