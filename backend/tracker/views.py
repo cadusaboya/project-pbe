@@ -8,7 +8,7 @@ import datetime
 
 import httpx
 from django.conf import settings
-from django.db.models import Count, Prefetch, Q, Sum
+from django.db.models import Count, Max, Prefetch, Q, Sum
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -360,31 +360,25 @@ class StatsView(APIView):
         if game_version:
             match_qs = match_qs.filter(game_version=game_version)
 
-        last_run = None
-        latest_match = match_qs.order_by("-game_datetime").first()
-        if latest_match:
-            info = (latest_match.raw_json or {}).get("info", {})
-            game_length_s = info.get("game_length") or 0
-            try:
-                game_length_s = max(float(game_length_s), 0.0)
-            except (TypeError, ValueError):
-                game_length_s = 0.0
-
-            game_start = latest_match.game_datetime
-            if game_start.tzinfo is None:
-                game_start = game_start.replace(tzinfo=datetime.timezone.utc)
-
-            game_end = game_start.astimezone(datetime.timezone.utc) + datetime.timedelta(
-                seconds=game_length_s
-            )
-            last_run = game_end.isoformat()
+        last_recomputed = AggregatedUnitStat.objects.aggregate(
+            latest=Max("updated_at")
+        )["latest"]
+        last_run = last_recomputed.isoformat() if last_recomputed else None
 
         return Response({
             "matches_analyzed": match_qs.count(),
             "players_tracked": Player.objects.filter(puuid__isnull=False).exclude(puuid="").count(),
             "participants_recorded": Participant.objects.count(),
             "last_fetch_at": last_run,
+            "data_version": Match.objects.count(),
         })
+
+
+class DataVersionView(APIView):
+    """GET /api/data-version/ — lightweight data version for cache busting."""
+
+    def get(self, request):
+        return _cc(Response({"data_version": Match.objects.count()}), 30)
 
 
 class ItemAssetsView(APIView):
