@@ -1,4 +1,4 @@
-import { backendUrl } from "@/lib/backend";
+import { fetchApi } from "@/lib/api";
 
 interface GlobalStats {
   matches_analyzed: number;
@@ -8,9 +8,7 @@ interface GlobalStats {
 
 async function fetchGlobalStats(): Promise<GlobalStats | null> {
   try {
-    const res = await fetch(backendUrl("/api/stats/"), {
-      next: { revalidate: 60 },
-    });
+    const res = await fetchApi("/api/stats/", { revalidate: 60 });
     if (!res.ok) return null;
     return res.json();
   } catch {

@@ -1,12 +1,12 @@
 import { Suspense } from "react";
 import SearchComps from "../components/SearchComps";
-import { backendUrl } from "@/lib/backend";
+import { getDataVersion, fetchApi } from "@/lib/api";
 import { UnitStat } from "../components/StatsTable";
 import { TraitInfo } from "../components/WinningCompsList";
 
-async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
+async function fetchTraitBreakpoints(dv: number): Promise<Record<string, TraitInfo>> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), { next: { revalidate: 60 } });
+    const res = await fetchApi("/api/traits/", { revalidate: 60 }, dv);
     if (!res.ok) return {};
     return res.json();
   } catch {
@@ -14,9 +14,9 @@ async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
   }
 }
 
-async function fetchItemData(): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
+async function fetchItemData(dv: number): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
   try {
-    const res = await fetch(backendUrl("/api/item-assets/"), { next: { revalidate: 60 } });
+    const res = await fetchApi("/api/item-assets/", { revalidate: 60 }, dv);
     if (!res.ok) return { assets: {}, names: {} };
     return res.json();
   } catch {
@@ -24,9 +24,9 @@ async function fetchItemData(): Promise<{ assets: Record<string, string>; names:
   }
 }
 
-async function fetchUnits(): Promise<UnitStat[]> {
+async function fetchUnits(dv: number): Promise<UnitStat[]> {
   try {
-    const res = await fetch(backendUrl("/api/unit-stats/?sort=games"), { next: { revalidate: 60 } });
+    const res = await fetchApi("/api/unit-stats/?sort=games", { revalidate: 60 }, dv);
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -35,10 +35,11 @@ async function fetchUnits(): Promise<UnitStat[]> {
 }
 
 export default async function SearchPage() {
+  const dv = await getDataVersion();
   const [units, itemData, traitData] = await Promise.all([
-    fetchUnits(),
-    fetchItemData(),
-    fetchTraitBreakpoints(),
+    fetchUnits(dv),
+    fetchItemData(dv),
+    fetchTraitBreakpoints(dv),
   ]);
 
   return (
@@ -55,6 +56,7 @@ export default async function SearchPage() {
           itemAssets={itemData.assets}
           itemNames={itemData.names}
           traitData={traitData}
+          dataVersion={dv}
         />
       </Suspense>
     </div>

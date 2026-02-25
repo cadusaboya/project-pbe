@@ -1,25 +1,23 @@
 import CompsList, { CompStat } from "../components/CompsList";
-import { backendUrl } from "@/lib/backend";
+import { getDataVersion, fetchApi } from "@/lib/api";
 
 interface CompsResponse {
   total_games: number;
   comps: CompStat[];
 }
 
-async function fetchCompStats(gameVersion?: string): Promise<CompsResponse> {
-  const url = new URL(backendUrl("/api/comps/"));
-  if (gameVersion) url.searchParams.set("game_version", gameVersion);
-
-  const res = await fetch(url.toString(), { next: { revalidate: 60 } });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch composition stats: ${res.status}`);
-  }
+async function fetchCompStats(dv: number, gameVersion?: string): Promise<CompsResponse> {
+  const path = gameVersion
+    ? `/api/comps/?game_version=${encodeURIComponent(gameVersion)}`
+    : "/api/comps/";
+  const res = await fetchApi(path, { revalidate: 60 }, dv);
+  if (!res.ok) throw new Error(`Failed to fetch composition stats: ${res.status}`);
   return res.json();
 }
 
-async function fetchVersions(): Promise<string[]> {
+async function fetchVersions(dv: number): Promise<string[]> {
   try {
-    const res = await fetch(backendUrl("/api/versions/"), { next: { revalidate: 60 } });
+    const res = await fetchApi("/api/versions/", { revalidate: 60 }, dv);
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -27,9 +25,9 @@ async function fetchVersions(): Promise<string[]> {
   }
 }
 
-async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
+async function fetchTraits(dv: number): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), { next: { revalidate: 60 } });
+    const res = await fetchApi("/api/traits/", { revalidate: 60 }, dv);
     if (!res.ok) return {};
     return res.json();
   } catch {
@@ -43,6 +41,7 @@ export default async function CompsPage({
   searchParams: Promise<{ game_version?: string }>;
 }) {
   const { game_version: gameVersion } = await searchParams;
+  const dv = await getDataVersion();
   let data: CompStat[] = [];
   let totalGames = 0;
   let versions: string[] = [];
@@ -51,9 +50,9 @@ export default async function CompsPage({
 
   try {
     const [compsRes, v, t] = await Promise.all([
-      fetchCompStats(gameVersion),
-      fetchVersions(),
-      fetchTraits(),
+      fetchCompStats(dv, gameVersion),
+      fetchVersions(dv),
+      fetchTraits(dv),
     ]);
     data = compsRes.comps;
     totalGames = compsRes.total_games;

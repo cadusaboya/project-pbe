@@ -1,8 +1,8 @@
 import PlayerStatsList, { PlayerStat } from "../components/PlayerStatsList";
-import { backendUrl } from "@/lib/backend";
+import { getDataVersion, fetchApi } from "@/lib/api";
 
-async function fetchPlayerStats(): Promise<PlayerStat[]> {
-  const res = await fetch(backendUrl("/api/player-stats/"), { next: { revalidate: 60 } });
+async function fetchPlayerStats(dv: number): Promise<PlayerStat[]> {
+  const res = await fetchApi("/api/player-stats/", { revalidate: 60 }, dv);
   if (!res.ok) {
     throw new Error(`Failed to fetch player stats: ${res.status}`);
   }
@@ -10,11 +10,12 @@ async function fetchPlayerStats(): Promise<PlayerStat[]> {
 }
 
 export default async function PlayersPage() {
+  const dv = await getDataVersion();
   let data: PlayerStat[] = [];
   let error: string | null = null;
 
   try {
-    data = await fetchPlayerStats();
+    data = await fetchPlayerStats(dv);
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";
   }

@@ -1,27 +1,25 @@
 import CompsList, { CompStat } from "../../components/CompsList";
-import { backendUrl } from "@/lib/backend";
+import { getDataVersion, fetchApi } from "@/lib/api";
 
 async function fetchHiddenCompStats(
+  dv: number,
   gameVersion?: string,
   coreSizes?: string,
   minOccurrences?: string,
 ): Promise<CompStat[]> {
-  const url = new URL(backendUrl("/api/comps/hidden/"));
-  url.searchParams.set("limit", "20");
-  if (gameVersion) url.searchParams.set("game_version", gameVersion);
-  if (coreSizes) url.searchParams.set("core_sizes", coreSizes);
-  if (minOccurrences) url.searchParams.set("min_occurrences", minOccurrences);
+  const params = new URLSearchParams({ limit: "20" });
+  if (gameVersion) params.set("game_version", gameVersion);
+  if (coreSizes) params.set("core_sizes", coreSizes);
+  if (minOccurrences) params.set("min_occurrences", minOccurrences);
 
-  const res = await fetch(url.toString(), { next: { revalidate: 60 } });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch hidden composition stats: ${res.status}`);
-  }
+  const res = await fetchApi(`/api/comps/hidden/?${params}`, { revalidate: 60 }, dv);
+  if (!res.ok) throw new Error(`Failed to fetch hidden composition stats: ${res.status}`);
   return res.json();
 }
 
-async function fetchVersions(): Promise<string[]> {
+async function fetchVersions(dv: number): Promise<string[]> {
   try {
-    const res = await fetch(backendUrl("/api/versions/"), { next: { revalidate: 60 } });
+    const res = await fetchApi("/api/versions/", { revalidate: 60 }, dv);
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -29,9 +27,9 @@ async function fetchVersions(): Promise<string[]> {
   }
 }
 
-async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
+async function fetchTraits(dv: number): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), { next: { revalidate: 60 } });
+    const res = await fetchApi("/api/traits/", { revalidate: 60 }, dv);
     if (!res.ok) return {};
     return res.json();
   } catch {
@@ -49,6 +47,7 @@ export default async function HiddenCompsPage({
     core_sizes: coreSizes = "4,5,6",
     min_occurrences: minOccurrences = "100",
   } = await searchParams;
+  const dv = await getDataVersion();
   let data: CompStat[] = [];
   let versions: string[] = [];
   let traitData: Record<string, { breakpoints: number[]; icon: string }> = {};
@@ -56,9 +55,9 @@ export default async function HiddenCompsPage({
 
   try {
     [data, versions, traitData] = await Promise.all([
-      fetchHiddenCompStats(gameVersion, coreSizes, minOccurrences),
-      fetchVersions(),
-      fetchTraits(),
+      fetchHiddenCompStats(dv, gameVersion, coreSizes, minOccurrences),
+      fetchVersions(dv),
+      fetchTraits(dv),
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";

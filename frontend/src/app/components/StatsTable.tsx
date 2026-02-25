@@ -203,11 +203,13 @@ export default function StatsTable({
   versions,
   selectedVersion,
   matchesAnalyzed,
+  dataVersion = 0,
 }: {
   data: UnitStat[];
   versions: string[];
   selectedVersion: string;
   matchesAnalyzed: number;
+  dataVersion?: number;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -222,14 +224,14 @@ export default function StatsTable({
   const [itemAssets, setItemAssets] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    fetch(backendUrl("/api/item-assets/"))
+    fetch(backendUrl(`/api/item-assets/?_v=${dataVersion}`))
       .then((r) => (r.ok ? r.json() : { assets: {}, names: {} }))
       .then((data: { assets: Record<string, string>; names: Record<string, string> }) => {
         setItemAssets(data.assets ?? data);
         if (data.names) _itemNamesCache = data.names;
       })
       .catch(() => {});
-  }, []);
+  }, [dataVersion]);
 
   function handleVersionChange(v: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -263,8 +265,10 @@ export default function StatsTable({
 
     setLoadingUnit(unitName);
     try {
-      const versionParam = selectedVersion ? `?game_version=${encodeURIComponent(selectedVersion)}` : "";
-      const url = backendUrl(`/api/unit-stats/${encodeURIComponent(unitName)}/star-stats/${versionParam}`);
+      const params = new URLSearchParams();
+      if (selectedVersion) params.set("game_version", selectedVersion);
+      params.set("_v", String(dataVersion));
+      const url = backendUrl(`/api/unit-stats/${encodeURIComponent(unitName)}/star-stats/?${params}`);
       const res = await fetch(url);
       if (res.ok) {
         const data: UnitDetailStats = await res.json();

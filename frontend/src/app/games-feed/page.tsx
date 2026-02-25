@@ -1,9 +1,9 @@
 import WinningCompsList, { TraitInfo, WinningComp } from "../components/WinningCompsList";
-import { backendUrl } from "@/lib/backend";
+import { getDataVersion, fetchApi } from "@/lib/api";
 
-async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
+async function fetchTraitBreakpoints(dv: number): Promise<Record<string, TraitInfo>> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), { next: { revalidate: 60 } });
+    const res = await fetchApi("/api/traits/", { revalidate: 60 }, dv);
     if (!res.ok) return {};
     return res.json();
   } catch {
@@ -11,21 +11,18 @@ async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
   }
 }
 
-async function fetchWinningComps(gameVersion?: string): Promise<WinningComp[]> {
-  const url = new URL(backendUrl("/api/winning-comps/"));
-  url.searchParams.set("limit", "200");
-  if (gameVersion) url.searchParams.set("game_version", gameVersion);
+async function fetchWinningComps(dv: number, gameVersion?: string): Promise<WinningComp[]> {
+  const params = new URLSearchParams({ limit: "200" });
+  if (gameVersion) params.set("game_version", gameVersion);
 
-  const res = await fetch(url.toString(), { next: { revalidate: 60 } });
+  const res = await fetchApi(`/api/winning-comps/?${params}`, { revalidate: 60 }, dv);
   if (!res.ok) throw new Error(`Failed to fetch winning comps: ${res.status}`);
   return res.json();
 }
 
-async function fetchItemData(): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
+async function fetchItemData(dv: number): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
   try {
-    const res = await fetch(backendUrl("/api/item-assets/"), {
-      next: { revalidate: 60 },
-    });
+    const res = await fetchApi("/api/item-assets/", { revalidate: 60 }, dv);
     if (!res.ok) return { assets: {}, names: {} };
     return res.json();
   } catch {
@@ -33,11 +30,9 @@ async function fetchItemData(): Promise<{ assets: Record<string, string>; names:
   }
 }
 
-async function fetchVersions(): Promise<string[]> {
+async function fetchVersions(dv: number): Promise<string[]> {
   try {
-    const res = await fetch(backendUrl("/api/versions/"), {
-      next: { revalidate: 60 },
-    });
+    const res = await fetchApi("/api/versions/", { revalidate: 60 }, dv);
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -51,6 +46,7 @@ export default async function GamesFeedPage({
   searchParams: Promise<{ game_version?: string }>;
 }) {
   const { game_version: gameVersion } = await searchParams;
+  const dv = await getDataVersion();
   let data: WinningComp[] = [];
   let itemAssets: Record<string, string> = {};
   let versions: string[] = [];
@@ -60,10 +56,10 @@ export default async function GamesFeedPage({
   try {
     let itemData: { assets: Record<string, string>; names: Record<string, string> };
     [data, itemData, versions, traitBreakpoints] = await Promise.all([
-      fetchWinningComps(gameVersion),
-      fetchItemData(),
-      fetchVersions(),
-      fetchTraitBreakpoints(),
+      fetchWinningComps(dv, gameVersion),
+      fetchItemData(dv),
+      fetchVersions(dv),
+      fetchTraitBreakpoints(dv),
     ]);
     itemAssets = itemData.assets;
   } catch (e) {

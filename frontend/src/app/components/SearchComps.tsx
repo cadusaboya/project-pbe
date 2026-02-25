@@ -494,11 +494,13 @@ export default function SearchComps({
   itemAssets,
   itemNames,
   traitData,
+  dataVersion = 0,
 }: {
   units: UnitStat[];
   itemAssets: Record<string, string>;
   itemNames?: Record<string, string>;
   traitData: Record<string, TraitInfo>;
+  dataVersion?: number;
 }) {
   const [requiredUnits, setRequiredUnits] = useState<string[]>([]);
   const [sort, setSort] = useState<"recency" | "placement">("recency");
@@ -523,6 +525,7 @@ export default function SearchComps({
         const url = new URL(backendUrl("/api/search-comps/"));
         for (const u of selectedUnits) url.searchParams.append("unit", u);
         url.searchParams.set("sort", sortMode);
+        url.searchParams.set("_v", String(dataVersion));
         const res = await fetch(url.toString());
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         setResults(await res.json());

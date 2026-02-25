@@ -1,11 +1,9 @@
 import PlayerProfile, { PlayerProfileData, TraitInfo } from "../../components/PlayerProfile";
-import { backendUrl } from "@/lib/backend";
+import { getDataVersion, fetchApi } from "@/lib/api";
 import Link from "next/link";
 
-async function fetchPlayerProfile(name: string): Promise<PlayerProfileData> {
-  const res = await fetch(backendUrl(`/api/player/${encodeURIComponent(name)}/profile/`), {
-    next: { revalidate: 60 },
-  });
+async function fetchPlayerProfile(dv: number, name: string): Promise<PlayerProfileData> {
+  const res = await fetchApi(`/api/player/${encodeURIComponent(name)}/profile/`, { revalidate: 60 }, dv);
   if (!res.ok) {
     if (res.status === 404) throw new Error("Player not found");
     throw new Error(`Failed to fetch profile: ${res.status}`);
@@ -13,9 +11,9 @@ async function fetchPlayerProfile(name: string): Promise<PlayerProfileData> {
   return res.json();
 }
 
-async function fetchItemData(): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
+async function fetchItemData(dv: number): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
   try {
-    const res = await fetch(backendUrl("/api/item-assets/"), { next: { revalidate: 60 } });
+    const res = await fetchApi("/api/item-assets/", { revalidate: 60 }, dv);
     if (!res.ok) return { assets: {}, names: {} };
     return res.json();
   } catch {
@@ -23,9 +21,9 @@ async function fetchItemData(): Promise<{ assets: Record<string, string>; names:
   }
 }
 
-async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
+async function fetchTraitBreakpoints(dv: number): Promise<Record<string, TraitInfo>> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), { next: { revalidate: 60 } });
+    const res = await fetchApi("/api/traits/", { revalidate: 60 }, dv);
     if (!res.ok) return {};
     return res.json();
   } catch {
@@ -40,6 +38,7 @@ export default async function PlayerPage({
 }) {
   const { name } = await params;
   const decodedName = decodeURIComponent(name);
+  const dv = await getDataVersion();
 
   let profile: PlayerProfileData | null = null;
   let itemAssets: Record<string, string> = {};
@@ -50,9 +49,9 @@ export default async function PlayerPage({
   try {
     let itemData: { assets: Record<string, string>; names: Record<string, string> };
     [profile, itemData, traitData] = await Promise.all([
-      fetchPlayerProfile(decodedName),
-      fetchItemData(),
-      fetchTraitBreakpoints(),
+      fetchPlayerProfile(dv, decodedName),
+      fetchItemData(dv),
+      fetchTraitBreakpoints(dv),
     ]);
     itemAssets = itemData.assets;
     itemNames = itemData.names;

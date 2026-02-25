@@ -739,12 +739,14 @@ export default function DataExplorer({
   selectedVersion: initialVersion,
   initialConditions = [],
   traitData = {},
+  dataVersion = 0,
 }: {
   units: UnitStat[];
   versions: string[];
   selectedVersion: string;
   initialConditions?: { type: string; unit?: string; trait?: string; count?: number; star?: number; level?: number; item?: string; itemCount?: number }[];
   traitData?: TraitData;
+  dataVersion?: number;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -843,14 +845,14 @@ export default function DataExplorer({
   const [tableSearch, setTableSearch] = useState("");
 
   useEffect(() => {
-    fetch(backendUrl("/api/item-assets/"))
+    fetch(backendUrl(`/api/item-assets/?_v=${dataVersion}`))
       .then((r) => (r.ok ? r.json() : { assets: {}, names: {} }))
       .then((data: { assets: Record<string, string>; names: Record<string, string> }) => {
         setItemAssets(data.assets ?? data);
         if (data.names) _itemNamesCache = data.names;
       })
       .catch(() => {});
-  }, []);
+  }, [dataVersion]);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -866,6 +868,7 @@ export default function DataExplorer({
     debounceRef.current = setTimeout(() => {
       const params = filtersToParams(filters, selectedVersion, traitData);
       params.set("include_trait_stats", "1");
+      params.set("_v", String(dataVersion));
       fetch(backendUrl(`/api/explore/?${params.toString()}`))
         .then((r) => (r.ok ? r.json() : null))
         .then(setExploreData)

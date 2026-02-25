@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { backendUrl } from "@/lib/backend";
+import { getDataVersion, fetchApi } from "@/lib/api";
 import { UnitImage } from "./components/TftImage";
 import { formatUnit } from "@/lib/tftUtils";
 
@@ -26,11 +26,9 @@ interface TopComp {
   flex_combos: FlexCombo[];
 }
 
-async function fetchTopUnits(): Promise<TopUnit[]> {
+async function fetchTopUnits(dv: number): Promise<TopUnit[]> {
   try {
-    const res = await fetch(backendUrl("/api/unit-stats/?sort=avg_placement&min_games=20"), {
-      next: { revalidate: 60 },
-    });
+    const res = await fetchApi("/api/unit-stats/?sort=avg_placement&min_games=20", { revalidate: 60 }, dv);
     if (!res.ok) return [];
     const data: TopUnit[] = await res.json();
     return data.slice(0, 5);
@@ -39,11 +37,9 @@ async function fetchTopUnits(): Promise<TopUnit[]> {
   }
 }
 
-async function fetchTopComps(): Promise<TopComp[]> {
+async function fetchTopComps(dv: number): Promise<TopComp[]> {
   try {
-    const res = await fetch(backendUrl("/api/comps/?top_flex=1"), {
-      next: { revalidate: 60 },
-    });
+    const res = await fetchApi("/api/comps/?top_flex=1", { revalidate: 60 }, dv);
     if (!res.ok) return [];
     const json = await res.json();
     const data: TopComp[] = json.comps ?? json;
@@ -157,7 +153,8 @@ const features = [
 ];
 
 export default async function Home() {
-  const [topUnits, topComps] = await Promise.all([fetchTopUnits(), fetchTopComps()]);
+  const dv = await getDataVersion();
+  const [topUnits, topComps] = await Promise.all([fetchTopUnits(dv), fetchTopComps(dv)]);
   const hasQuickStats = topUnits.length > 0 || topComps.length > 0;
 
   return (

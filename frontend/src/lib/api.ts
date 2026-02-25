@@ -33,3 +33,17 @@ export async function fetchApi(
     next: { revalidate: opts.revalidate ?? 300 },
   });
 }
+
+/**
+ * Convenience wrapper: fetchApi + JSON parse.
+ * Returns the parsed response body typed as T.
+ */
+export async function fetchJson<T>(
+  path: string,
+  opts: { revalidate?: number } = {},
+  dv?: number,
+): Promise<T> {
+  const res = await fetchApi(path, opts, dv);
+  if (!res.ok) throw new Error(`API ${path}: ${res.status}`);
+  return res.json();
+}

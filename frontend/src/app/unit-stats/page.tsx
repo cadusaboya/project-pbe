@@ -1,24 +1,18 @@
 import StatsTable, { UnitStat } from "../components/StatsTable";
-import { backendUrl } from "@/lib/backend";
+import { getDataVersion, fetchApi } from "@/lib/api";
 
-async function fetchStats(gameVersion?: string): Promise<UnitStat[]> {
-  const url = new URL(backendUrl("/api/unit-stats/"));
-  if (gameVersion) url.searchParams.set("game_version", gameVersion);
-
-  const res = await fetch(url.toString(), { next: { revalidate: 60 } });
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch stats: ${res.status}`);
-  }
-
+async function fetchStats(dv: number, gameVersion?: string): Promise<UnitStat[]> {
+  const path = gameVersion
+    ? `/api/unit-stats/?game_version=${encodeURIComponent(gameVersion)}`
+    : "/api/unit-stats/";
+  const res = await fetchApi(path, { revalidate: 60 }, dv);
+  if (!res.ok) throw new Error(`Failed to fetch stats: ${res.status}`);
   return res.json();
 }
 
-async function fetchVersions(): Promise<string[]> {
+async function fetchVersions(dv: number): Promise<string[]> {
   try {
-    const res = await fetch(backendUrl("/api/versions/"), {
-      next: { revalidate: 60 },
-    });
+    const res = await fetchApi("/api/versions/", { revalidate: 60 }, dv);
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -26,11 +20,12 @@ async function fetchVersions(): Promise<string[]> {
   }
 }
 
-async function fetchMatchesAnalyzed(gameVersion?: string): Promise<number> {
+async function fetchMatchesAnalyzed(dv: number, gameVersion?: string): Promise<number> {
   try {
-    const url = new URL(backendUrl("/api/stats/"));
-    if (gameVersion) url.searchParams.set("game_version", gameVersion);
-    const res = await fetch(url.toString(), { next: { revalidate: 60 } });
+    const path = gameVersion
+      ? `/api/stats/?game_version=${encodeURIComponent(gameVersion)}`
+      : "/api/stats/";
+    const res = await fetchApi(path, { revalidate: 60 }, dv);
     if (!res.ok) return 0;
     const data = await res.json();
     return Number(data.matches_analyzed ?? 0);
@@ -45,6 +40,7 @@ export default async function Home({
   searchParams: Promise<{ game_version?: string }>;
 }) {
   const { game_version: gameVersion } = await searchParams;
+  const dv = await getDataVersion();
   let data: UnitStat[] = [];
   let versions: string[] = [];
   let matchesAnalyzed = 0;
@@ -52,9 +48,9 @@ export default async function Home({
 
   try {
     [data, versions, matchesAnalyzed] = await Promise.all([
-      fetchStats(gameVersion),
-      fetchVersions(),
-      fetchMatchesAnalyzed(gameVersion),
+      fetchStats(dv, gameVersion),
+      fetchVersions(dv),
+      fetchMatchesAnalyzed(dv, gameVersion),
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";
@@ -90,6 +86,7 @@ export default async function Home({
           versions={versions}
           selectedVersion={gameVersion ?? ""}
           matchesAnalyzed={matchesAnalyzed}
+          dataVersion={dv}
         />
       )}
     </div>

@@ -1,13 +1,11 @@
 import { Suspense } from "react";
-import { backendUrl } from "@/lib/backend";
+import { getDataVersion, fetchApi } from "@/lib/api";
 import ItemsExplorer from "../components/ItemsExplorer";
 import { UnitStat } from "../components/StatsTable";
 
-async function fetchUnits(): Promise<UnitStat[]> {
+async function fetchUnits(dv: number): Promise<UnitStat[]> {
   try {
-    const res = await fetch(backendUrl("/api/unit-stats/?sort=games"), {
-      next: { revalidate: 60 },
-    });
+    const res = await fetchApi("/api/unit-stats/?sort=games", { revalidate: 60 }, dv);
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -15,11 +13,9 @@ async function fetchUnits(): Promise<UnitStat[]> {
   }
 }
 
-async function fetchVersions(): Promise<string[]> {
+async function fetchVersions(dv: number): Promise<string[]> {
   try {
-    const res = await fetch(backendUrl("/api/versions/"), {
-      next: { revalidate: 60 },
-    });
+    const res = await fetchApi("/api/versions/", { revalidate: 60 }, dv);
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -33,8 +29,9 @@ export default async function ItemsPage({
   searchParams: Promise<{ game_version?: string }>;
 }) {
   const { game_version: gameVersion } = await searchParams;
+  const dv = await getDataVersion();
 
-  const [units, versions] = await Promise.all([fetchUnits(), fetchVersions()]);
+  const [units, versions] = await Promise.all([fetchUnits(dv), fetchVersions(dv)]);
 
   return (
     <Suspense fallback={null}>
@@ -42,6 +39,7 @@ export default async function ItemsPage({
         units={units}
         versions={versions}
         selectedVersion={gameVersion ?? ""}
+        dataVersion={dv}
       />
     </Suspense>
   );
