@@ -852,24 +852,31 @@ export default function DataExplorer({
       .catch(() => {});
   }, []);
 
-  const fetchData = useCallback(() => {
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
     if (filters.length === 0) {
       setExploreData(null);
       return;
     }
-    setLoading(true);
-    const params = filtersToParams(filters, selectedVersion, traitData);
-    params.set("include_trait_stats", "1");
-    fetch(backendUrl(`/api/explore/?${params.toString()}`))
-      .then((r) => (r.ok ? r.json() : null))
-      .then(setExploreData)
-      .catch(() => setExploreData(null))
-      .finally(() => setLoading(false));
-  }, [filters, selectedVersion, traitData]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    setLoading(true);
+    debounceRef.current = setTimeout(() => {
+      const params = filtersToParams(filters, selectedVersion, traitData);
+      params.set("include_trait_stats", "1");
+      fetch(backendUrl(`/api/explore/?${params.toString()}`))
+        .then((r) => (r.ok ? r.json() : null))
+        .then(setExploreData)
+        .catch(() => setExploreData(null))
+        .finally(() => setLoading(false));
+    }, 400);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [filters, selectedVersion, traitData]);
 
   function handleVersionChange(v: string) {
     setSelectedVersion(v);

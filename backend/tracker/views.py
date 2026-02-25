@@ -36,6 +36,8 @@ _PLAYERS_CACHE: list | None = None
 _PLAYERS_CACHE_VERSION: int = -1
 _COMPS_CACHE: dict[tuple, dict] = {}
 _COMPS_CACHE_VERSION: int = -1
+_EXPLORE_BASE_CACHE: dict[str, list[dict]] = {}  # game_version -> participant dicts
+_EXPLORE_CACHE_VERSION: int = -1
 
 # Canonical item mapping: maps every item_id to a single "canonical" ID
 # so that duplicates (e.g. TFT_Item_InfinityEdge vs TFT_Item_CorruptedInfinityEdge)
@@ -694,6 +696,118 @@ class ExploreView(APIView):
       exclude_trait          – "TraitName:Threshold" — exclude boards where trait has >= Threshold active units
     """
 
+    @staticmethod
+    def _build_participant_data(game_version: str | None) -> list[dict]:
+        """Build pre-processed participant dicts (cacheable, filter-independent)."""
+        cmap = _get_item_canonical_map()
+        unit_traits_map: dict[str, list] = dict(
+            Unit.objects.values_list("character_id", "traits")
+        )
+
+        qs = Participant.objects.all()
+        if game_version:
+            qs = qs.filter(match__game_version=game_version)
+        # Defer raw_json to avoid loading ~22KB per match in the JOIN;
+        # load it separately as a dict keyed by match_id.
+        qs = qs.select_related("match").defer("match__raw_json").prefetch_related(
+            Prefetch(
+                "unit_usages",
+                queryset=UnitUsage.objects.select_related("unit"),
+            )
+        )
+
+        match_ids = set()
+        participants_raw = list(qs)
+        for p in participants_raw:
+            match_ids.add(p.match_id)
+        raw_jsons: dict[str, dict] = dict(
+            Match.objects.filter(match_id__in=match_ids).values_list(
+                "match_id", "raw_json"
+            )
+        )
+
+        match_participant_cache: dict[str, dict[str, dict]] = {}
+        participants: list[dict] = []
+        for p in participants_raw:
+            unit_map: dict[str, set] = {}
+            unit_count_by_unit: dict[str, int] = {}
+            unit_max_star_by_unit: dict[str, int] = {}
+            item_count_by_unit: dict[str, int] = {}
+            for uu in p.unit_usages.all():
+                if not uu.unit_id or not uu.unit or not uu.unit.character_id:
+                    continue
+                char_id = uu.unit.character_id
+                unit_map[char_id] = {
+                    cmap.get(i, i) for i in (uu.items or []) if i
+                }
+                item_count_by_unit[char_id] = max(
+                    item_count_by_unit.get(char_id, 0),
+                    len(uu.items or []),
+                )
+                unit_count_by_unit[char_id] = (
+                    unit_count_by_unit.get(char_id, 0) + 1
+                )
+                unit_max_star_by_unit[char_id] = max(
+                    unit_max_star_by_unit.get(char_id, 0),
+                    int(uu.star_level or 0),
+                )
+
+            p_data: dict = {
+                "placement": p.placement,
+                "level": p.level,
+                "unit_set": set(unit_map.keys()),
+                "unit_items": unit_map,
+                "unit_count_by_unit": unit_count_by_unit,
+                "unit_max_star_by_unit": unit_max_star_by_unit,
+                "item_count_by_unit": item_count_by_unit,
+                "trait_unit_counts": {},
+                "derived_trait_counts": {},
+                "trait_tiers": {},
+            }
+
+            # Trait data from raw_json
+            trait_unit_counts: dict[str, int] = {}
+            trait_tiers: dict[str, int] = {}
+            match_map = match_participant_cache.get(p.match_id)
+            if match_map is None:
+                rj = raw_jsons.get(p.match_id) or {}
+                pp_list = rj.get("info", {}).get("participants", [])
+                match_map = {
+                    str(pp.get("puuid", "")): pp
+                    for pp in pp_list
+                    if pp.get("puuid")
+                }
+                match_participant_cache[p.match_id] = match_map
+            pdata = match_map.get(p.puuid)
+            if pdata:
+                for t in pdata.get("traits", []) or []:
+                    tier_current = t.get("tier_current", 0) or 0
+                    num_units = t.get("num_units", 0) or 0
+                    if tier_current > 0 or num_units > 0:
+                        name = str(t.get("name", "")).strip()
+                        if name:
+                            trait_unit_counts[name] = max(
+                                int(num_units),
+                                trait_unit_counts.get(name, 0),
+                            )
+                            if tier_current > 0:
+                                trait_tiers[name] = max(
+                                    tier_current,
+                                    trait_tiers.get(name, 0),
+                                )
+            p_data["trait_unit_counts"] = trait_unit_counts
+            p_data["trait_tiers"] = trait_tiers
+            derived: dict[str, int] = defaultdict(int)
+            for uid, cnt in unit_count_by_unit.items():
+                for t in unit_traits_map.get(uid) or []:
+                    t_name = str(t).strip()
+                    if t_name:
+                        derived[t_name] += cnt
+            p_data["derived_trait_counts"] = dict(derived)
+
+            participants.append(p_data)
+        return participants
+
     def get(self, request):
         game_version = request.query_params.get("game_version")
         include_trait_stats = request.query_params.get("include_trait_stats") == "1"
@@ -767,20 +881,19 @@ class ExploreView(APIView):
         if needs_trait_data:
             _ensure_trait_cache()
 
-        qs = Participant.objects.all()
-        if game_version:
-            qs = qs.filter(match__game_version=game_version)
-        if needs_trait_data:
-            qs = qs.select_related("match")
-        qs = qs.prefetch_related(
-            Prefetch("unit_usages", queryset=UnitUsage.objects.select_related("unit"))
-        )
+        # --- In-process cache: reuse pre-built participant dicts when match count unchanged ---
+        global _EXPLORE_BASE_CACHE, _EXPLORE_CACHE_VERSION
+        match_count = Match.objects.count()
+        version_key = game_version or ""
+        if match_count != _EXPLORE_CACHE_VERSION:
+            _EXPLORE_BASE_CACHE.clear()
+            _EXPLORE_CACHE_VERSION = match_count
 
-        unit_traits_map: dict[str, list] = {}
-        if needs_trait_data:
-            unit_traits_map = dict(Unit.objects.values_list("character_id", "traits"))
-
-        match_participant_cache: dict[str, dict[str, dict]] = {}
+        if version_key in _EXPLORE_BASE_CACHE:
+            participants = _EXPLORE_BASE_CACHE[version_key]
+        else:
+            participants = self._build_participant_data(game_version)
+            _EXPLORE_BASE_CACHE[version_key] = participants
 
         def _trait_matches(req_lower: str, api_name: str) -> bool:
             if req_lower in api_name.lower():
@@ -830,80 +943,11 @@ class ExploreView(APIView):
                 if min_u > 1:
                     _require_trait_tier_map[trait_lower] = _breakpoint_tier(trait_lower, min_u)
 
-        # Build Python-friendly data for each participant
-        cmap = _get_item_canonical_map()
         # Resolve item filter params to canonical IDs
+        cmap = _get_item_canonical_map()
         require_items = [(u, cmap.get(i, i)) for u, i in require_items]
         require_items_any = {cmap.get(i, i) for i in require_items_any}
         exclude_items = {cmap.get(i, i) for i in exclude_items}
-
-        participants = []
-        for p in qs:
-            unit_map: dict[str, set] = {}
-            unit_count_by_unit: dict[str, int] = {}
-            unit_max_star_by_unit: dict[str, int] = {}
-            item_count_by_unit: dict[str, int] = {}
-            for uu in p.unit_usages.all():
-                if not uu.unit_id or not uu.unit or not uu.unit.character_id:
-                    continue
-                char_id = uu.unit.character_id
-                unit_map[char_id] = {cmap.get(i, i) for i in (uu.items or []) if i}
-                item_count_by_unit[char_id] = max(
-                    item_count_by_unit.get(char_id, 0),
-                    len(uu.items or []),
-                )
-                if needs_extra_unit_data or needs_trait_data:
-                    unit_count_by_unit[char_id] = unit_count_by_unit.get(char_id, 0) + 1
-                    unit_max_star_by_unit[char_id] = max(
-                        unit_max_star_by_unit.get(char_id, 0), int(uu.star_level or 0)
-                    )
-
-            p_data: dict = {
-                "placement": p.placement,
-                "level": p.level,
-                "unit_set": set(unit_map.keys()),
-                "unit_items": unit_map,
-                "unit_count_by_unit": unit_count_by_unit,
-                "unit_max_star_by_unit": unit_max_star_by_unit,
-                "item_count_by_unit": item_count_by_unit,
-                "trait_unit_counts": {},
-                "derived_trait_counts": {},
-            }
-
-            if needs_trait_data:
-                trait_unit_counts: dict[str, int] = {}
-                trait_tiers: dict[str, int] = {}
-                match_map = match_participant_cache.get(p.match_id)
-                if match_map is None:
-                    pp_list = (p.match.raw_json or {}).get("info", {}).get("participants", [])
-                    match_map = {
-                        str(pp.get("puuid", "")): pp
-                        for pp in pp_list
-                        if pp.get("puuid")
-                    }
-                    match_participant_cache[p.match_id] = match_map
-                pdata = match_map.get(p.puuid)
-                if pdata:
-                    for t in pdata.get("traits", []) or []:
-                        tier_current = t.get("tier_current", 0) or 0
-                        num_units = t.get("num_units", 0) or 0
-                        if tier_current > 0 or num_units > 0:
-                            name = str(t.get("name", "")).strip()
-                            if name:
-                                trait_unit_counts[name] = max(int(num_units), trait_unit_counts.get(name, 0))
-                                if tier_current > 0:
-                                    trait_tiers[name] = max(tier_current, trait_tiers.get(name, 0))
-                p_data["trait_unit_counts"] = trait_unit_counts
-                p_data["trait_tiers"] = trait_tiers
-                derived: dict[str, int] = defaultdict(int)
-                for uid, cnt in unit_count_by_unit.items():
-                    for t in unit_traits_map.get(uid) or []:
-                        t_name = str(t).strip()
-                        if t_name:
-                            derived[t_name] += cnt
-                p_data["derived_trait_counts"] = dict(derived)
-
-            participants.append(p_data)
 
         def matches(p_data: dict) -> bool:
             unit_set = p_data["unit_set"]
@@ -1112,7 +1156,7 @@ class ExploreView(APIView):
         }
         if include_trait_stats:
             response_data["trait_stats"] = trait_stats
-        return Response(response_data)
+        return _cc(Response(response_data), 300)
 
 
 class HiddenCompsView(APIView):
