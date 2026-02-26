@@ -34,16 +34,18 @@ export default async function PlayersPage({
         <p className="text-tft-muted text-xs sm:text-sm mt-1">
           Rankings for all tracked players. Click a player to view their full profile.
         </p>
-        <p className="text-sm mt-2">
-          <a
-            href="https://projectsbykai.com/project-pbe/leaderboards/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-tft-gold hover:underline"
-          >
-            Project PBE official leaderboard
-          </a>
-        </p>
+        {server === "PBE" && (
+          <p className="text-sm mt-2">
+            <a
+              href="https://projectsbykai.com/project-pbe/leaderboards/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-tft-gold hover:underline"
+            >
+              Project PBE official leaderboard
+            </a>
+          </p>
+        )}
       </div>
 
       {error ? (

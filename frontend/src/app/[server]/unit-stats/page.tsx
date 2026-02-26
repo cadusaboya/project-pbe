@@ -71,7 +71,7 @@ export default async function Home({
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-tft-text">Unit Statistics</h1>
         <p className="text-tft-muted text-xs sm:text-sm mt-1">
-          Aggregated data from tracked PBE matches. Click column headers to sort.
+          Aggregated data from tracked pros final boards.
         </p>
       </div>
 

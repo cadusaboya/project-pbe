@@ -76,7 +76,7 @@ export default async function CompsPage({
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-tft-text">Compositions</h1>
         <p className="text-tft-muted text-xs sm:text-sm mt-1">
-          Curated from project PBE. Click to view the 3 most common flex combos and AVP.
+          Curated comps, click to view the 3 most common flex combos and AVP. Click on Explore for a full grasp on how to optimize the comp.
         </p>
       </div>
 
