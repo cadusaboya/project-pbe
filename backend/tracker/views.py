@@ -382,13 +382,14 @@ class StatsView(APIView):
         if game_version:
             match_qs = match_qs.filter(game_version=game_version)
 
-        last_match = match_qs.aggregate(latest=Max("created_at"))["latest"]
-        last_run = last_match.isoformat() if last_match else None
-
         if server == "PBE":
-            players_count = Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid="").count()
+            player_qs = Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid="")
         else:
-            players_count = Player.objects.filter(puuid__isnull=False).exclude(puuid="").exclude(region="PBE").count()
+            player_qs = Player.objects.filter(puuid__isnull=False).exclude(puuid="").exclude(region="PBE")
+        players_count = player_qs.count()
+
+        last_polled = player_qs.aggregate(latest=Max("last_polled_at"))["latest"]
+        last_run = last_polled.isoformat() if last_polled else None
 
         participant_qs = Participant.objects.filter(match__server=server)
         if server == "LIVE":

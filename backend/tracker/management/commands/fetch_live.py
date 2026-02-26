@@ -150,8 +150,12 @@ class Command(BaseCommand):
                 self._fetch_match_ids_for_player(api_key, player.puuid, player.region)
             )
 
+            now_utc = datetime.datetime.now(datetime.timezone.utc)
+
             if not match_ids:
                 self.stdout.write(f"  {label} - no matches, skipping")
+                player.last_polled_at = now_utc
+                player.save(update_fields=["last_polled_at"])
                 continue
 
             if player.last_seen_match_id and player.last_seen_match_id in match_ids:
@@ -168,7 +172,8 @@ class Command(BaseCommand):
             if not candidate_ids:
                 self.stdout.write(f"  {label} - no new IDs since checkpoint")
                 player.last_seen_match_id = match_ids[0]
-                player.save(update_fields=["last_seen_match_id"])
+                player.last_polled_at = now_utc
+                player.save(update_fields=["last_seen_match_id", "last_polled_at"])
                 continue
 
             if not new_ids:
@@ -176,7 +181,8 @@ class Command(BaseCommand):
                     f"  {label} - {len(candidate_ids)} candidate match(es), all already stored"
                 )
                 player.last_seen_match_id = match_ids[0]
-                player.save(update_fields=["last_seen_match_id"])
+                player.last_polled_at = now_utc
+                player.save(update_fields=["last_seen_match_id", "last_polled_at"])
                 continue
 
             self.stdout.write(
@@ -233,9 +239,12 @@ class Command(BaseCommand):
                 except Exception as exc:
                     logger.error("Error processing %s: %s", mid, exc, exc_info=True)
 
+            player.last_polled_at = now_utc
             if not had_fetch_fail:
                 player.last_seen_match_id = match_ids[0]
-                player.save(update_fields=["last_seen_match_id"])
+                player.save(update_fields=["last_seen_match_id", "last_polled_at"])
+            else:
+                player.save(update_fields=["last_polled_at"])
 
         self.stdout.write(f"\nStored {total_stored} new match(es) in total.")
 
