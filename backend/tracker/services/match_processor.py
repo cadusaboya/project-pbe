@@ -15,7 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "16.6 B") -> bool:
+def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "16.6 D") -> bool:
     """
     Store a match and the unit data for every participant (all 8 slots).
 
