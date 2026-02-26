@@ -1,9 +1,9 @@
-import WinningCompsList, { TraitInfo, WinningComp } from "../components/WinningCompsList";
-import { getDataVersion, fetchApi } from "@/lib/api";
+import WinningCompsList, { TraitInfo, WinningComp } from "../../components/WinningCompsList";
+import { backendUrl } from "@/lib/backend";
 
-async function fetchTraitBreakpoints(dv: number): Promise<Record<string, TraitInfo>> {
+async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
   try {
-    const res = await fetchApi("/api/traits/", { revalidate: 60 }, dv);
+    const res = await fetch(backendUrl("/api/traits/"), { cache: "no-store" });
     if (!res.ok) return {};
     return res.json();
   } catch {
@@ -11,18 +11,22 @@ async function fetchTraitBreakpoints(dv: number): Promise<Record<string, TraitIn
   }
 }
 
-async function fetchWinningComps(dv: number, gameVersion?: string): Promise<WinningComp[]> {
-  const params = new URLSearchParams({ limit: "200" });
-  if (gameVersion) params.set("game_version", gameVersion);
+async function fetchWinningComps(gameVersion?: string, server?: string): Promise<WinningComp[]> {
+  const url = new URL(backendUrl("/api/winning-comps/"));
+  url.searchParams.set("limit", "200");
+  if (gameVersion) url.searchParams.set("game_version", gameVersion);
+  if (server) url.searchParams.set("server", server);
 
-  const res = await fetchApi(`/api/winning-comps/?${params}`, { revalidate: 60 }, dv);
+  const res = await fetch(url.toString(), { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to fetch winning comps: ${res.status}`);
   return res.json();
 }
 
-async function fetchItemData(dv: number): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
+async function fetchItemData(): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
   try {
-    const res = await fetchApi("/api/item-assets/", { revalidate: 60 }, dv);
+    const res = await fetch(backendUrl("/api/item-assets/"), {
+      cache: "no-store",
+    });
     if (!res.ok) return { assets: {}, names: {} };
     return res.json();
   } catch {
@@ -30,9 +34,11 @@ async function fetchItemData(dv: number): Promise<{ assets: Record<string, strin
   }
 }
 
-async function fetchVersions(dv: number): Promise<string[]> {
+async function fetchVersions(server?: string): Promise<string[]> {
   try {
-    const res = await fetchApi("/api/versions/", { revalidate: 60 }, dv);
+    const url = new URL(backendUrl("/api/versions/"));
+    if (server) url.searchParams.set("server", server);
+    const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -41,14 +47,18 @@ async function fetchVersions(dv: number): Promise<string[]> {
 }
 
 export default async function GamesFeedPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ server: string }>;
   searchParams: Promise<{ game_version?: string }>;
 }) {
+  const { server: serverSlug } = await params;
+  const server = serverSlug.toUpperCase();
   const { game_version: gameVersion } = await searchParams;
-  const dv = await getDataVersion();
   let data: WinningComp[] = [];
   let itemAssets: Record<string, string> = {};
+  let itemNames: Record<string, string> = {};
   let versions: string[] = [];
   let error: string | null = null;
 
@@ -56,12 +66,13 @@ export default async function GamesFeedPage({
   try {
     let itemData: { assets: Record<string, string>; names: Record<string, string> };
     [data, itemData, versions, traitBreakpoints] = await Promise.all([
-      fetchWinningComps(dv, gameVersion),
-      fetchItemData(dv),
-      fetchVersions(dv),
-      fetchTraitBreakpoints(dv),
+      fetchWinningComps(gameVersion, server),
+      fetchItemData(),
+      fetchVersions(server),
+      fetchTraitBreakpoints(),
     ]);
     itemAssets = itemData.assets;
+    itemNames = itemData.names;
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";
   }
@@ -71,7 +82,7 @@ export default async function GamesFeedPage({
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-tft-text">Games Feed</h1>
         <p className="text-tft-muted text-xs sm:text-sm mt-1">
-          PBE matches tracked, sorted by most recent. Click to see the full lobby.
+          Matches tracked, sorted by most recent. Click to see the full lobby.
         </p>
       </div>
 
@@ -97,6 +108,7 @@ export default async function GamesFeedPage({
           versions={versions}
           selectedVersion={gameVersion ?? ""}
           traitData={traitBreakpoints}
+          server={server}
         />
       )}
     </div>

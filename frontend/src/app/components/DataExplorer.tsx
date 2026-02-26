@@ -739,14 +739,14 @@ export default function DataExplorer({
   selectedVersion: initialVersion,
   initialConditions = [],
   traitData = {},
-  dataVersion = 0,
+  server,
 }: {
   units: UnitStat[];
   versions: string[];
   selectedVersion: string;
   initialConditions?: { type: string; unit?: string; trait?: string; count?: number; star?: number; level?: number; item?: string; itemCount?: number }[];
   traitData?: TraitData;
-  dataVersion?: number;
+  server: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -845,14 +845,14 @@ export default function DataExplorer({
   const [tableSearch, setTableSearch] = useState("");
 
   useEffect(() => {
-    fetch(backendUrl(`/api/item-assets/?_v=${dataVersion}`))
+    fetch(backendUrl(`/api/item-assets/?server=${encodeURIComponent(server)}`))
       .then((r) => (r.ok ? r.json() : { assets: {}, names: {} }))
       .then((data: { assets: Record<string, string>; names: Record<string, string> }) => {
         setItemAssets(data.assets ?? data);
         if (data.names) _itemNamesCache = data.names;
       })
       .catch(() => {});
-  }, [dataVersion]);
+  }, [server]);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -868,7 +868,7 @@ export default function DataExplorer({
     debounceRef.current = setTimeout(() => {
       const params = filtersToParams(filters, selectedVersion, traitData);
       params.set("include_trait_stats", "1");
-      params.set("_v", String(dataVersion));
+      params.set("server", server);
       fetch(backendUrl(`/api/explore/?${params.toString()}`))
         .then((r) => (r.ok ? r.json() : null))
         .then(setExploreData)
@@ -879,14 +879,14 @@ export default function DataExplorer({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [filters, selectedVersion, traitData]);
+  }, [filters, selectedVersion, traitData, server]);
 
   function handleVersionChange(v: string) {
     setSelectedVersion(v);
     const p = new URLSearchParams(searchParams.toString());
     if (v) p.set("game_version", v);
     else p.delete("game_version");
-    router.push(`/explore?${p.toString()}`);
+    router.push(`/${server.toLowerCase()}/explore?${p.toString()}`);
   }
 
   function handleSearchSelect(item: SearchResultItem) {

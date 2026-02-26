@@ -30,9 +30,11 @@ class WinningCompSerializer(serializers.ModelSerializer):
     winner = serializers.SerializerMethodField()
     units = WinningUnitSerializer(source="unit_usages", many=True, read_only=True)
 
+    placement = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = Participant
-        fields = ["match_id", "game_datetime", "game_version", "winner", "units"]
+        fields = ["match_id", "game_datetime", "game_version", "winner", "placement", "units"]
 
     def get_winner(self, obj):
         return str(obj.player) if obj.player else obj.puuid

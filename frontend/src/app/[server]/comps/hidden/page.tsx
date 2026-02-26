@@ -1,25 +1,31 @@
-import CompsList, { CompStat } from "../../components/CompsList";
-import { getDataVersion, fetchApi } from "@/lib/api";
+import CompsList, { CompStat } from "../../../components/CompsList";
+import { backendUrl } from "@/lib/backend";
 
 async function fetchHiddenCompStats(
-  dv: number,
   gameVersion?: string,
   coreSizes?: string,
   minOccurrences?: string,
+  server?: string,
 ): Promise<CompStat[]> {
-  const params = new URLSearchParams({ limit: "20" });
-  if (gameVersion) params.set("game_version", gameVersion);
-  if (coreSizes) params.set("core_sizes", coreSizes);
-  if (minOccurrences) params.set("min_occurrences", minOccurrences);
+  const url = new URL(backendUrl("/api/comps/hidden/"));
+  url.searchParams.set("limit", "20");
+  if (gameVersion) url.searchParams.set("game_version", gameVersion);
+  if (coreSizes) url.searchParams.set("core_sizes", coreSizes);
+  if (minOccurrences) url.searchParams.set("min_occurrences", minOccurrences);
+  if (server) url.searchParams.set("server", server);
 
-  const res = await fetchApi(`/api/comps/hidden/?${params}`, { revalidate: 60 }, dv);
-  if (!res.ok) throw new Error(`Failed to fetch hidden composition stats: ${res.status}`);
+  const res = await fetch(url.toString(), { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch hidden composition stats: ${res.status}`);
+  }
   return res.json();
 }
 
-async function fetchVersions(dv: number): Promise<string[]> {
+async function fetchVersions(server?: string): Promise<string[]> {
   try {
-    const res = await fetchApi("/api/versions/", { revalidate: 60 }, dv);
+    const url = new URL(backendUrl("/api/versions/"));
+    if (server) url.searchParams.set("server", server);
+    const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -27,9 +33,9 @@ async function fetchVersions(dv: number): Promise<string[]> {
   }
 }
 
-async function fetchTraits(dv: number): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
+async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
   try {
-    const res = await fetchApi("/api/traits/", { revalidate: 60 }, dv);
+    const res = await fetch(backendUrl("/api/traits/"), { cache: "no-store" });
     if (!res.ok) return {};
     return res.json();
   } catch {
@@ -38,16 +44,19 @@ async function fetchTraits(dv: number): Promise<Record<string, { breakpoints: nu
 }
 
 export default async function HiddenCompsPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ server: string }>;
   searchParams: Promise<{ game_version?: string; core_sizes?: string; min_occurrences?: string }>;
 }) {
+  const { server: serverSlug } = await params;
+  const server = serverSlug.toUpperCase();
   const {
     game_version: gameVersion,
     core_sizes: coreSizes = "4,5,6",
     min_occurrences: minOccurrences = "100",
   } = await searchParams;
-  const dv = await getDataVersion();
   let data: CompStat[] = [];
   let versions: string[] = [];
   let traitData: Record<string, { breakpoints: number[]; icon: string }> = {};
@@ -55,9 +64,9 @@ export default async function HiddenCompsPage({
 
   try {
     [data, versions, traitData] = await Promise.all([
-      fetchHiddenCompStats(dv, gameVersion, coreSizes, minOccurrences),
-      fetchVersions(dv),
-      fetchTraits(dv),
+      fetchHiddenCompStats(gameVersion, coreSizes, minOccurrences, server),
+      fetchVersions(server),
+      fetchTraits(),
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";
@@ -84,11 +93,12 @@ export default async function HiddenCompsPage({
           data={data}
           versions={versions}
           selectedVersion={gameVersion ?? ""}
-          basePath="/comps/hidden"
+          basePath={`/${serverSlug}/comps/hidden`}
           showHiddenFilters
           selectedCoreSizes={coreSizes}
           selectedMinOccurrences={minOccurrences}
           traitData={traitData}
+          server={server}
         />
       )}
     </div>

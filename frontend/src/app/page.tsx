@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { getDataVersion, fetchApi } from "@/lib/api";
-import { UnitImage } from "./components/TftImage";
-import { formatUnit } from "@/lib/tftUtils";
+import { backendUrl } from "@/lib/backend";
 
 interface TopUnit {
   unit_name: string;
@@ -26,9 +24,15 @@ interface TopComp {
   flex_combos: FlexCombo[];
 }
 
-async function fetchTopUnits(dv: number): Promise<TopUnit[]> {
+async function fetchTopUnits(server?: string): Promise<TopUnit[]> {
   try {
-    const res = await fetchApi("/api/unit-stats/?sort=avg_placement&min_games=20", { revalidate: 60 }, dv);
+    const url = new URL(backendUrl("/api/unit-stats/"));
+    url.searchParams.set("sort", "avg_placement");
+    url.searchParams.set("min_games", "20");
+    if (server) url.searchParams.set("server", server);
+    const res = await fetch(url.toString(), {
+      cache: "no-store",
+    });
     if (!res.ok) return [];
     const data: TopUnit[] = await res.json();
     return data.slice(0, 5);
@@ -37,9 +41,14 @@ async function fetchTopUnits(dv: number): Promise<TopUnit[]> {
   }
 }
 
-async function fetchTopComps(dv: number): Promise<TopComp[]> {
+async function fetchTopComps(server?: string): Promise<TopComp[]> {
   try {
-    const res = await fetchApi("/api/comps/?top_flex=1", { revalidate: 60 }, dv);
+    const url = new URL(backendUrl("/api/comps/"));
+    url.searchParams.set("top_flex", "1");
+    if (server) url.searchParams.set("server", server);
+    const res = await fetch(url.toString(), {
+      cache: "no-store",
+    });
     if (!res.ok) return [];
     const json = await res.json();
     const data: TopComp[] = json.comps ?? json;
@@ -47,6 +56,25 @@ async function fetchTopComps(dv: number): Promise<TopComp[]> {
   } catch {
     return [];
   }
+}
+
+const COST_COLORS: Record<number, string> = {
+  1: "border-gray-500",
+  2: "border-green-600",
+  3: "border-blue-500",
+  4: "border-purple-500",
+  5: "border-yellow-400",
+  7: "border-yellow-400",
+};
+
+function unitImageUrl(characterId: string): string {
+  const lower = characterId.toLowerCase();
+  const setNum = lower.match(/^tft(\d+)_/)?.[1] ?? "16";
+  return `https://raw.communitydragon.org/pbe/game/assets/characters/${lower}/hud/${lower}_square.tft_set${setNum}.png`;
+}
+
+function formatUnit(name: string): string {
+  return name.replace(/^TFT\d+_/, "");
 }
 
 function avpColor(avp: number): string {
@@ -118,43 +146,47 @@ const features = [
     icon: <IconGrid />,
     title: "Comp Tracker",
     desc: "See exactly what top players are running: boards, units, items, and star levels from real games.",
-    href: "/comps",
+    href: "/pbe/comps",
   },
   {
     icon: <IconChart />,
     title: "Unit Stats",
     desc: "AVP, top 4 rate, and win rate for every unit. Find what's broken before everyone else does.",
-    href: "/unit-stats",
+    href: "/pbe/unit-stats",
   },
   {
     icon: <IconSword />,
     title: "Item Explorer",
     desc: "Which items are winning on which champions? Data-driven itemization insights.",
-    href: "/items",
+    href: "/pbe/items",
   },
   {
     icon: <IconSearch />,
     title: "Unit Search",
     desc: "Search any champion and instantly see every comp it appears in with full stats.",
-    href: "/search",
+    href: "/pbe/search",
   },
   {
     icon: <IconFeed />,
     title: "Games Feed",
     desc: "Live feed of the latest lobbies. Watch the meta shift in real time.",
-    href: "/games-feed",
+    href: "/pbe/games-feed",
   },
   {
     icon: <IconTrophy />,
     title: "Player Stats",
     desc: "Player rankings, most played units, and performance breakdowns.",
-    href: "/players",
+    href: "/pbe/players",
   },
 ];
 
-export default async function Home() {
-  const dv = await getDataVersion();
-  const [topUnits, topComps] = await Promise.all([fetchTopUnits(dv), fetchTopComps(dv)]);
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ server?: string }>;
+}) {
+  const { server = "PBE" } = await searchParams;
+  const [topUnits, topComps] = await Promise.all([fetchTopUnits(server), fetchTopComps(server)]);
   const hasQuickStats = topUnits.length > 0 || topComps.length > 0;
 
   return (
@@ -190,13 +222,13 @@ export default async function Home() {
 
           <div className="flex flex-wrap justify-center gap-3 sm:gap-4 pt-4">
             <Link
-              href="/games-feed"
+              href="/pbe/games-feed"
               className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg bg-gradient-to-r from-tft-gold to-yellow-500 text-tft-bg font-bold text-base sm:text-lg hover:brightness-110 transition-all shadow-lg shadow-tft-gold/20"
             >
               Explore Live Data
             </Link>
             <Link
-              href="/comps"
+              href="/pbe/comps"
               className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg border border-tft-border bg-tft-surface/80 text-tft-text font-semibold text-base sm:text-lg hover:border-tft-gold/50 hover:bg-tft-hover transition-colors"
             >
               View Top Comps
@@ -211,7 +243,7 @@ export default async function Home() {
           <div className="grid md:grid-cols-2 gap-6">
             {/* Top Units */}
             {topUnits.length > 0 && (
-              <Link href="/unit-stats" className="group rounded-xl border border-tft-border bg-tft-surface/40 p-5 hover:border-tft-gold/30 transition-colors">
+              <Link href="/pbe/unit-stats" className="group rounded-xl border border-tft-border bg-tft-surface/40 p-5 hover:border-tft-gold/30 transition-colors">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-tft-muted uppercase tracking-wider">Top Units by AVP</h3>
                   <span className="text-xs text-tft-muted group-hover:text-tft-gold transition-colors">View all →</span>
@@ -220,10 +252,13 @@ export default async function Home() {
                   {topUnits.map((unit, i) => (
                     <div key={unit.unit_name} className="flex items-center gap-3">
                       <span className="text-sm font-bold text-tft-muted/50 w-5 tabular-nums">{i + 1}</span>
-                      <UnitImage
-                        characterId={unit.unit_name}
-                        cost={unit.cost}
-                        size={36}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={unitImageUrl(unit.unit_name)}
+                        alt={formatUnit(unit.unit_name)}
+                        width={36}
+                        height={36}
+                        className={`w-9 h-9 rounded-lg border-2 ${COST_COLORS[unit.cost] ?? "border-gray-500"} object-cover`}
                       />
                       <span className="text-sm font-medium text-tft-text flex-1">{formatUnit(unit.unit_name)}</span>
                       <span className={`text-sm font-semibold tabular-nums ${avpColor(unit.avg_placement)}`}>
@@ -237,7 +272,7 @@ export default async function Home() {
 
             {/* Top Comps */}
             {topComps.length > 0 && (
-              <Link href="/comps" className="group rounded-xl border border-tft-border bg-tft-surface/40 p-5 hover:border-tft-gold/30 transition-colors">
+              <Link href="/pbe/comps" className="group rounded-xl border border-tft-border bg-tft-surface/40 p-5 hover:border-tft-gold/30 transition-colors">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-tft-muted uppercase tracking-wider">Top Comps</h3>
                   <span className="text-xs text-tft-muted group-hover:text-tft-gold transition-colors">View all →</span>
@@ -254,11 +289,14 @@ export default async function Home() {
                         </span>
                         <div className="flex items-center gap-1 flex-1">
                           {[...comp.core_units, ...(bestFlex?.units ?? [])].map((u) => (
-                            <UnitImage
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
                               key={u.character_id}
-                              characterId={u.character_id}
-                              cost={u.cost}
-                              size={28}
+                              src={unitImageUrl(u.character_id)}
+                              alt={formatUnit(u.character_id)}
+                              width={28}
+                              height={28}
+                              className={`w-7 h-7 rounded border-2 ${COST_COLORS[u.cost] ?? "border-gray-500"} object-cover`}
                             />
                           ))}
                         </div>
@@ -385,7 +423,7 @@ export default async function Home() {
         </p>
         <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
           <Link
-            href="/games-feed"
+            href="/pbe/games-feed"
             className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg bg-gradient-to-r from-tft-gold to-yellow-500 text-tft-bg font-bold text-base sm:text-lg hover:brightness-110 transition-all shadow-lg shadow-tft-gold/20"
           >
             Get Started

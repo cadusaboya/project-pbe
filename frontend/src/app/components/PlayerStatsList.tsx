@@ -29,7 +29,7 @@ function avpTextColor(avp: number): string {
 
 type SortKey = "games" | "avg_placement" | "win_rate" | "top4_rate";
 
-export default function PlayerStatsList({ data }: { data: PlayerStat[] }) {
+export default function PlayerStatsList({ data, server }: { data: PlayerStat[]; server: string }) {
   const [sort, setSort] = useState<SortKey>("avg_placement");
   const [sortAsc, setSortAsc] = useState(true);
   const [search, setSearch] = useState("");
@@ -130,7 +130,7 @@ export default function PlayerStatsList({ data }: { data: PlayerStat[] }) {
                 <td className="px-2 sm:px-4 py-2 sm:py-2.5 text-tft-muted">{idx + 1}</td>
                 <td className="px-2 sm:px-4 py-2 sm:py-2.5 font-medium">
                   <span
-                    onClick={() => router.push(`/player/${encodeURIComponent(p.game_name)}`)}
+                    onClick={() => router.push(`/${server.toLowerCase()}/player/${encodeURIComponent(p.game_name)}`)}
                     className="text-tft-text underline decoration-tft-muted/50 hover:decoration-tft-accent hover:text-tft-accent cursor-pointer transition-colors"
                   >
                     {p.game_name}

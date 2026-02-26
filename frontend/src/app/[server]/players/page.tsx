@@ -1,21 +1,28 @@
-import PlayerStatsList, { PlayerStat } from "../components/PlayerStatsList";
-import { getDataVersion, fetchApi } from "@/lib/api";
+import PlayerStatsList, { PlayerStat } from "../../components/PlayerStatsList";
+import { backendUrl } from "@/lib/backend";
 
-async function fetchPlayerStats(dv: number): Promise<PlayerStat[]> {
-  const res = await fetchApi("/api/player-stats/", { revalidate: 60 }, dv);
+async function fetchPlayerStats(server?: string): Promise<PlayerStat[]> {
+  const url = new URL(backendUrl("/api/player-stats/"));
+  if (server) url.searchParams.set("server", server);
+  const res = await fetch(url.toString(), { cache: "no-store" });
   if (!res.ok) {
     throw new Error(`Failed to fetch player stats: ${res.status}`);
   }
   return res.json();
 }
 
-export default async function PlayersPage() {
-  const dv = await getDataVersion();
+export default async function PlayersPage({
+  params,
+}: {
+  params: Promise<{ server: string }>;
+}) {
+  const { server: serverSlug } = await params;
+  const server = serverSlug.toUpperCase();
   let data: PlayerStat[] = [];
   let error: string | null = null;
 
   try {
-    data = await fetchPlayerStats(dv);
+    data = await fetchPlayerStats(server);
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";
   }
@@ -51,7 +58,7 @@ export default async function PlayersPage() {
           No player data available.
         </div>
       ) : (
-        <PlayerStatsList data={data} />
+        <PlayerStatsList data={data} server={server} />
       )}
     </div>
   );

@@ -18,26 +18,34 @@ from .serializers import UnitStatSerializer, WinningCompSerializer
 
 _ITEM_ASSETS_FILE = Path(settings.BASE_DIR) / "item_assets.json"
 _ITEM_NAMES_FILE = Path(settings.BASE_DIR) / "item_names.json"
-_CDRAGON_TFT_URL = "https://raw.communitydragon.org/pbe/cdragon/tft/en_us.json"
-_TRAIT_CACHE: dict | None = None
-_TRAIT_CACHE_TS: float = 0.0
+_CDRAGON_TFT_URLS = {
+    "PBE": "https://raw.communitydragon.org/pbe/cdragon/tft/en_us.json",
+    "LIVE": "https://raw.communitydragon.org/latest/cdragon/tft/en_us.json",
+}
+_CDRAGON_ICON_BASES = {
+    "PBE": "https://raw.communitydragon.org/pbe/game/",
+    "LIVE": "https://raw.communitydragon.org/latest/game/",
+}
+# Server-keyed caches: {server: data}
+_TRAIT_CACHE: dict[str, dict] = {}
+_TRAIT_CACHE_TS: dict[str, float] = {}
 _TRAIT_CACHE_TTL = 3600.0  # seconds
-_TRAIT_API_NAME_MAP: dict[str, str] = {}  # apiName -> displayName (e.g. "TFT16_Sorcerer" -> "Arcanist")
+_TRAIT_API_NAME_MAP: dict[str, dict[str, str]] = {}  # server -> {apiName: displayName}
 
-_CHAMPIONS_CACHE: list | None = None
-_CHAMPIONS_CACHE_TS: float = 0.0
+_CHAMPIONS_CACHE: dict[str, list] = {}
+_CHAMPIONS_CACHE_TS: dict[str, float] = {}
 
 # In-memory caches for data that rarely changes
 _ITEM_ASSETS_CACHE: dict | None = None
 _ITEM_NAMES_CACHE: dict | None = None
-_VERSIONS_CACHE: list | None = None
-_VERSIONS_CACHE_VERSION: int = -1
-_PLAYERS_CACHE: list | None = None
-_PLAYERS_CACHE_VERSION: int = -1
+_VERSIONS_CACHE: dict[str, list] = {}
+_VERSIONS_CACHE_VERSION: dict[str, int] = {}
+_PLAYERS_CACHE: dict[str, list] = {}
+_PLAYERS_CACHE_VERSION: dict[str, int] = {}
 _COMPS_CACHE: dict[tuple, dict] = {}
-_COMPS_CACHE_VERSION: int = -1
-_EXPLORE_BASE_CACHE: dict[str, list[dict]] = {}  # game_version -> participant dicts
-_EXPLORE_CACHE_VERSION: int = -1
+_COMPS_CACHE_VERSION: dict[str, int] = {}
+_EXPLORE_BASE_CACHE: dict[str, list[dict]] = {}  # (server, game_version) -> participant dicts
+_EXPLORE_CACHE_VERSION: dict[str, int] = {}
 
 # Canonical item mapping: maps every item_id to a single "canonical" ID
 # so that duplicates (e.g. TFT_Item_InfinityEdge vs TFT_Item_CorruptedInfinityEdge)
@@ -151,17 +159,20 @@ def _weighted_flex_combos(unit_pool: list[str], target_slots: int) -> set[tuple[
     return combos
 
 
-def _ensure_trait_cache() -> dict:
+def _ensure_trait_cache(server: str = "PBE") -> dict:
     """Populate _TRAIT_CACHE and _TRAIT_API_NAME_MAP from CDragon if stale."""
     global _TRAIT_CACHE, _TRAIT_CACHE_TS, _TRAIT_API_NAME_MAP
 
     now = time.time()
-    if _TRAIT_CACHE is not None and (now - _TRAIT_CACHE_TS) < _TRAIT_CACHE_TTL:
-        return _TRAIT_CACHE
+    if server in _TRAIT_CACHE and (now - _TRAIT_CACHE_TS.get(server, 0)) < _TRAIT_CACHE_TTL:
+        return _TRAIT_CACHE[server]
+
+    cdragon_url = _CDRAGON_TFT_URLS.get(server, _CDRAGON_TFT_URLS["PBE"])
+    icon_base = _CDRAGON_ICON_BASES.get(server, _CDRAGON_ICON_BASES["PBE"])
 
     try:
         with httpx.Client(timeout=120) as client:
-            resp = client.get(_CDRAGON_TFT_URL)
+            resp = client.get(cdragon_url)
             resp.raise_for_status()
             data = resp.json()
 
@@ -184,7 +195,7 @@ def _ensure_trait_cache() -> dict:
             icon = ""
             if raw_icon:
                 icon = (
-                    "https://raw.communitydragon.org/pbe/game/"
+                    icon_base
                     + raw_icon.replace("ASSETS/", "assets/")
                               .replace(".tex", ".png")
                               .lower()
@@ -193,14 +204,14 @@ def _ensure_trait_cache() -> dict:
             if api_name:
                 api_map[api_name] = name
 
-        _TRAIT_CACHE = traits
-        _TRAIT_CACHE_TS = now
-        _TRAIT_API_NAME_MAP = api_map
+        _TRAIT_CACHE[server] = traits
+        _TRAIT_CACHE_TS[server] = now
+        _TRAIT_API_NAME_MAP[server] = api_map
     except Exception:
-        if _TRAIT_CACHE is None:
-            _TRAIT_CACHE = {}
+        if server not in _TRAIT_CACHE:
+            _TRAIT_CACHE[server] = {}
 
-    return _TRAIT_CACHE
+    return _TRAIT_CACHE.get(server, {})
 
 
 class TraitDataView(APIView):
@@ -214,7 +225,8 @@ class TraitDataView(APIView):
     """
 
     def get(self, request):
-        traits = _ensure_trait_cache()
+        server = request.query_params.get("server", "PBE").upper()
+        traits = _ensure_trait_cache(server)
         return _cc(Response(traits), 300)
 
 
@@ -228,14 +240,16 @@ class ChampionsView(APIView):
 
     def get(self, request):
         global _CHAMPIONS_CACHE, _CHAMPIONS_CACHE_TS
+        server = request.query_params.get("server", "PBE").upper()
 
         now = time.time()
-        if _CHAMPIONS_CACHE is not None and (now - _CHAMPIONS_CACHE_TS) < _TRAIT_CACHE_TTL:
-            return _cc(Response(_CHAMPIONS_CACHE), 300)
+        if server in _CHAMPIONS_CACHE and (now - _CHAMPIONS_CACHE_TS.get(server, 0)) < _TRAIT_CACHE_TTL:
+            return _cc(Response(_CHAMPIONS_CACHE[server]), 300)
 
+        cdragon_url = _CDRAGON_TFT_URLS.get(server, _CDRAGON_TFT_URLS["PBE"])
         try:
             with httpx.Client(timeout=120) as client:
-                resp = client.get(_CDRAGON_TFT_URL)
+                resp = client.get(cdragon_url)
                 resp.raise_for_status()
                 data = resp.json()
 
@@ -253,13 +267,13 @@ class ChampionsView(APIView):
                 })
 
             champions.sort(key=lambda c: (c["cost"], c["name"]))
-            _CHAMPIONS_CACHE = champions
-            _CHAMPIONS_CACHE_TS = now
+            _CHAMPIONS_CACHE[server] = champions
+            _CHAMPIONS_CACHE_TS[server] = now
         except Exception:
-            if _CHAMPIONS_CACHE is None:
-                _CHAMPIONS_CACHE = []
+            if server not in _CHAMPIONS_CACHE:
+                _CHAMPIONS_CACHE[server] = []
 
-        return _cc(Response(_CHAMPIONS_CACHE), 300)
+        return _cc(Response(_CHAMPIONS_CACHE.get(server, [])), 300)
 
 
 class UnitStatsView(ListAPIView):
@@ -282,13 +296,19 @@ class UnitStatsView(ListAPIView):
         return super().list(request, *args, **kwargs)
 
     def _stats_for_version(self, request, game_version: str):
+        server = request.query_params.get("server", "PBE").upper()
         min_games = request.query_params.get("min_games")
         search = request.query_params.get("search")
         sort_key = request.query_params.get("sort", "avg_placement")
 
+        qs = UnitUsage.objects.filter(
+            participant__match__game_version=game_version,
+            participant__match__server=server,
+        )
+        if server == "LIVE":
+            qs = qs.filter(participant__player__isnull=False)
         qs = (
-            UnitUsage.objects.filter(participant__match__game_version=game_version)
-            .values("unit__character_id", "unit__cost", "unit__traits")
+            qs.values("unit__character_id", "unit__cost", "unit__traits")
             .annotate(
                 games=Count("id"),
                 total_placement=Sum("participant__placement"),
@@ -333,7 +353,8 @@ class UnitStatsView(ListAPIView):
         return Response(results)
 
     def get_queryset(self):
-        qs = AggregatedUnitStat.objects.select_related("unit").all()
+        server = self.request.query_params.get("server", "PBE").upper()
+        qs = AggregatedUnitStat.objects.filter(server=server).select_related("unit")
 
         min_games = self.request.query_params.get("min_games")
         if min_games:
@@ -355,8 +376,9 @@ class StatsView(APIView):
     """GET /api/stats/"""
 
     def get(self, request):
+        server = request.query_params.get("server", "PBE").upper()
         game_version = request.query_params.get("game_version")
-        match_qs = Match.objects.all()
+        match_qs = Match.objects.filter(server=server)
         if game_version:
             match_qs = match_qs.filter(game_version=game_version)
 
@@ -365,10 +387,15 @@ class StatsView(APIView):
         )["latest"]
         last_run = last_recomputed.isoformat() if last_recomputed else None
 
+        if server == "PBE":
+            players_count = Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid="").count()
+        else:
+            players_count = Player.objects.filter(puuid__isnull=False).exclude(puuid="").exclude(region="PBE").count()
+
         return Response({
             "matches_analyzed": match_qs.count(),
-            "players_tracked": Player.objects.filter(puuid__isnull=False).exclude(puuid="").count(),
-            "participants_recorded": Participant.objects.count(),
+            "players_tracked": players_count,
+            "participants_recorded": Participant.objects.filter(match__server=server).count(),
             "last_fetch_at": last_run,
             "data_version": Match.objects.count(),
         })
@@ -474,7 +501,8 @@ class WinningCompsView(ListAPIView):
     """
     GET /api/winning-comps/
 
-    Returns the 1st-place composition for each stored match.
+    PBE:  Returns the 1st-place composition for each stored match.
+    LIVE: Returns the best-placing tracked pro for each stored match.
 
     Query params:
       limit – number of results (default 50)
@@ -483,17 +511,43 @@ class WinningCompsView(ListAPIView):
     serializer_class = WinningCompSerializer
 
     def get_queryset(self):
+        server = self.request.query_params.get("server", "PBE").upper()
         try:
             limit = int(self.request.query_params.get("limit", 50))
         except ValueError:
             limit = 50
 
-        qs = (
-            Participant.objects.filter(placement=1)
-            .select_related("match", "player")
-            .prefetch_related("unit_usages__unit")
-            .order_by("-match__game_datetime")
-        )
+        if server == "LIVE":
+            # Best tracked pro per match: only participants with a linked player,
+            # pick the one with the lowest (best) placement per match.
+            from django.db.models import Min, OuterRef, Subquery
+
+            best_per_match = (
+                Participant.objects.filter(
+                    match=OuterRef("match"),
+                    match__server="LIVE",
+                    player__isnull=False,
+                )
+                .order_by("placement")
+                .values("pk")[:1]
+            )
+            qs = (
+                Participant.objects.filter(
+                    pk__in=Subquery(best_per_match),
+                    match__server="LIVE",
+                    player__isnull=False,
+                )
+                .select_related("match", "player")
+                .prefetch_related("unit_usages__unit")
+                .order_by("-match__game_datetime")
+            )
+        else:
+            qs = (
+                Participant.objects.filter(placement=1, match__server=server)
+                .select_related("match", "player")
+                .prefetch_related("unit_usages__unit")
+                .order_by("-match__game_datetime")
+            )
 
         game_version = self.request.query_params.get("game_version")
         if game_version:
@@ -514,7 +568,10 @@ class UnitStarStatsView(APIView):
     """
 
     def get(self, request, unit_name: str):
-        qs = UnitUsage.objects.filter(unit__character_id=unit_name)
+        server = request.query_params.get("server", "PBE").upper()
+        qs = UnitUsage.objects.filter(unit__character_id=unit_name, participant__match__server=server)
+        if server == "LIVE":
+            qs = qs.filter(participant__player__isnull=False)
 
         game_version = request.query_params.get("game_version")
         if game_version:
@@ -605,7 +662,13 @@ class ItemStatsView(APIView):
             except ValueError:
                 pass
 
-        qs = UnitUsage.objects.filter(unit__character_id=unit_name).select_related("participant")
+        server = request.query_params.get("server", "PBE").upper()
+        qs = UnitUsage.objects.filter(
+            unit__character_id=unit_name,
+            participant__match__server=server,
+        ).select_related("participant")
+        if server == "LIVE":
+            qs = qs.filter(participant__player__isnull=False)
         if game_version:
             qs = qs.filter(participant__match__game_version=game_version)
 
@@ -691,14 +754,16 @@ class ExploreView(APIView):
     """
 
     @staticmethod
-    def _build_participant_data(game_version: str | None) -> list[dict]:
+    def _build_participant_data(game_version: str | None, server: str = "PBE") -> list[dict]:
         """Build pre-processed participant dicts (cacheable, filter-independent)."""
         cmap = _get_item_canonical_map()
         unit_traits_map: dict[str, list] = dict(
             Unit.objects.values_list("character_id", "traits")
         )
 
-        qs = Participant.objects.all()
+        qs = Participant.objects.filter(match__server=server)
+        if server == "LIVE":
+            qs = qs.filter(player__isnull=False)
         if game_version:
             qs = qs.filter(match__game_version=game_version)
         # Defer raw_json to avoid loading ~22KB per match in the JOIN;
@@ -803,6 +868,7 @@ class ExploreView(APIView):
         return participants
 
     def get(self, request):
+        server = request.query_params.get("server", "PBE").upper()
         game_version = request.query_params.get("game_version")
         include_trait_stats = request.query_params.get("include_trait_stats") == "1"
         require_units = set(request.query_params.getlist("require_unit"))
@@ -873,26 +939,30 @@ class ExploreView(APIView):
         needs_extra_unit_data = bool(exclude_unit_counts or require_unit_counts or require_unit_stars or require_unit_item_counts or require_units)
 
         if needs_trait_data:
-            _ensure_trait_cache()
+            _ensure_trait_cache(server)
 
         # --- In-process cache: reuse pre-built participant dicts when match count unchanged ---
         global _EXPLORE_BASE_CACHE, _EXPLORE_CACHE_VERSION
-        match_count = Match.objects.count()
-        version_key = game_version or ""
-        if match_count != _EXPLORE_CACHE_VERSION:
-            _EXPLORE_BASE_CACHE.clear()
-            _EXPLORE_CACHE_VERSION = match_count
+        match_count = Match.objects.filter(server=server).count()
+        cache_key = (server, game_version or "")
+        if match_count != _EXPLORE_CACHE_VERSION.get(server, -1):
+            stale_keys = [k for k in _EXPLORE_BASE_CACHE if k[0] == server]
+            for k in stale_keys:
+                _EXPLORE_BASE_CACHE.pop(k, None)
+            _EXPLORE_CACHE_VERSION[server] = match_count
 
-        if version_key in _EXPLORE_BASE_CACHE:
-            participants = _EXPLORE_BASE_CACHE[version_key]
+        if cache_key in _EXPLORE_BASE_CACHE:
+            participants = _EXPLORE_BASE_CACHE[cache_key]
         else:
-            participants = self._build_participant_data(game_version)
-            _EXPLORE_BASE_CACHE[version_key] = participants
+            participants = self._build_participant_data(game_version, server)
+            _EXPLORE_BASE_CACHE[cache_key] = participants
+
+        _server_api_name_map = _TRAIT_API_NAME_MAP.get(server, {})
 
         def _trait_matches(req_lower: str, api_name: str) -> bool:
             if req_lower in api_name.lower():
                 return True
-            display = _TRAIT_API_NAME_MAP.get(api_name, "")
+            display = _server_api_name_map.get(api_name, "")
             return bool(display and req_lower in display.lower())
 
         def _max_trait_units(p_data: dict, req_lower: str) -> int:
@@ -1107,7 +1177,7 @@ class ExploreView(APIView):
         # Per (trait, tier) stats across filtered comps
         trait_stats = []
         if include_trait_stats:
-            _ensure_trait_cache()
+            _ensure_trait_cache(server)
             trait_agg: dict = defaultdict(lambda: {"games": 0, "total": 0, "top4": 0, "wins": 0, "num_units_sum": 0})
             for p in filtered:
                 for trait_name, tier in p.get("trait_tiers", {}).items():
@@ -1126,7 +1196,7 @@ class ExploreView(APIView):
             for (trait_name, tier), agg in trait_agg.items():
                 g = agg["games"]
                 avg_p = round(agg["total"] / g, 2) if g else 0.0
-                display_name = _TRAIT_API_NAME_MAP.get(trait_name, re.sub(r'^Set\d+_', '', trait_name))
+                display_name = _TRAIT_API_NAME_MAP.get(server, {}).get(trait_name, re.sub(r'^Set\d+_', '', trait_name))
                 trait_stats.append({
                     "trait_name": display_name,
                     "tier": tier,
@@ -1170,6 +1240,7 @@ class HiddenCompsView(APIView):
     """
 
     def get(self, request):
+        server = request.query_params.get("server", "PBE").upper()
         game_version = request.query_params.get("game_version")
         try:
             limit = max(1, int(request.query_params.get("limit", 20)))
@@ -1207,10 +1278,13 @@ class HiddenCompsView(APIView):
             top_flex = 3
 
         participants = (
-            Participant.objects.select_related("match")
+            Participant.objects.filter(match__server=server)
+            .select_related("match")
             .prefetch_related("unit_usages__unit")
             .order_by("id")
         )
+        if server == "LIVE":
+            participants = participants.filter(player__isnull=False)
         if game_version:
             participants = participants.filter(match__game_version=game_version)
 
@@ -1372,6 +1446,7 @@ class CompsView(APIView):
     """
 
     def get(self, request):
+        server = request.query_params.get("server", "PBE").upper()
         game_version = request.query_params.get("game_version")
         limit_raw = request.query_params.get("limit")
         limit = None
@@ -1386,12 +1461,14 @@ class CompsView(APIView):
             top_flex = 3
 
         global _COMPS_CACHE, _COMPS_CACHE_VERSION
-        match_count = Match.objects.count()
-        cache_key = (game_version, limit, top_flex)
-        if match_count == _COMPS_CACHE_VERSION and cache_key in _COMPS_CACHE:
+        comp_count = Comp.objects.filter(server=server).count()
+        match_count = Match.objects.filter(server=server).count()
+        data_version = (match_count, comp_count)
+        cache_key = (server, game_version, limit, top_flex)
+        if data_version == _COMPS_CACHE_VERSION.get(server, -1) and cache_key in _COMPS_CACHE:
             return _cc(Response(_COMPS_CACHE[cache_key]), 300)
 
-        comps_qs = Comp.objects.filter(is_active=True).order_by("name")
+        comps_qs = Comp.objects.filter(is_active=True, server=server).order_by("name")
         if limit is not None:
             comps_qs = comps_qs[:limit]
         comps = list(comps_qs)
@@ -1402,7 +1479,9 @@ class CompsView(APIView):
             raw_units = comp.units if isinstance(comp.units, list) else []
             comp_units_all |= {str(u).strip() for u in raw_units if str(u).strip()}
 
-        base_qs = Participant.objects.order_by("id")
+        base_qs = Participant.objects.filter(match__server=server).order_by("id")
+        if server == "LIVE":
+            base_qs = base_qs.filter(player__isnull=False)
         if game_version:
             base_qs = base_qs.filter(match__game_version=game_version)
 
@@ -1508,10 +1587,16 @@ class CompsView(APIView):
                     derived_trait_counts[name] += count
             b["derived_trait_counts"] = dict(derived_trait_counts)
 
+        _comps_api_name_map = _TRAIT_API_NAME_MAP.get(server, {})
+
         def _comp_trait_matches(req_lower: str, api_name: str) -> bool:
-            if req_lower in api_name.lower():
+            api_lower = api_name.lower()
+            if req_lower in api_lower:
                 return True
-            display = _TRAIT_API_NAME_MAP.get(api_name, "")
+            # Match without spaces (e.g. "shadow isles" vs "tft16_shadowisles")
+            if req_lower.replace(" ", "") in api_lower:
+                return True
+            display = _comps_api_name_map.get(api_name, "")
             return bool(display and req_lower in display.lower())
 
         def _max_trait_units(board: dict, req_lower: str) -> int:
@@ -1534,14 +1619,15 @@ class CompsView(APIView):
                     matched_tier = max(matched_tier, tier)
             return matched_tier
 
-        _ensure_trait_cache()
+        _ensure_trait_cache(server)
+        _server_trait_cache = _TRAIT_CACHE.get(server, {})
 
         def _breakpoint_tier(display_name: str, min_units: int) -> int:
             """Convert a min_units value to a 1-based tier using CDragon breakpoints."""
-            tdata = _TRAIT_CACHE.get(display_name)
+            tdata = _server_trait_cache.get(display_name)
             if not tdata:
                 # Try case-insensitive match
-                for dname, td in _TRAIT_CACHE.items():
+                for dname, td in _server_trait_cache.items():
                     if dname.lower() == display_name.lower():
                         tdata = td
                         break
@@ -1608,8 +1694,6 @@ class CompsView(APIView):
                 if str(unit).strip()
             }
 
-            if not core_unit_counts:
-                continue
             core_units = sorted(core_unit_counts.keys())
             raw_required_breakpoints = (
                 comp.required_trait_breakpoints
@@ -1647,6 +1731,19 @@ class CompsView(APIView):
                     excluded_traits[trait_name] = max(1, int(cnt))
                 except (TypeError, ValueError):
                     continue
+
+            has_any_constraint = (
+                core_unit_counts
+                or required_traits_lower
+                or required_trait_breakpoints
+                or required_item_counts
+                or required_unit_star_levels
+                or excluded_set
+                or excluded_unit_counts
+                or excluded_traits
+            )
+            if not has_any_constraint:
+                continue
 
             target_level = max(1, min(int(comp.target_level or 9), 10))
             core_size = sum(
@@ -1832,9 +1929,11 @@ class CompsView(APIView):
         result.sort(key=lambda x: (-x["comps"], x["avg_placement"], x["name"]))
         comps_list = result[:limit] if limit is not None else result
         response_data = {"total_games": total_games, "comps": comps_list}
-        if match_count != _COMPS_CACHE_VERSION:
-            _COMPS_CACHE.clear()
-            _COMPS_CACHE_VERSION = match_count
+        if data_version != _COMPS_CACHE_VERSION.get(server, -1):
+            stale_keys = [k for k in _COMPS_CACHE if k[0] == server]
+            for k in stale_keys:
+                _COMPS_CACHE.pop(k, None)
+            _COMPS_CACHE_VERSION[server] = data_version
         _COMPS_CACHE[cache_key] = response_data
         return _cc(Response(response_data), 300)
 
@@ -1853,6 +1952,7 @@ class SearchCompsView(APIView):
     """
 
     def get(self, request):
+        server = request.query_params.get("server", "PBE").upper()
         units = [u.strip() for u in request.query_params.getlist("unit") if u.strip()]
         game_version = request.query_params.get("game_version")
         try:
@@ -1861,9 +1961,11 @@ class SearchCompsView(APIView):
             limit = 200
         sort = request.query_params.get("sort", "recency")
 
-        qs = Participant.objects.select_related("match", "player").prefetch_related(
+        qs = Participant.objects.filter(match__server=server).select_related("match", "player").prefetch_related(
             Prefetch("unit_usages", queryset=UnitUsage.objects.select_related("unit"))
         )
+        if server == "LIVE":
+            qs = qs.filter(player__isnull=False)
         if game_version:
             qs = qs.filter(match__game_version=game_version)
 
@@ -1914,6 +2016,7 @@ class PlayerProfileView(APIView):
     """
 
     def get(self, request, player_name: str):
+        server = request.query_params.get("server", "PBE").upper()
         player = Player.objects.filter(game_name__iexact=player_name).first()
         if not player:
             return Response({"error": "Player not found"}, status=404)
@@ -1921,7 +2024,7 @@ class PlayerProfileView(APIView):
         game_version = request.query_params.get("game_version")
 
         participations = (
-            Participant.objects.filter(player=player)
+            Participant.objects.filter(player=player, match__server=server)
             .select_related("match")
             .prefetch_related(
                 Prefetch("unit_usages", queryset=UnitUsage.objects.select_related("unit"))
@@ -2031,19 +2134,24 @@ class PlayerListView(APIView):
 
     def get(self, request):
         global _PLAYERS_CACHE, _PLAYERS_CACHE_VERSION
-        player_count = Player.objects.filter(puuid__isnull=False).exclude(puuid="").count()
-        if _PLAYERS_CACHE is not None and player_count == _PLAYERS_CACHE_VERSION:
-            return _cc(Response(_PLAYERS_CACHE), 300)
-        players = Player.objects.filter(puuid__isnull=False).exclude(puuid="")
+        server = request.query_params.get("server", "PBE").upper()
+        if server == "PBE":
+            players = Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid="")
+        else:
+            players = Player.objects.filter(puuid__isnull=False).exclude(puuid="").exclude(region="PBE")
+        player_count = players.count()
+        if server in _PLAYERS_CACHE and player_count == _PLAYERS_CACHE_VERSION.get(server, -1):
+            return _cc(Response(_PLAYERS_CACHE[server]), 300)
         result = []
         for p in players:
             result.append({
                 "game_name": p.game_name,
                 "tag_line": p.tag_line,
+                "region": p.region,
             })
         result.sort(key=lambda x: x["game_name"].lower())
-        _PLAYERS_CACHE = result
-        _PLAYERS_CACHE_VERSION = player_count
+        _PLAYERS_CACHE[server] = result
+        _PLAYERS_CACHE_VERSION[server] = player_count
         return _cc(Response(result), 300)
 
 
@@ -2061,18 +2169,22 @@ class PlayerStatsView(APIView):
     """
 
     def get(self, request):
+        server = request.query_params.get("server", "PBE").upper()
         sort_key = request.query_params.get("sort", "avg_placement")
         search = request.query_params.get("search", "").strip()
         min_games = int(request.query_params.get("min_games", 0))
 
-        players = Player.objects.filter(puuid__isnull=False).exclude(puuid="")
+        if server == "PBE":
+            players = Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid="")
+        else:
+            players = Player.objects.filter(puuid__isnull=False).exclude(puuid="").exclude(region="PBE")
         if search:
             players = players.filter(game_name__icontains=search)
 
         players = players.prefetch_related(
             Prefetch(
                 "participations",
-                queryset=Participant.objects.prefetch_related(
+                queryset=Participant.objects.filter(match__server=server).prefetch_related(
                     Prefetch("unit_usages", queryset=UnitUsage.objects.select_related("unit"))
                 ),
             )
@@ -2131,14 +2243,16 @@ class VersionsView(APIView):
 
     def get(self, request):
         global _VERSIONS_CACHE, _VERSIONS_CACHE_VERSION
-        match_count = Match.objects.count()
-        if _VERSIONS_CACHE is not None and match_count == _VERSIONS_CACHE_VERSION:
-            return _cc(Response(_VERSIONS_CACHE), 300)
+        server = request.query_params.get("server", "PBE").upper()
+        match_count = Match.objects.filter(server=server).count()
+        if server in _VERSIONS_CACHE and match_count == _VERSIONS_CACHE_VERSION.get(server, -1):
+            return _cc(Response(_VERSIONS_CACHE[server]), 300)
         versions = list(
-            Match.objects.values_list("game_version", flat=True)
+            Match.objects.filter(server=server)
+            .values_list("game_version", flat=True)
             .distinct()
             .order_by("-game_version")
         )
-        _VERSIONS_CACHE = versions
-        _VERSIONS_CACHE_VERSION = match_count
+        _VERSIONS_CACHE[server] = versions
+        _VERSIONS_CACHE_VERSION[server] = match_count
         return _cc(Response(versions), 300)

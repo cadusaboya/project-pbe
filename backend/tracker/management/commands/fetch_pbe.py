@@ -69,7 +69,7 @@ class Command(BaseCommand):
             )
             return
 
-        all_players = list(Player.objects.filter(puuid__isnull=False).exclude(puuid=""))
+        all_players = list(Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid=""))
         if not all_players:
             self.stderr.write(
                 self.style.ERROR("No players in DB. Run 'python manage.py fetch_puuid' first.")
@@ -185,7 +185,7 @@ class Command(BaseCommand):
                     continue
 
                 try:
-                    if process_match(match_data, puuid_to_player, game_version=GAME_VERSION):
+                    if process_match(match_data, puuid_to_player, game_version=GAME_VERSION, server="PBE"):
                         total_stored += 1
                         self.stdout.write(f"    {mid} - stored ({game_start_utc.date()}, {GAME_VERSION})")
                     else:
@@ -204,7 +204,7 @@ class Command(BaseCommand):
 
         if total_stored:
             self.stdout.write("Recomputing unit statistics...")
-            count = recompute_unit_stats()
+            count = recompute_unit_stats(server="PBE")
             self.stdout.write(self.style.SUCCESS(f"Done - updated stats for {count} unit(s)."))
         else:
             self.stdout.write(self.style.SUCCESS("Nothing new - stats unchanged."))
@@ -234,9 +234,9 @@ class Command(BaseCommand):
             )
             return
         try:
-            if process_match(match_data, puuid_to_player, game_version=GAME_VERSION):
+            if process_match(match_data, puuid_to_player, game_version=GAME_VERSION, server="PBE"):
                 self.stdout.write(self.style.SUCCESS(f"{match_id} - stored"))
-                count = recompute_unit_stats()
+                count = recompute_unit_stats(server="PBE")
                 self.stdout.write(self.style.SUCCESS(f"Done - updated stats for {count} unit(s)."))
             else:
                 self.stdout.write(f"{match_id} - already existed")

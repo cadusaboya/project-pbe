@@ -1,4 +1,8 @@
-import { fetchApi } from "@/lib/api";
+"use client";
+
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { backendUrl } from "@/lib/backend";
 
 interface GlobalStats {
   matches_analyzed: number;
@@ -6,15 +10,7 @@ interface GlobalStats {
   last_fetch_at: string | null;
 }
 
-async function fetchGlobalStats(): Promise<GlobalStats | null> {
-  try {
-    const res = await fetchApi("/api/stats/", { revalidate: 60 });
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
-  }
-}
+const VALID_SERVERS = ["pbe", "live"];
 
 function formatRelativeUtc(iso: string): string {
   const then = new Date(iso).getTime();
@@ -41,8 +37,20 @@ function formatRelativeUtc(iso: string): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-export default async function StatsBar() {
-  const stats = await fetchGlobalStats();
+export default function StatsBar() {
+  const pathname = usePathname();
+  const first = pathname.split("/")[1]?.toLowerCase();
+  const server = VALID_SERVERS.includes(first ?? "") ? first!.toUpperCase() : "PBE";
+  const [stats, setStats] = useState<GlobalStats | null>(null);
+
+  useEffect(() => {
+    const url = new URL(backendUrl("/api/stats/"));
+    url.searchParams.set("server", server);
+    fetch(url.toString())
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setStats)
+      .catch(() => setStats(null));
+  }, [server]);
 
   if (!stats) return null;
 

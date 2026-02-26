@@ -319,11 +319,13 @@ function MatchRow({
   itemAssets,
   itemNames,
   traitData,
+  server,
 }: {
   match: MatchEntry;
   itemAssets: Record<string, string>;
   itemNames?: Record<string, string>;
   traitData: Record<string, TraitInfo>;
+  server: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [lobby, setLobby] = useState<LobbyParticipant[] | null>(null);
@@ -333,7 +335,7 @@ function MatchRow({
     if (!expanded && !lobby) {
       setLoading(true);
       try {
-        const res = await fetch(`/api/match/${match.match_id}/lobby`);
+        const res = await fetch(`/api/match/${match.match_id}/lobby?server=${encodeURIComponent(server)}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         setLobby(await res.json());
       } catch {
@@ -412,7 +414,7 @@ function MatchRow({
                       #{participant.placement}
                     </span>
                     <a
-                      href={`/player/${encodeURIComponent(participant.name.split("#")[0])}`}
+                      href={`/${server.toLowerCase()}/player/${encodeURIComponent(participant.name.split("#")[0])}`}
                       className="text-tft-text text-sm w-24 sm:w-36 truncate shrink-0 hover:text-tft-gold transition-colors"
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -446,11 +448,13 @@ export default function PlayerProfile({
   itemAssets,
   itemNames,
   traitData,
+  server,
 }: {
   data: PlayerProfileData;
   itemAssets: Record<string, string>;
   itemNames?: Record<string, string>;
   traitData: Record<string, TraitInfo>;
+  server: string;
 }) {
   const { player, total_games, avg_placement, top4_rate, win_rate, last_20, top_units, match_history } = data;
   const [visibleMatches, setVisibleMatches] = useState(20);
@@ -538,6 +542,7 @@ export default function PlayerProfile({
                   itemAssets={itemAssets}
                   itemNames={itemNames}
                   traitData={traitData}
+                  server={server}
                 />
               ))}
             </div>

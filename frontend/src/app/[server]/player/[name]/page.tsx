@@ -1,9 +1,13 @@
-import PlayerProfile, { PlayerProfileData, TraitInfo } from "../../components/PlayerProfile";
-import { getDataVersion, fetchApi } from "@/lib/api";
+import PlayerProfile, { PlayerProfileData, TraitInfo } from "../../../components/PlayerProfile";
+import { backendUrl } from "@/lib/backend";
 import Link from "next/link";
 
-async function fetchPlayerProfile(dv: number, name: string): Promise<PlayerProfileData> {
-  const res = await fetchApi(`/api/player/${encodeURIComponent(name)}/profile/`, { revalidate: 60 }, dv);
+async function fetchPlayerProfile(name: string, server?: string): Promise<PlayerProfileData> {
+  const url = new URL(backendUrl(`/api/player/${encodeURIComponent(name)}/profile/`));
+  if (server) url.searchParams.set("server", server);
+  const res = await fetch(url.toString(), {
+    cache: "no-store",
+  });
   if (!res.ok) {
     if (res.status === 404) throw new Error("Player not found");
     throw new Error(`Failed to fetch profile: ${res.status}`);
@@ -11,9 +15,9 @@ async function fetchPlayerProfile(dv: number, name: string): Promise<PlayerProfi
   return res.json();
 }
 
-async function fetchItemData(dv: number): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
+async function fetchItemData(): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
   try {
-    const res = await fetchApi("/api/item-assets/", { revalidate: 60 }, dv);
+    const res = await fetch(backendUrl("/api/item-assets/"), { cache: "no-store" });
     if (!res.ok) return { assets: {}, names: {} };
     return res.json();
   } catch {
@@ -21,9 +25,9 @@ async function fetchItemData(dv: number): Promise<{ assets: Record<string, strin
   }
 }
 
-async function fetchTraitBreakpoints(dv: number): Promise<Record<string, TraitInfo>> {
+async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
   try {
-    const res = await fetchApi("/api/traits/", { revalidate: 60 }, dv);
+    const res = await fetch(backendUrl("/api/traits/"), { cache: "no-store" });
     if (!res.ok) return {};
     return res.json();
   } catch {
@@ -34,11 +38,11 @@ async function fetchTraitBreakpoints(dv: number): Promise<Record<string, TraitIn
 export default async function PlayerPage({
   params,
 }: {
-  params: Promise<{ name: string }>;
+  params: Promise<{ server: string; name: string }>;
 }) {
-  const { name } = await params;
+  const { server: serverSlug, name } = await params;
+  const server = serverSlug.toUpperCase();
   const decodedName = decodeURIComponent(name);
-  const dv = await getDataVersion();
 
   let profile: PlayerProfileData | null = null;
   let itemAssets: Record<string, string> = {};
@@ -49,9 +53,9 @@ export default async function PlayerPage({
   try {
     let itemData: { assets: Record<string, string>; names: Record<string, string> };
     [profile, itemData, traitData] = await Promise.all([
-      fetchPlayerProfile(dv, decodedName),
-      fetchItemData(dv),
-      fetchTraitBreakpoints(dv),
+      fetchPlayerProfile(decodedName, server),
+      fetchItemData(),
+      fetchTraitBreakpoints(),
     ]);
     itemAssets = itemData.assets;
     itemNames = itemData.names;
@@ -63,10 +67,10 @@ export default async function PlayerPage({
     <div className="space-y-6">
       {/* Back link */}
       <Link
-        href="/games-feed"
+        href={`/${serverSlug}/games-feed`}
         className="inline-flex items-center gap-1.5 text-tft-muted hover:text-tft-gold text-sm transition-colors"
       >
-        <span>←</span>
+        <span>&larr;</span>
         <span>Back to Games Feed</span>
       </Link>
 
@@ -78,7 +82,7 @@ export default async function PlayerPage({
           </p>
         </div>
       ) : profile ? (
-        <PlayerProfile data={profile} itemAssets={itemAssets} itemNames={itemNames} traitData={traitData} />
+        <PlayerProfile data={profile} itemAssets={itemAssets} itemNames={itemNames} traitData={traitData} server={server} />
       ) : null}
     </div>
   );

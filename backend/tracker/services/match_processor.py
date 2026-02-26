@@ -15,13 +15,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "16.6 D") -> bool:
+def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "16.6 D", server: str = "PBE") -> bool:
     """
     Store a match and the unit data for every participant (all 8 slots).
 
     Args:
         match_data:       Full match JSON from Riot API.
         puuid_to_player:  {puuid: Player instance} for all tracked players.
+        server:           "PBE" or "LIVE".
 
     Returns:
         True  — match was new and has been stored.
@@ -40,6 +41,7 @@ def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "
         defaults={
             "game_datetime": game_datetime,
             "game_version": game_version,
+            "server": server,
             "raw_json": match_data,
         },
     )
@@ -56,17 +58,21 @@ def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "
         if not puuid:
             continue
 
-        # Use existing tracked player or create a new Player record on-the-fly.
+        # Use existing tracked player or handle untracked participant.
         player = puuid_to_player.get(puuid)
         if player is None:
-            game_name: str = p_data.get("riotIdGameName") or puuid[:16]
-            tag_line: str = p_data.get("riotIdTagLine") or "unknown"
-            player, player_created = Player.objects.get_or_create(
-                puuid=puuid,
-                defaults={"game_name": game_name, "tag_line": tag_line},
-            )
-            if player_created:
-                logger.info("New player created on-the-fly: %s#%s", game_name, tag_line)
+            if server == "LIVE":
+                # Live: store participant with player=None (no new Player record).
+                player = None
+            else:
+                game_name: str = p_data.get("riotIdGameName") or puuid[:16]
+                tag_line: str = p_data.get("riotIdTagLine") or "unknown"
+                player, player_created = Player.objects.get_or_create(
+                    puuid=puuid,
+                    defaults={"game_name": game_name, "tag_line": tag_line},
+                )
+                if player_created:
+                    logger.info("New player created on-the-fly: %s#%s", game_name, tag_line)
         else:
             tracked_count += 1
 

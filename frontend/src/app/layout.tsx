@@ -8,6 +8,7 @@ import { getDataVersion } from "@/lib/api";
 import StatsBar from "./components/StatsBar";
 import FreshnessGuard from "./components/FreshnessGuard";
 import Nav from "./components/Nav";
+import ServerSelector from "./components/ServerSelector";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -85,6 +86,9 @@ export default async function RootLayout({
                   TFT Pro Radar
                 </span>
               </Link>
+              <Suspense fallback={null}>
+                <ServerSelector />
+              </Suspense>
               <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
                 <a
                   href="https://x.com/TFTProRadar"
@@ -120,7 +124,9 @@ export default async function RootLayout({
                 </a>
               </div>
             </div>
-            <Nav />
+            <Suspense fallback={null}>
+              <Nav />
+            </Suspense>
           </div>
           <Suspense fallback={null}>
             <StatsBar />

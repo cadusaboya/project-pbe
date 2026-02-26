@@ -354,12 +354,14 @@ function ResultCard({
   itemNames,
   traitData,
   searchedUnits,
+  server,
 }: {
   comp: SearchComp;
   itemAssets: Record<string, string>;
   itemNames?: Record<string, string>;
   traitData: Record<string, TraitInfo>;
   searchedUnits: string[];
+  server: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [lobby, setLobby] = useState<LobbyParticipant[] | null>(null);
@@ -381,7 +383,7 @@ function ResultCard({
       setLoadingLobby(true);
       setLobbyError(null);
       try {
-        const res = await fetch(`/api/match/${comp.match_id}/lobby/`);
+        const res = await fetch(`/api/match/${comp.match_id}/lobby/?server=${encodeURIComponent(server)}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         setLobby(await res.json());
       } catch (e) {
@@ -407,7 +409,7 @@ function ResultCard({
             #{comp.placement}
           </span>
           <a
-            href={`/player/${encodeURIComponent(comp.player.split("#")[0])}`}
+            href={`/${server.toLowerCase()}/player/${encodeURIComponent(comp.player.split("#")[0])}`}
             onClick={(e) => e.stopPropagation()}
             className="text-tft-text font-medium hover:text-tft-gold transition-colors"
           >
@@ -460,7 +462,7 @@ function ResultCard({
                     #{participant.placement}
                   </span>
                   <a
-                    href={`/player/${encodeURIComponent(participant.name.split("#")[0])}`}
+                    href={`/${server.toLowerCase()}/player/${encodeURIComponent(participant.name.split("#")[0])}`}
                     onClick={(e) => e.stopPropagation()}
                     className={`text-sm w-24 sm:w-36 truncate shrink-0 hover:text-tft-gold transition-colors ${isCurrentPlayer ? "text-tft-accent font-semibold" : "text-tft-text"}`}
                   >
@@ -494,13 +496,13 @@ export default function SearchComps({
   itemAssets,
   itemNames,
   traitData,
-  dataVersion = 0,
+  server,
 }: {
   units: UnitStat[];
   itemAssets: Record<string, string>;
   itemNames?: Record<string, string>;
   traitData: Record<string, TraitInfo>;
-  dataVersion?: number;
+  server: string;
 }) {
   const [requiredUnits, setRequiredUnits] = useState<string[]>([]);
   const [sort, setSort] = useState<"recency" | "placement">("recency");
@@ -525,7 +527,7 @@ export default function SearchComps({
         const url = new URL(backendUrl("/api/search-comps/"));
         for (const u of selectedUnits) url.searchParams.append("unit", u);
         url.searchParams.set("sort", sortMode);
-        url.searchParams.set("_v", String(dataVersion));
+        url.searchParams.set("server", server);
         const res = await fetch(url.toString());
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         setResults(await res.json());
@@ -535,7 +537,7 @@ export default function SearchComps({
         setLoading(false);
       }
     },
-    []
+    [server]
   );
 
   useEffect(() => {
@@ -651,6 +653,7 @@ export default function SearchComps({
               itemNames={itemNames}
               traitData={traitData}
               searchedUnits={requiredUnits}
+              server={server}
             />
           ))}
         </div>

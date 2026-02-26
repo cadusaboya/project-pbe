@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, Fragment, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { backendUrl } from "@/lib/backend";
 import { UnitImage, ItemImage } from "./TftImage";
 import { formatUnit, costBorderColor } from "@/lib/tftUtils";
@@ -203,16 +203,17 @@ export default function StatsTable({
   versions,
   selectedVersion,
   matchesAnalyzed,
-  dataVersion = 0,
+  server,
 }: {
   data: UnitStat[];
   versions: string[];
   selectedVersion: string;
   matchesAnalyzed: number;
-  dataVersion?: number;
+  server: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const [sortKey, setSortKey] = useState<SortKey>("avg_placement");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [search, setSearch] = useState("");
@@ -224,14 +225,16 @@ export default function StatsTable({
   const [itemAssets, setItemAssets] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    fetch(backendUrl(`/api/item-assets/?_v=${dataVersion}`))
+    const url = new URL(backendUrl("/api/item-assets/"));
+    url.searchParams.set("server", server);
+    fetch(url.toString())
       .then((r) => (r.ok ? r.json() : { assets: {}, names: {} }))
       .then((data: { assets: Record<string, string>; names: Record<string, string> }) => {
         setItemAssets(data.assets ?? data);
         if (data.names) _itemNamesCache = data.names;
       })
       .catch(() => {});
-  }, [dataVersion]);
+  }, [server]);
 
   function handleVersionChange(v: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -240,7 +243,7 @@ export default function StatsTable({
     } else {
       params.delete("game_version");
     }
-    router.push(`/unit-stats?${params.toString()}`);
+    router.push(`${pathname}?${params.toString()}`);
   }
 
   const handleSort = (key: SortKey, defaultDir: SortDir) => {
@@ -265,11 +268,10 @@ export default function StatsTable({
 
     setLoadingUnit(unitName);
     try {
-      const params = new URLSearchParams();
-      if (selectedVersion) params.set("game_version", selectedVersion);
-      params.set("_v", String(dataVersion));
-      const url = backendUrl(`/api/unit-stats/${encodeURIComponent(unitName)}/star-stats/?${params}`);
-      const res = await fetch(url);
+      const url = new URL(backendUrl(`/api/unit-stats/${encodeURIComponent(unitName)}/star-stats/`));
+      if (selectedVersion) url.searchParams.set("game_version", selectedVersion);
+      url.searchParams.set("server", server);
+      const res = await fetch(url.toString());
       if (res.ok) {
         const data: UnitDetailStats = await res.json();
         setDetailCache((prev) => ({ ...prev, [cacheKey]: data }));

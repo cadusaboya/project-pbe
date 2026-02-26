@@ -270,12 +270,12 @@ export default function ItemsExplorer({
   units,
   versions,
   selectedVersion: initialVersion,
-  dataVersion = 0,
+  server,
 }: {
   units: UnitStat[];
   versions: string[];
   selectedVersion: string;
-  dataVersion?: number;
+  server: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -291,14 +291,14 @@ export default function ItemsExplorer({
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   useEffect(() => {
-    fetch(backendUrl(`/api/item-assets/?_v=${dataVersion}`))
+    fetch(backendUrl(`/api/item-assets/?server=${encodeURIComponent(server)}`))
       .then((r) => (r.ok ? r.json() : { assets: {}, names: {} }))
       .then((data: { assets: Record<string, string>; names: Record<string, string> }) => {
         setItemAssets(data.assets ?? data);
         if (data.names) _itemNamesCache = data.names;
       })
       .catch(() => {});
-  }, [dataVersion]);
+  }, [server]);
 
   useEffect(() => {
     if (!selectedUnit) {
@@ -311,14 +311,14 @@ export default function ItemsExplorer({
     if (selectedVersion) params.set("game_version", selectedVersion);
     if (minGames) params.set("min_games", minGames);
     selectedItems.forEach((item) => params.append("selected_item", item));
-    params.set("_v", String(dataVersion));
+    params.set("server", server);
 
     fetch(backendUrl(`/api/item-stats/?${params.toString()}`))
       .then((r) => (r.ok ? r.json() : null))
       .then(setItemData)
       .catch(() => setItemData(null))
       .finally(() => setLoading(false));
-  }, [selectedUnit, selectedVersion, minGames, selectedItems, dataVersion]);
+  }, [selectedUnit, selectedVersion, minGames, selectedItems, server]);
 
   function handleVersionChange(v: string) {
     setSelectedVersion(v);
@@ -326,7 +326,7 @@ export default function ItemsExplorer({
     const params = new URLSearchParams(searchParams.toString());
     if (v) params.set("game_version", v);
     else params.delete("game_version");
-    router.push(`/items?${params.toString()}`);
+    router.push(`/${server.toLowerCase()}/items?${params.toString()}`);
   }
 
   function handleUnitSelect(unit: UnitStat | null) {
