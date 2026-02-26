@@ -62,7 +62,7 @@ export default function StatsBar() {
         <span className="text-tft-muted text-xs ml-auto">
           {stats.last_fetch_at ? (
             <>
-              Last run:{" "}
+              Last match:{" "}
               <span className="text-tft-text">
                 {formatRelativeUtc(stats.last_fetch_at)}
               </span>

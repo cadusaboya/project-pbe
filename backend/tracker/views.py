@@ -382,10 +382,8 @@ class StatsView(APIView):
         if game_version:
             match_qs = match_qs.filter(game_version=game_version)
 
-        last_recomputed = AggregatedUnitStat.objects.aggregate(
-            latest=Max("updated_at")
-        )["latest"]
-        last_run = last_recomputed.isoformat() if last_recomputed else None
+        last_match = match_qs.aggregate(latest=Max("created_at"))["latest"]
+        last_run = last_match.isoformat() if last_match else None
 
         if server == "PBE":
             players_count = Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid="").count()
