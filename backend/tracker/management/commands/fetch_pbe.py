@@ -33,7 +33,7 @@ from tracker.services.riot_api import RiotAPIService
 
 logger = logging.getLogger(__name__)
 
-GAME_VERSION = "16.6 D"
+GAME_VERSION = "16.6 Final"
 DEFAULT_FETCH_CUTOFF_DATE = "2026-02-23"
 DEFAULT_FETCH_CUTOFF_TIME = "00:00"
 DEFAULT_FETCH_CUTOFF_TZ = "America/Cuiaba"
@@ -180,7 +180,7 @@ class Command(BaseCommand):
                     p.get("puuid") for p in match_data.get("info", {}).get("participants", [])
                 }
                 tracked_count = sum(1 for p in participant_puuids if p in puuid_to_player)
-                if tracked_count < 6:
+                if tracked_count < 4:
                     self.stdout.write(f"    {mid} - skipped ({tracked_count}/8 tracked)")
                     continue
 
