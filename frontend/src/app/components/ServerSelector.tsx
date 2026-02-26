@@ -34,7 +34,7 @@ export default function ServerSelector() {
           className={`px-2.5 sm:px-3 py-1 rounded-md text-xs sm:text-sm font-medium transition-all ${
             current === s.value
               ? "bg-tft-gold/20 text-tft-gold shadow-sm"
-              : "text-tft-muted hover:text-tft-text"
+              : "text-tft-text/70 hover:text-tft-text"
           }`}
         >
           {s.label}

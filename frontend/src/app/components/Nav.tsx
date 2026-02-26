@@ -97,7 +97,7 @@ export default function Nav() {
               className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
                 isActive
                   ? "bg-tft-gold/15 text-tft-gold border border-tft-gold/30"
-                  : "text-tft-muted hover:text-tft-text hover:bg-tft-hover border border-transparent"
+                  : "text-tft-text/70 hover:text-tft-text hover:bg-tft-hover border border-transparent"
               }`}
             >
               {item.icon}

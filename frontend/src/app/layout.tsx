@@ -94,7 +94,7 @@ export default async function RootLayout({
                   href="https://x.com/TFTProRadar"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-2 sm:px-3 py-1.5 rounded-md text-sm font-medium border border-tft-border text-tft-muted hover:text-tft-text hover:bg-tft-hover transition-colors inline-flex items-center gap-1.5"
+                  className="px-2 sm:px-3 py-1.5 rounded-md text-sm font-medium border border-tft-border text-tft-text/70 hover:text-tft-text hover:bg-tft-hover transition-colors inline-flex items-center gap-1.5"
                   title="Follow us on X"
                 >
                   <svg
@@ -110,7 +110,7 @@ export default async function RootLayout({
                   href="https://discord.gg/6TuFHT7ZJF"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-2 sm:px-3 py-1.5 rounded-md text-sm font-medium border border-tft-border text-tft-muted hover:text-tft-text hover:bg-tft-hover transition-colors inline-flex items-center gap-1.5"
+                  className="px-2 sm:px-3 py-1.5 rounded-md text-sm font-medium border border-tft-border text-tft-text/70 hover:text-tft-text hover:bg-tft-hover transition-colors inline-flex items-center gap-1.5"
                   title="Join our Discord server"
                 >
                   <svg
