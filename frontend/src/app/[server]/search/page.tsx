@@ -1,14 +1,12 @@
 import { Suspense } from "react";
 import SearchComps from "../../components/SearchComps";
-import { backendUrl } from "@/lib/backend";
+import { fetchJson } from "@/lib/api";
 import { UnitStat } from "../../components/StatsTable";
 import { TraitInfo } from "../../components/WinningCompsList";
 
 async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), { cache: "no-store" });
-    if (!res.ok) return {};
-    return res.json();
+    return await fetchJson<Record<string, TraitInfo>>("/api/traits/");
   } catch {
     return {};
   }
@@ -16,9 +14,7 @@ async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
 
 async function fetchItemData(): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
   try {
-    const res = await fetch(backendUrl("/api/item-assets/"), { cache: "no-store" });
-    if (!res.ok) return { assets: {}, names: {} };
-    return res.json();
+    return await fetchJson<{ assets: Record<string, string>; names: Record<string, string> }>("/api/item-assets/");
   } catch {
     return { assets: {}, names: {} };
   }
@@ -26,12 +22,9 @@ async function fetchItemData(): Promise<{ assets: Record<string, string>; names:
 
 async function fetchUnits(server?: string): Promise<UnitStat[]> {
   try {
-    const url = new URL(backendUrl("/api/unit-stats/"));
-    url.searchParams.set("sort", "games");
-    if (server) url.searchParams.set("server", server);
-    const res = await fetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return [];
-    return res.json();
+    const params = new URLSearchParams({ sort: "games" });
+    if (server) params.set("server", server);
+    return await fetchJson<UnitStat[]>(`/api/unit-stats/?${params}`);
   } catch {
     return [];
   }

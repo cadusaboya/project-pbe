@@ -1,5 +1,5 @@
 import TeamBuilder from "../../components/TeamBuilder";
-import { backendUrl } from "@/lib/backend";
+import { fetchJson } from "@/lib/api";
 
 interface Champion {
   apiName: string;
@@ -12,11 +12,7 @@ type TraitData = Record<string, { breakpoints: number[]; icon: string }>;
 
 async function fetchChampions(): Promise<Champion[]> {
   try {
-    const res = await fetch(backendUrl("/api/champions/"), {
-      cache: "no-store",
-    });
-    if (!res.ok) return [];
-    return res.json();
+    return await fetchJson<Champion[]>("/api/champions/");
   } catch {
     return [];
   }
@@ -24,11 +20,7 @@ async function fetchChampions(): Promise<Champion[]> {
 
 async function fetchTraits(): Promise<TraitData> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), {
-      cache: "no-store",
-    });
-    if (!res.ok) return {};
-    return res.json();
+    return await fetchJson<TraitData>("/api/traits/");
   } catch {
     return {};
   }

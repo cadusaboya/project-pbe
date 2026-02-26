@@ -1,27 +1,20 @@
 import StatsTable, { UnitStat } from "../../components/StatsTable";
-import { backendUrl } from "@/lib/backend";
+import { fetchJson } from "@/lib/api";
 
 async function fetchStats(gameVersion?: string, server?: string): Promise<UnitStat[]> {
-  const url = new URL(backendUrl("/api/unit-stats/"));
-  if (gameVersion) url.searchParams.set("game_version", gameVersion);
-  if (server) url.searchParams.set("server", server);
-
-  const res = await fetch(url.toString(), { cache: "no-store" });
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch stats: ${res.status}`);
-  }
-
-  return res.json();
+  const params = new URLSearchParams();
+  if (gameVersion) params.set("game_version", gameVersion);
+  if (server) params.set("server", server);
+  const qs = params.toString();
+  return fetchJson<UnitStat[]>(`/api/unit-stats/${qs ? `?${qs}` : ""}`);
 }
 
 async function fetchVersions(server?: string): Promise<string[]> {
   try {
-    const url = new URL(backendUrl("/api/versions/"));
-    if (server) url.searchParams.set("server", server);
-    const res = await fetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return [];
-    return res.json();
+    const params = new URLSearchParams();
+    if (server) params.set("server", server);
+    const qs = params.toString();
+    return await fetchJson<string[]>(`/api/versions/${qs ? `?${qs}` : ""}`);
   } catch {
     return [];
   }
@@ -29,12 +22,11 @@ async function fetchVersions(server?: string): Promise<string[]> {
 
 async function fetchMatchesAnalyzed(gameVersion?: string, server?: string): Promise<number> {
   try {
-    const url = new URL(backendUrl("/api/stats/"));
-    if (gameVersion) url.searchParams.set("game_version", gameVersion);
-    if (server) url.searchParams.set("server", server);
-    const res = await fetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return 0;
-    const data = await res.json();
+    const params = new URLSearchParams();
+    if (gameVersion) params.set("game_version", gameVersion);
+    if (server) params.set("server", server);
+    const qs = params.toString();
+    const data = await fetchJson<{ matches_analyzed?: number }>(`/api/stats/${qs ? `?${qs}` : ""}`);
     return Number(data.matches_analyzed ?? 0);
   } catch {
     return 0;

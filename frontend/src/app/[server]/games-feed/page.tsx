@@ -1,34 +1,24 @@
 import WinningCompsList, { TraitInfo, WinningComp } from "../../components/WinningCompsList";
-import { backendUrl } from "@/lib/backend";
+import { fetchJson } from "@/lib/api";
 
 async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), { cache: "no-store" });
-    if (!res.ok) return {};
-    return res.json();
+    return await fetchJson<Record<string, TraitInfo>>("/api/traits/");
   } catch {
     return {};
   }
 }
 
 async function fetchWinningComps(gameVersion?: string, server?: string): Promise<WinningComp[]> {
-  const url = new URL(backendUrl("/api/winning-comps/"));
-  url.searchParams.set("limit", "200");
-  if (gameVersion) url.searchParams.set("game_version", gameVersion);
-  if (server) url.searchParams.set("server", server);
-
-  const res = await fetch(url.toString(), { cache: "no-store" });
-  if (!res.ok) throw new Error(`Failed to fetch winning comps: ${res.status}`);
-  return res.json();
+  const params = new URLSearchParams({ limit: "200" });
+  if (gameVersion) params.set("game_version", gameVersion);
+  if (server) params.set("server", server);
+  return fetchJson<WinningComp[]>(`/api/winning-comps/?${params}`);
 }
 
 async function fetchItemData(): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
   try {
-    const res = await fetch(backendUrl("/api/item-assets/"), {
-      cache: "no-store",
-    });
-    if (!res.ok) return { assets: {}, names: {} };
-    return res.json();
+    return await fetchJson<{ assets: Record<string, string>; names: Record<string, string> }>("/api/item-assets/");
   } catch {
     return { assets: {}, names: {} };
   }
@@ -36,11 +26,10 @@ async function fetchItemData(): Promise<{ assets: Record<string, string>; names:
 
 async function fetchVersions(server?: string): Promise<string[]> {
   try {
-    const url = new URL(backendUrl("/api/versions/"));
-    if (server) url.searchParams.set("server", server);
-    const res = await fetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return [];
-    return res.json();
+    const params = new URLSearchParams();
+    if (server) params.set("server", server);
+    const qs = params.toString();
+    return await fetchJson<string[]>(`/api/versions/${qs ? `?${qs}` : ""}`);
   } catch {
     return [];
   }

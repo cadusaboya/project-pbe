@@ -1,14 +1,11 @@
 import PlayerStatsList, { PlayerStat } from "../../components/PlayerStatsList";
-import { backendUrl } from "@/lib/backend";
+import { fetchJson } from "@/lib/api";
 
 async function fetchPlayerStats(server?: string): Promise<PlayerStat[]> {
-  const url = new URL(backendUrl("/api/player-stats/"));
-  if (server) url.searchParams.set("server", server);
-  const res = await fetch(url.toString(), { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch player stats: ${res.status}`);
-  }
-  return res.json();
+  const params = new URLSearchParams();
+  if (server) params.set("server", server);
+  const qs = params.toString();
+  return fetchJson<PlayerStat[]>(`/api/player-stats/${qs ? `?${qs}` : ""}`);
 }
 
 export default async function PlayersPage({

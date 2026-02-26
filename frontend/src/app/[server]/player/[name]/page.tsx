@@ -1,25 +1,17 @@
 import PlayerProfile, { PlayerProfileData, TraitInfo } from "../../../components/PlayerProfile";
-import { backendUrl } from "@/lib/backend";
+import { fetchJson } from "@/lib/api";
 import Link from "next/link";
 
 async function fetchPlayerProfile(name: string, server?: string): Promise<PlayerProfileData> {
-  const url = new URL(backendUrl(`/api/player/${encodeURIComponent(name)}/profile/`));
-  if (server) url.searchParams.set("server", server);
-  const res = await fetch(url.toString(), {
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    if (res.status === 404) throw new Error("Player not found");
-    throw new Error(`Failed to fetch profile: ${res.status}`);
-  }
-  return res.json();
+  const params = new URLSearchParams();
+  if (server) params.set("server", server);
+  const qs = params.toString();
+  return fetchJson<PlayerProfileData>(`/api/player/${encodeURIComponent(name)}/profile/${qs ? `?${qs}` : ""}`);
 }
 
 async function fetchItemData(): Promise<{ assets: Record<string, string>; names: Record<string, string> }> {
   try {
-    const res = await fetch(backendUrl("/api/item-assets/"), { cache: "no-store" });
-    if (!res.ok) return { assets: {}, names: {} };
-    return res.json();
+    return await fetchJson<{ assets: Record<string, string>; names: Record<string, string> }>("/api/item-assets/");
   } catch {
     return { assets: {}, names: {} };
   }
@@ -27,9 +19,7 @@ async function fetchItemData(): Promise<{ assets: Record<string, string>; names:
 
 async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), { cache: "no-store" });
-    if (!res.ok) return {};
-    return res.json();
+    return await fetchJson<Record<string, TraitInfo>>("/api/traits/");
   } catch {
     return {};
   }

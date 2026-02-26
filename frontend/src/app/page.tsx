@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { backendUrl } from "@/lib/backend";
+import { fetchJson } from "@/lib/api";
 
 interface TopUnit {
   unit_name: string;
@@ -26,15 +26,9 @@ interface TopComp {
 
 async function fetchTopUnits(server?: string): Promise<TopUnit[]> {
   try {
-    const url = new URL(backendUrl("/api/unit-stats/"));
-    url.searchParams.set("sort", "avg_placement");
-    url.searchParams.set("min_games", "20");
-    if (server) url.searchParams.set("server", server);
-    const res = await fetch(url.toString(), {
-      cache: "no-store",
-    });
-    if (!res.ok) return [];
-    const data: TopUnit[] = await res.json();
+    const params = new URLSearchParams({ sort: "avg_placement", min_games: "20" });
+    if (server) params.set("server", server);
+    const data = await fetchJson<TopUnit[]>(`/api/unit-stats/?${params}`);
     return data.slice(0, 5);
   } catch {
     return [];
@@ -43,15 +37,10 @@ async function fetchTopUnits(server?: string): Promise<TopUnit[]> {
 
 async function fetchTopComps(server?: string): Promise<TopComp[]> {
   try {
-    const url = new URL(backendUrl("/api/comps/"));
-    url.searchParams.set("top_flex", "1");
-    if (server) url.searchParams.set("server", server);
-    const res = await fetch(url.toString(), {
-      cache: "no-store",
-    });
-    if (!res.ok) return [];
-    const json = await res.json();
-    const data: TopComp[] = json.comps ?? json;
+    const params = new URLSearchParams({ top_flex: "1" });
+    if (server) params.set("server", server);
+    const json = await fetchJson<{ comps?: TopComp[] } | TopComp[]>(`/api/comps/?${params}`);
+    const data: TopComp[] = Array.isArray(json) ? json : json.comps ?? [];
     return data.filter((c) => c.comps > 0).sort((a, b) => a.avg_placement - b.avg_placement).slice(0, 5);
   } catch {
     return [];

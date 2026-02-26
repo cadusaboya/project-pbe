@@ -1,5 +1,5 @@
 import CompsList, { CompStat } from "../../../components/CompsList";
-import { backendUrl } from "@/lib/backend";
+import { fetchJson } from "@/lib/api";
 
 async function fetchHiddenCompStats(
   gameVersion?: string,
@@ -7,27 +7,20 @@ async function fetchHiddenCompStats(
   minOccurrences?: string,
   server?: string,
 ): Promise<CompStat[]> {
-  const url = new URL(backendUrl("/api/comps/hidden/"));
-  url.searchParams.set("limit", "20");
-  if (gameVersion) url.searchParams.set("game_version", gameVersion);
-  if (coreSizes) url.searchParams.set("core_sizes", coreSizes);
-  if (minOccurrences) url.searchParams.set("min_occurrences", minOccurrences);
-  if (server) url.searchParams.set("server", server);
-
-  const res = await fetch(url.toString(), { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch hidden composition stats: ${res.status}`);
-  }
-  return res.json();
+  const params = new URLSearchParams({ limit: "20" });
+  if (gameVersion) params.set("game_version", gameVersion);
+  if (coreSizes) params.set("core_sizes", coreSizes);
+  if (minOccurrences) params.set("min_occurrences", minOccurrences);
+  if (server) params.set("server", server);
+  return fetchJson<CompStat[]>(`/api/comps/hidden/?${params}`);
 }
 
 async function fetchVersions(server?: string): Promise<string[]> {
   try {
-    const url = new URL(backendUrl("/api/versions/"));
-    if (server) url.searchParams.set("server", server);
-    const res = await fetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return [];
-    return res.json();
+    const params = new URLSearchParams();
+    if (server) params.set("server", server);
+    const qs = params.toString();
+    return await fetchJson<string[]>(`/api/versions/${qs ? `?${qs}` : ""}`);
   } catch {
     return [];
   }
@@ -35,9 +28,7 @@ async function fetchVersions(server?: string): Promise<string[]> {
 
 async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), { cache: "no-store" });
-    if (!res.ok) return {};
-    return res.json();
+    return await fetchJson<Record<string, { breakpoints: number[]; icon: string }>>("/api/traits/");
   } catch {
     return {};
   }

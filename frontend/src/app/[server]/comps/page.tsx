@@ -1,5 +1,5 @@
 import CompsList, { CompStat } from "../../components/CompsList";
-import { backendUrl } from "@/lib/backend";
+import { fetchJson } from "@/lib/api";
 
 interface CompsResponse {
   total_games: number;
@@ -8,24 +8,19 @@ interface CompsResponse {
 }
 
 async function fetchCompStats(gameVersion?: string, server?: string): Promise<CompsResponse> {
-  const url = new URL(backendUrl("/api/comps/"));
-  if (gameVersion) url.searchParams.set("game_version", gameVersion);
-  if (server) url.searchParams.set("server", server);
-
-  const res = await fetch(url.toString(), { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch composition stats: ${res.status}`);
-  }
-  return res.json();
+  const params = new URLSearchParams();
+  if (gameVersion) params.set("game_version", gameVersion);
+  if (server) params.set("server", server);
+  const qs = params.toString();
+  return fetchJson<CompsResponse>(`/api/comps/${qs ? `?${qs}` : ""}`);
 }
 
 async function fetchVersions(server?: string): Promise<string[]> {
   try {
-    const url = new URL(backendUrl("/api/versions/"));
-    if (server) url.searchParams.set("server", server);
-    const res = await fetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return [];
-    return res.json();
+    const params = new URLSearchParams();
+    if (server) params.set("server", server);
+    const qs = params.toString();
+    return await fetchJson<string[]>(`/api/versions/${qs ? `?${qs}` : ""}`);
   } catch {
     return [];
   }
@@ -33,9 +28,7 @@ async function fetchVersions(server?: string): Promise<string[]> {
 
 async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
   try {
-    const res = await fetch(backendUrl("/api/traits/"), { cache: "no-store" });
-    if (!res.ok) return {};
-    return res.json();
+    return await fetchJson<Record<string, { breakpoints: number[]; icon: string }>>("/api/traits/");
   } catch {
     return {};
   }

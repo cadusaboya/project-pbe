@@ -1,18 +1,13 @@
 import { Suspense } from "react";
-import { backendUrl } from "@/lib/backend";
+import { fetchJson } from "@/lib/api";
 import ItemsExplorer from "../../components/ItemsExplorer";
 import { UnitStat } from "../../components/StatsTable";
 
 async function fetchUnits(server?: string): Promise<UnitStat[]> {
   try {
-    const url = new URL(backendUrl("/api/unit-stats/"));
-    url.searchParams.set("sort", "games");
-    if (server) url.searchParams.set("server", server);
-    const res = await fetch(url.toString(), {
-      cache: "no-store",
-    });
-    if (!res.ok) return [];
-    return res.json();
+    const params = new URLSearchParams({ sort: "games" });
+    if (server) params.set("server", server);
+    return await fetchJson<UnitStat[]>(`/api/unit-stats/?${params}`);
   } catch {
     return [];
   }
@@ -20,11 +15,10 @@ async function fetchUnits(server?: string): Promise<UnitStat[]> {
 
 async function fetchVersions(server?: string): Promise<string[]> {
   try {
-    const url = new URL(backendUrl("/api/versions/"));
-    if (server) url.searchParams.set("server", server);
-    const res = await fetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return [];
-    return res.json();
+    const params = new URLSearchParams();
+    if (server) params.set("server", server);
+    const qs = params.toString();
+    return await fetchJson<string[]>(`/api/versions/${qs ? `?${qs}` : ""}`);
   } catch {
     return [];
   }
