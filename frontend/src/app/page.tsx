@@ -52,7 +52,7 @@ async function fetchTopComps(server?: string): Promise<TopComp[]> {
     if (!res.ok) return [];
     const json = await res.json();
     const data: TopComp[] = json.comps ?? json;
-    return data.sort((a, b) => a.avg_placement - b.avg_placement).slice(0, 5);
+    return data.filter((c) => c.comps > 0).sort((a, b) => a.avg_placement - b.avg_placement).slice(0, 5);
   } catch {
     return [];
   }
