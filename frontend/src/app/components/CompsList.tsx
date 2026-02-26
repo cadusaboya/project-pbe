@@ -307,7 +307,7 @@ export default function CompsList({
   function handleExploreComp(comp: CompStat) {
     const params = new URLSearchParams();
     if (selectedVersion) params.set("game_version", selectedVersion);
-    if (server) params.set("server", server);
+
 
     // Count each unit (core_units already expands multi-copy units)
     const unitCounts = new Map<string, number>();
@@ -363,7 +363,7 @@ export default function CompsList({
       params.append("exclude_trait", `${trait}:${threshold}`);
     }
 
-    router.push(`/explore?${params.toString()}`);
+    router.push(`/${server.toLowerCase()}/explore?${params.toString()}`);
   }
 
   function handleMinOccurrencesChange(v: string) {

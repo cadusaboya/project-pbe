@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, Fragment, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { backendUrl } from "@/lib/backend";
 import { UnitImage, ItemImage } from "./TftImage";
 import { formatUnit, costBorderColor } from "@/lib/tftUtils";
@@ -213,6 +213,7 @@ export default function StatsTable({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const [sortKey, setSortKey] = useState<SortKey>("avg_placement");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [search, setSearch] = useState("");
@@ -242,7 +243,7 @@ export default function StatsTable({
     } else {
       params.delete("game_version");
     }
-    router.push(`/unit-stats?${params.toString()}`);
+    router.push(`${pathname}?${params.toString()}`);
   }
 
   const handleSort = (key: SortKey, defaultDir: SortDir) => {

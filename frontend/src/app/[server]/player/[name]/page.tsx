@@ -1,4 +1,4 @@
-import PlayerProfile, { PlayerProfileData, TraitInfo } from "../../components/PlayerProfile";
+import PlayerProfile, { PlayerProfileData, TraitInfo } from "../../../components/PlayerProfile";
 import { backendUrl } from "@/lib/backend";
 import Link from "next/link";
 
@@ -37,13 +37,11 @@ async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
 
 export default async function PlayerPage({
   params,
-  searchParams,
 }: {
-  params: Promise<{ name: string }>;
-  searchParams: Promise<{ server?: string }>;
+  params: Promise<{ server: string; name: string }>;
 }) {
-  const { name } = await params;
-  const { server = "PBE" } = await searchParams;
+  const { server: serverSlug, name } = await params;
+  const server = serverSlug.toUpperCase();
   const decodedName = decodeURIComponent(name);
 
   let profile: PlayerProfileData | null = null;
@@ -69,10 +67,10 @@ export default async function PlayerPage({
     <div className="space-y-6">
       {/* Back link */}
       <Link
-        href="/games-feed"
+        href={`/${serverSlug}/games-feed`}
         className="inline-flex items-center gap-1.5 text-tft-muted hover:text-tft-gold text-sm transition-colors"
       >
-        <span>←</span>
+        <span>&larr;</span>
         <span>Back to Games Feed</span>
       </Link>
 

@@ -1,4 +1,4 @@
-import CompsList, { CompStat } from "../components/CompsList";
+import CompsList, { CompStat } from "../../components/CompsList";
 import { backendUrl } from "@/lib/backend";
 
 interface CompsResponse {
@@ -18,9 +18,11 @@ async function fetchCompStats(gameVersion?: string, server?: string): Promise<Co
   return res.json();
 }
 
-async function fetchVersions(): Promise<string[]> {
+async function fetchVersions(server?: string): Promise<string[]> {
   try {
-    const res = await fetch(backendUrl("/api/versions/"), { cache: "no-store" });
+    const url = new URL(backendUrl("/api/versions/"));
+    if (server) url.searchParams.set("server", server);
+    const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -39,11 +41,15 @@ async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; ic
 }
 
 export default async function CompsPage({
+  params,
   searchParams,
 }: {
-  searchParams: Promise<{ game_version?: string; server?: string }>;
+  params: Promise<{ server: string }>;
+  searchParams: Promise<{ game_version?: string }>;
 }) {
-  const { game_version: gameVersion, server = "PBE" } = await searchParams;
+  const { server: serverSlug } = await params;
+  const server = serverSlug.toUpperCase();
+  const { game_version: gameVersion } = await searchParams;
   let data: CompStat[] = [];
   let totalGames = 0;
   let versions: string[] = [];
@@ -53,11 +59,11 @@ export default async function CompsPage({
   try {
     const [compsRes, v, t] = await Promise.all([
       fetchCompStats(gameVersion, server),
-      fetchVersions(),
+      fetchVersions(server),
       fetchTraits(),
     ]);
-    data = compsRes.comps;
-    totalGames = compsRes.total_games;
+    data = compsRes.comps ?? [];
+    totalGames = compsRes.total_games ?? 0;
     versions = v;
     traitData = t;
   } catch (e) {
@@ -89,7 +95,7 @@ export default async function CompsPage({
           data={data}
           versions={versions}
           selectedVersion={gameVersion ?? ""}
-          basePath="/comps"
+          basePath={`/${serverSlug}/comps`}
           showCompMeta={false}
           traitData={traitData}
           totalGames={totalGames}

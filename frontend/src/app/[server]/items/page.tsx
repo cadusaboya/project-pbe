@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { backendUrl } from "@/lib/backend";
-import ItemsExplorer from "../components/ItemsExplorer";
-import { UnitStat } from "../components/StatsTable";
+import ItemsExplorer from "../../components/ItemsExplorer";
+import { UnitStat } from "../../components/StatsTable";
 
 async function fetchUnits(server?: string): Promise<UnitStat[]> {
   try {
@@ -18,11 +18,11 @@ async function fetchUnits(server?: string): Promise<UnitStat[]> {
   }
 }
 
-async function fetchVersions(): Promise<string[]> {
+async function fetchVersions(server?: string): Promise<string[]> {
   try {
-    const res = await fetch(backendUrl("/api/versions/"), {
-      cache: "no-store",
-    });
+    const url = new URL(backendUrl("/api/versions/"));
+    if (server) url.searchParams.set("server", server);
+    const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -31,13 +31,17 @@ async function fetchVersions(): Promise<string[]> {
 }
 
 export default async function ItemsPage({
+  params,
   searchParams,
 }: {
-  searchParams: Promise<{ game_version?: string; server?: string }>;
+  params: Promise<{ server: string }>;
+  searchParams: Promise<{ game_version?: string }>;
 }) {
-  const { game_version: gameVersion, server = "PBE" } = await searchParams;
+  const { server: serverSlug } = await params;
+  const server = serverSlug.toUpperCase();
+  const { game_version: gameVersion } = await searchParams;
 
-  const [units, versions] = await Promise.all([fetchUnits(server), fetchVersions()]);
+  const [units, versions] = await Promise.all([fetchUnits(server), fetchVersions(server)]);
 
   return (
     <Suspense fallback={null}>

@@ -18,6 +18,7 @@ export interface WinningComp {
   game_datetime: string;
   game_version: string;
   winner: string;
+  placement: number;
   units: WinningUnit[];
 }
 
@@ -252,14 +253,17 @@ function CompCard({
           onClick={handleToggle}
         >
           <div className="flex items-center gap-3">
-            {/* Solid gold placement badge */}
-            <span className="w-7 h-7 rounded border flex items-center justify-center text-xs font-bold bg-yellow-700/80 border-yellow-800 text-white shrink-0">
-              1
+            <span className={`w-7 h-7 rounded border flex items-center justify-center text-xs font-bold shrink-0 ${
+              comp.placement === 1
+                ? "bg-yellow-700/80 border-yellow-800 text-white"
+                : lobbyPlacementStyle(comp.placement)
+            }`}>
+              {comp.placement}
             </span>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <a
-                  href={`/player/${encodeURIComponent(comp.winner.split("#")[0])}`}
+                  href={`/${server.toLowerCase()}/player/${encodeURIComponent(comp.winner.split("#")[0])}`}
                   onClick={(e) => e.stopPropagation()}
                   className="text-tft-text font-semibold hover:text-tft-gold truncate transition-colors"
                 >
@@ -306,7 +310,7 @@ function CompCard({
               </p>
             )}
             {lobby &&
-              lobby.filter((p) => p.placement !== 1).map((participant, i, arr) => (
+              lobby.map((participant, i, arr) => (
                 <div
                   key={i}
                   className={`py-1.5 ${
@@ -320,7 +324,7 @@ function CompCard({
                       {participant.placement}
                     </span>
                     <a
-                      href={`/player/${encodeURIComponent(participant.name.split("#")[0])}`}
+                      href={`/${server.toLowerCase()}/player/${encodeURIComponent(participant.name.split("#")[0])}`}
                       onClick={(e) => e.stopPropagation()}
                       className="text-tft-text text-sm w-24 sm:w-40 truncate shrink-0 hover:text-tft-gold transition-colors"
                     >
@@ -399,7 +403,7 @@ export default function WinningCompsList({
     } else {
       params.delete("game_version");
     }
-    router.push(`/games-feed?${params.toString()}`);
+    router.push(`/${server.toLowerCase()}/games-feed?${params.toString()}`);
   }
 
   const filtered = useMemo<WinningComp[]>(() => {
@@ -465,7 +469,7 @@ export default function WinningCompsList({
       ) : (
         <div className="grid gap-4">
           {filtered.slice(0, visibleCount).map((comp) => (
-            <CompCard key={comp.match_id} comp={comp} itemAssets={itemAssets} itemNames={itemNames} traitData={traitData} server={server} />
+            <CompCard key={comp.match_id} comp={comp} itemAssets={itemAssets} traitData={traitData} server={server} />
           ))}
           {visibleCount < filtered.length && (
             <div ref={sentinelRef} className="py-4 text-center text-tft-muted text-sm">

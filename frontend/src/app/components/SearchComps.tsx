@@ -409,7 +409,7 @@ function ResultCard({
             #{comp.placement}
           </span>
           <a
-            href={`/player/${encodeURIComponent(comp.player.split("#")[0])}`}
+            href={`/${server.toLowerCase()}/player/${encodeURIComponent(comp.player.split("#")[0])}`}
             onClick={(e) => e.stopPropagation()}
             className="text-tft-text font-medium hover:text-tft-gold transition-colors"
           >
@@ -462,7 +462,7 @@ function ResultCard({
                     #{participant.placement}
                   </span>
                   <a
-                    href={`/player/${encodeURIComponent(participant.name.split("#")[0])}`}
+                    href={`/${server.toLowerCase()}/player/${encodeURIComponent(participant.name.split("#")[0])}`}
                     onClick={(e) => e.stopPropagation()}
                     className={`text-sm w-24 sm:w-36 truncate shrink-0 hover:text-tft-gold transition-colors ${isCurrentPlayer ? "text-tft-accent font-semibold" : "text-tft-text"}`}
                   >

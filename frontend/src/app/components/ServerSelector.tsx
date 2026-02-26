@@ -1,29 +1,28 @@
 "use client";
 
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+
+const VALID_SERVERS = ["pbe", "live"];
 
 const SERVERS = [
-  { value: "PBE", label: "PBE" },
-  { value: "LIVE", label: "Live" },
+  { value: "pbe", label: "PBE" },
+  { value: "live", label: "Live" },
 ] as const;
 
 export default function ServerSelector() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const pathname = usePathname();
-  const current = (searchParams.get("server") ?? "PBE").toUpperCase();
 
-  function handleChange(server: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    if (server === "PBE") {
-      params.delete("server");
-    } else {
-      params.set("server", server);
-    }
-    // Clear game_version when switching servers (versions differ)
-    params.delete("game_version");
-    const qs = params.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname);
+  // Extract current server from path: /pbe/comps → "pbe"
+  const first = pathname.split("/")[1]?.toLowerCase();
+  const current = VALID_SERVERS.includes(first ?? "") ? first! : "pbe";
+
+  function handleChange(newServer: string) {
+    // Replace the server segment in the path, drop query params (versions differ)
+    const rest = VALID_SERVERS.includes(first ?? "")
+      ? pathname.slice(first!.length + 1) // strip /<server>
+      : pathname; // on landing page or unknown path
+    router.push(`/${newServer}${rest || "/comps"}`);
   }
 
   return (

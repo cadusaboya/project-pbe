@@ -29,6 +29,49 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _RAW_PLAYER_LIST = """\
+Dishsoap#NA1:NA
+VIT setsuko#NA2:NA
+VIT k3soju#000:NA
+CTG robinsongz#888:NA
+Kiyoon#NA1:NA
+META Spencer#TFT:NA
+VIT prestivent#123:NA
+bossoskills#NA1:NA
+11lumin#1111:NA
+junglebook1#NA1:NA
+Darth Nub#NA2:NA
+Chunington#intt:NA
+ACAD wasian#NA2:NA
+bopster#PMD:NA
+Ripple#NA1:NA
+jdzielinski#PMD1:NA
+Milk#NA1:NA
+MAIKEL#2892:NA
+Bapzera#NA3:NA
+Cambulee#tft:NA
+Fan the QiQi#LAS:LAS
+MJS Deleted#NA2:NA
+DavidAs#LAS:LAS
+dehua#NA1:NA
+CrazyCat#Kitty:NA
+RYT Shaco#NA1:NA
+me1stor8th#518:NA
+LadderSlayer#NA1:NA
+imriveting#NA1:NA
+wigwugg#111:NA
+Kurumx#FREAK:NA
+Phoenixaa#159:NA
+DeadlyCO2#NA1:NA
+pannyandrew#pan:NA
+gorglflurp#5632:NA
+Millennium Fox#NA1
+rety#0530:NA
+DQA#88888:NA
+slicedown#meow:NA
+Fungster#fungu:NA
+Broseph#LAB:NA
+milala#milal:NA
+hsk#NA2
 """
 
 _STRIP_CHARS = "\u2066\u2069\u200b\u200c\u200d\ufeff"
@@ -58,7 +101,7 @@ def build_player_list() -> list[tuple[str, str, str]]:
     result: list[tuple[str, str, str]] = []
     for line in _RAW_PLAYER_LIST.splitlines():
         line = line.strip()
-        if not line:
+        if not line or line.startswith("#"):
             continue
         game_name, tag_line, region = _parse_player(line)
         if not game_name:

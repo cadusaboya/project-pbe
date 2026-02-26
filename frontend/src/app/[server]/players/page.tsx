@@ -1,4 +1,4 @@
-import PlayerStatsList, { PlayerStat } from "../components/PlayerStatsList";
+import PlayerStatsList, { PlayerStat } from "../../components/PlayerStatsList";
 import { backendUrl } from "@/lib/backend";
 
 async function fetchPlayerStats(server?: string): Promise<PlayerStat[]> {
@@ -12,11 +12,12 @@ async function fetchPlayerStats(server?: string): Promise<PlayerStat[]> {
 }
 
 export default async function PlayersPage({
-  searchParams,
+  params,
 }: {
-  searchParams: Promise<{ server?: string }>;
+  params: Promise<{ server: string }>;
 }) {
-  const { server = "PBE" } = await searchParams;
+  const { server: serverSlug } = await params;
+  const server = serverSlug.toUpperCase();
   let data: PlayerStat[] = [];
   let error: string | null = null;
 

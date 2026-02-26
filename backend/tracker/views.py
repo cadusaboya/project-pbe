@@ -301,12 +301,14 @@ class UnitStatsView(ListAPIView):
         search = request.query_params.get("search")
         sort_key = request.query_params.get("sort", "avg_placement")
 
+        qs = UnitUsage.objects.filter(
+            participant__match__game_version=game_version,
+            participant__match__server=server,
+        )
+        if server == "LIVE":
+            qs = qs.filter(participant__player__isnull=False)
         qs = (
-            UnitUsage.objects.filter(
-                participant__match__game_version=game_version,
-                participant__match__server=server,
-            )
-            .values("unit__character_id", "unit__cost", "unit__traits")
+            qs.values("unit__character_id", "unit__cost", "unit__traits")
             .annotate(
                 games=Count("id"),
                 total_placement=Sum("participant__placement"),
@@ -499,7 +501,8 @@ class WinningCompsView(ListAPIView):
     """
     GET /api/winning-comps/
 
-    Returns the 1st-place composition for each stored match.
+    PBE:  Returns the 1st-place composition for each stored match.
+    LIVE: Returns the best-placing tracked pro for each stored match.
 
     Query params:
       limit – number of results (default 50)
@@ -514,12 +517,37 @@ class WinningCompsView(ListAPIView):
         except ValueError:
             limit = 50
 
-        qs = (
-            Participant.objects.filter(placement=1, match__server=server)
-            .select_related("match", "player")
-            .prefetch_related("unit_usages__unit")
-            .order_by("-match__game_datetime")
-        )
+        if server == "LIVE":
+            # Best tracked pro per match: only participants with a linked player,
+            # pick the one with the lowest (best) placement per match.
+            from django.db.models import Min, OuterRef, Subquery
+
+            best_per_match = (
+                Participant.objects.filter(
+                    match=OuterRef("match"),
+                    match__server="LIVE",
+                    player__isnull=False,
+                )
+                .order_by("placement")
+                .values("pk")[:1]
+            )
+            qs = (
+                Participant.objects.filter(
+                    pk__in=Subquery(best_per_match),
+                    match__server="LIVE",
+                    player__isnull=False,
+                )
+                .select_related("match", "player")
+                .prefetch_related("unit_usages__unit")
+                .order_by("-match__game_datetime")
+            )
+        else:
+            qs = (
+                Participant.objects.filter(placement=1, match__server=server)
+                .select_related("match", "player")
+                .prefetch_related("unit_usages__unit")
+                .order_by("-match__game_datetime")
+            )
 
         game_version = self.request.query_params.get("game_version")
         if game_version:
@@ -542,6 +570,8 @@ class UnitStarStatsView(APIView):
     def get(self, request, unit_name: str):
         server = request.query_params.get("server", "PBE").upper()
         qs = UnitUsage.objects.filter(unit__character_id=unit_name, participant__match__server=server)
+        if server == "LIVE":
+            qs = qs.filter(participant__player__isnull=False)
 
         game_version = request.query_params.get("game_version")
         if game_version:
@@ -637,6 +667,8 @@ class ItemStatsView(APIView):
             unit__character_id=unit_name,
             participant__match__server=server,
         ).select_related("participant")
+        if server == "LIVE":
+            qs = qs.filter(participant__player__isnull=False)
         if game_version:
             qs = qs.filter(participant__match__game_version=game_version)
 
@@ -730,6 +762,8 @@ class ExploreView(APIView):
         )
 
         qs = Participant.objects.filter(match__server=server)
+        if server == "LIVE":
+            qs = qs.filter(player__isnull=False)
         if game_version:
             qs = qs.filter(match__game_version=game_version)
         # Defer raw_json to avoid loading ~22KB per match in the JOIN;
@@ -1249,6 +1283,8 @@ class HiddenCompsView(APIView):
             .prefetch_related("unit_usages__unit")
             .order_by("id")
         )
+        if server == "LIVE":
+            participants = participants.filter(player__isnull=False)
         if game_version:
             participants = participants.filter(match__game_version=game_version)
 
@@ -1425,9 +1461,11 @@ class CompsView(APIView):
             top_flex = 3
 
         global _COMPS_CACHE, _COMPS_CACHE_VERSION
+        comp_count = Comp.objects.filter(server=server).count()
         match_count = Match.objects.filter(server=server).count()
+        data_version = (match_count, comp_count)
         cache_key = (server, game_version, limit, top_flex)
-        if match_count == _COMPS_CACHE_VERSION.get(server, -1) and cache_key in _COMPS_CACHE:
+        if data_version == _COMPS_CACHE_VERSION.get(server, -1) and cache_key in _COMPS_CACHE:
             return _cc(Response(_COMPS_CACHE[cache_key]), 300)
 
         comps_qs = Comp.objects.filter(is_active=True, server=server).order_by("name")
@@ -1442,6 +1480,8 @@ class CompsView(APIView):
             comp_units_all |= {str(u).strip() for u in raw_units if str(u).strip()}
 
         base_qs = Participant.objects.filter(match__server=server).order_by("id")
+        if server == "LIVE":
+            base_qs = base_qs.filter(player__isnull=False)
         if game_version:
             base_qs = base_qs.filter(match__game_version=game_version)
 
@@ -1550,7 +1590,11 @@ class CompsView(APIView):
         _comps_api_name_map = _TRAIT_API_NAME_MAP.get(server, {})
 
         def _comp_trait_matches(req_lower: str, api_name: str) -> bool:
-            if req_lower in api_name.lower():
+            api_lower = api_name.lower()
+            if req_lower in api_lower:
+                return True
+            # Match without spaces (e.g. "shadow isles" vs "tft16_shadowisles")
+            if req_lower.replace(" ", "") in api_lower:
                 return True
             display = _comps_api_name_map.get(api_name, "")
             return bool(display and req_lower in display.lower())
@@ -1650,8 +1694,6 @@ class CompsView(APIView):
                 if str(unit).strip()
             }
 
-            if not core_unit_counts:
-                continue
             core_units = sorted(core_unit_counts.keys())
             raw_required_breakpoints = (
                 comp.required_trait_breakpoints
@@ -1689,6 +1731,19 @@ class CompsView(APIView):
                     excluded_traits[trait_name] = max(1, int(cnt))
                 except (TypeError, ValueError):
                     continue
+
+            has_any_constraint = (
+                core_unit_counts
+                or required_traits_lower
+                or required_trait_breakpoints
+                or required_item_counts
+                or required_unit_star_levels
+                or excluded_set
+                or excluded_unit_counts
+                or excluded_traits
+            )
+            if not has_any_constraint:
+                continue
 
             target_level = max(1, min(int(comp.target_level or 9), 10))
             core_size = sum(
@@ -1874,11 +1929,11 @@ class CompsView(APIView):
         result.sort(key=lambda x: (-x["comps"], x["avg_placement"], x["name"]))
         comps_list = result[:limit] if limit is not None else result
         response_data = {"total_games": total_games, "comps": comps_list}
-        if match_count != _COMPS_CACHE_VERSION.get(server, -1):
+        if data_version != _COMPS_CACHE_VERSION.get(server, -1):
             stale_keys = [k for k in _COMPS_CACHE if k[0] == server]
             for k in stale_keys:
                 _COMPS_CACHE.pop(k, None)
-            _COMPS_CACHE_VERSION[server] = match_count
+            _COMPS_CACHE_VERSION[server] = data_version
         _COMPS_CACHE[cache_key] = response_data
         return _cc(Response(response_data), 300)
 
@@ -1909,6 +1964,8 @@ class SearchCompsView(APIView):
         qs = Participant.objects.filter(match__server=server).select_related("match", "player").prefetch_related(
             Prefetch("unit_usages", queryset=UnitUsage.objects.select_related("unit"))
         )
+        if server == "LIVE":
+            qs = qs.filter(player__isnull=False)
         if game_version:
             qs = qs.filter(match__game_version=game_version)
 

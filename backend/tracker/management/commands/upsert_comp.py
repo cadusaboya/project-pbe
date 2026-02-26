@@ -118,6 +118,12 @@ class Command(BaseCommand):
                 "Example: --exclude-traits 'Noxus:3' (excludes boards with 3+ Noxus)"
             ),
         )
+        parser.add_argument(
+            "--server",
+            type=str,
+            default="PBE",
+            help="Server this comp belongs to: PBE or LIVE (default: PBE).",
+        )
 
     def handle(self, *args, **options):
         name = options["name"].strip()
@@ -133,6 +139,9 @@ class Command(BaseCommand):
         require_unit_stars_raw = (options.get("require_unit_stars") or "").strip()
         require_trait_breakpoints_raw = (options.get("require_trait_breakpoints") or "").strip()
         exclude_traits_raw = (options.get("exclude_traits") or "").strip()
+        server = (options.get("server") or "PBE").strip().upper()
+        if server not in ("PBE", "LIVE"):
+            raise CommandError("--server must be PBE or LIVE.")
 
         if not name:
             raise CommandError("--name cannot be empty.")
@@ -315,6 +324,7 @@ class Command(BaseCommand):
 
         comp, created = Comp.objects.update_or_create(
             name=name,
+            server=server,
             defaults={
                 "units": units,
                 "target_level": target_level,
@@ -331,7 +341,7 @@ class Command(BaseCommand):
         )
 
         verb = "Created" if created else "Updated"
-        self.stdout.write(self.style.SUCCESS(f"{verb} comp: {comp.name}"))
+        self.stdout.write(self.style.SUCCESS(f"{verb} comp: {comp.name} [{server}]"))
         self.stdout.write(f"Units ({len(units)}): {', '.join(units)}")
         self.stdout.write(f"Target level: {comp.target_level}")
         if comp.excluded_units:

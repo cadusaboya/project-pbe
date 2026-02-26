@@ -34,6 +34,8 @@ def recompute_unit_stats(server: str | None = None) -> int:
 
     for srv in servers:
         qs = UnitUsage.objects.filter(participant__match__server=srv)
+        if srv == "LIVE":
+            qs = qs.filter(participant__player__isnull=False)
 
         aggregated = qs.values("unit").annotate(
             games=Count("id"),

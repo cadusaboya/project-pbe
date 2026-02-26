@@ -414,7 +414,7 @@ function MatchRow({
                       #{participant.placement}
                     </span>
                     <a
-                      href={`/player/${encodeURIComponent(participant.name.split("#")[0])}`}
+                      href={`/${server.toLowerCase()}/player/${encodeURIComponent(participant.name.split("#")[0])}`}
                       className="text-tft-text text-sm w-24 sm:w-36 truncate shrink-0 hover:text-tft-gold transition-colors"
                       onClick={(e) => e.stopPropagation()}
                     >

@@ -25,7 +25,7 @@ import asyncio
 import datetime
 import logging
 import os
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+import re
 
 import httpx
 from django.core.management.base import BaseCommand
@@ -37,14 +37,37 @@ from tracker.services.riot_api import PLATFORM_TO_ROUTING, RiotAPIService
 
 logger = logging.getLogger(__name__)
 
-GAME_VERSION = os.environ.get("LIVE_GAME_VERSION", "16.6")
-DEFAULT_FETCH_CUTOFF_DATE = os.environ.get("LIVE_QUEUE_CUTOFF_DATE", "2026-02-23")
-DEFAULT_FETCH_CUTOFF_TIME = os.environ.get("LIVE_QUEUE_CUTOFF_TIME", "00:00")
-DEFAULT_FETCH_CUTOFF_TZ = os.environ.get("LIVE_QUEUE_CUTOFF_TZ", "UTC")
+FALLBACK_GAME_VERSION = os.environ.get("LIVE_GAME_VERSION", "16.6")
 
 # Minimum tracked players in a lobby to store the match.
 # 1 = save any game with at least 1 tracked pro.
 MIN_TRACKED_PLAYERS = 1
+
+# Only store matches from this patch onward (inclusive).
+MIN_GAME_VERSION = os.environ.get("LIVE_MIN_GAME_VERSION", "16.5")
+
+_VERSION_RE = re.compile(r"Version (\d+\.\d+)")
+
+
+def _version_tuple(v: str) -> tuple[int, int]:
+    """Parse '16.5' → (16, 5) for comparison."""
+    parts = v.split(".")
+    return int(parts[0]), int(parts[1]) if len(parts) > 1 else 0
+
+
+def _extract_game_version(match_data: dict) -> str:
+    """Extract patch version from raw Riot game_version string.
+
+    Live servers report the *build* version which is one minor behind the
+    actual patch.  e.g. '16.4.748.0682' is patch 16.5, so we add 1 to the
+    minor component.
+    """
+    raw = match_data.get("info", {}).get("game_version", "")
+    m = _VERSION_RE.search(raw)
+    if not m:
+        return FALLBACK_GAME_VERSION
+    major, minor = m.group(1).split(".")
+    return f"{major}.{int(minor) + 1}"
 
 
 class Command(BaseCommand):
@@ -74,7 +97,6 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        fetch_cutoff_utc = self._build_fetch_cutoff_datetime_utc()
         api_key = os.environ.get("RIOT_API_KEY", "").strip()
         if not api_key:
             self.stderr.write(
@@ -105,12 +127,7 @@ class Command(BaseCommand):
 
         match_id = options.get("match")
         if match_id:
-            self._handle_single_match(
-                api_key,
-                match_id,
-                puuid_to_player,
-                fetch_cutoff_utc,
-            )
+            self._handle_single_match(api_key, match_id, puuid_to_player)
             return
 
         player_filter = options.get("player")
@@ -122,12 +139,7 @@ class Command(BaseCommand):
         else:
             players = all_players
 
-        fetch_since_ms = int(fetch_cutoff_utc.timestamp() * 1000)
-
-        self.stdout.write(
-            f"Processing {len(players)} Live players - matches on/after {fetch_cutoff_utc.isoformat()} UTC\n"
-        )
-        self.stdout.write(f"Game version: {GAME_VERSION}\n")
+        self.stdout.write(f"Processing {len(players)} Live players\n")
 
         total_stored = 0
 
@@ -135,7 +147,7 @@ class Command(BaseCommand):
             label = f"[{i}/{len(players)}] {player} ({player.region})"
 
             match_ids = asyncio.run(
-                self._fetch_match_ids_for_player(api_key, player.puuid, player.region, fetch_since_ms)
+                self._fetch_match_ids_for_player(api_key, player.puuid, player.region)
             )
 
             if not match_ids:
@@ -182,13 +194,22 @@ class Command(BaseCommand):
                     had_fetch_fail = True
                     continue
 
+                # Skip Double Up games (pairs mode)
+                game_type = match_data.get("info", {}).get("tft_game_type", "")
+                if game_type == "pairs":
+                    self.stdout.write(f"    {mid} - Double Up, skipping")
+                    continue
+
+                # Skip Revival / non-Set16 games
+                set_core = match_data.get("info", {}).get("tft_set_core_name", "")
+                if not set_core.startswith("TFTSet16"):
+                    self.stdout.write(f"    {mid} - {set_core or 'unknown set'}, skipping")
+                    continue
+
                 game_ms = match_data.get("info", {}).get("game_datetime", 0)
                 game_start_utc = datetime.datetime.fromtimestamp(
                     game_ms / 1000, tz=datetime.timezone.utc
                 )
-                if game_start_utc < fetch_cutoff_utc:
-                    self.stdout.write(f"    {mid} - old ({game_start_utc.isoformat()}), stopping")
-                    break
 
                 participant_puuids = {
                     p.get("puuid") for p in match_data.get("info", {}).get("participants", [])
@@ -198,10 +219,15 @@ class Command(BaseCommand):
                     self.stdout.write(f"    {mid} - skipped ({tracked_count}/8 tracked)")
                     continue
 
+                version = _extract_game_version(match_data)
+                if _version_tuple(version) < _version_tuple(MIN_GAME_VERSION):
+                    self.stdout.write(f"    {mid} - old patch {version}, skipping")
+                    continue
+
                 try:
-                    if process_match(match_data, puuid_to_player, game_version=GAME_VERSION, server="LIVE"):
+                    if process_match(match_data, puuid_to_player, game_version=version, server="LIVE"):
                         total_stored += 1
-                        self.stdout.write(f"    {mid} - stored ({game_start_utc.date()}, {GAME_VERSION})")
+                        self.stdout.write(f"    {mid} - stored ({game_start_utc.date()}, {version})")
                     else:
                         self.stdout.write(f"    {mid} - already existed")
                 except Exception as exc:
@@ -220,13 +246,7 @@ class Command(BaseCommand):
         else:
             self.stdout.write(self.style.SUCCESS("Nothing new - stats unchanged."))
 
-    def _handle_single_match(
-        self,
-        api_key,
-        match_id,
-        puuid_to_player,
-        fetch_cutoff_utc: datetime.datetime,
-    ):
+    def _handle_single_match(self, api_key, match_id, puuid_to_player):
         self.stdout.write(f"Fetching specific match: {match_id}")
         # Infer routing from match ID prefix (e.g., NA1_, EUW1_, KR_)
         prefix = match_id.split("_")[0] if "_" in match_id else "NA1"
@@ -236,9 +256,24 @@ class Command(BaseCommand):
         if match_data is None:
             self.stderr.write(self.style.ERROR(f"{match_id} - fetch failed"))
             return
+        game_type = match_data.get("info", {}).get("tft_game_type", "")
+        if game_type == "pairs":
+            self.stdout.write(self.style.WARNING(f"{match_id} - Double Up, skipping"))
+            return
+        set_core = match_data.get("info", {}).get("tft_set_core_name", "")
+        if not set_core.startswith("TFTSet16"):
+            self.stdout.write(self.style.WARNING(f"{match_id} - {set_core or 'unknown set'}, skipping"))
+            return
+
+        version = _extract_game_version(match_data)
+        if _version_tuple(version) < _version_tuple(MIN_GAME_VERSION):
+            self.stdout.write(self.style.WARNING(f"{match_id} - old patch {version}, skipping"))
+            return
+
         try:
-            if process_match(match_data, puuid_to_player, game_version=GAME_VERSION, server="LIVE"):
-                self.stdout.write(self.style.SUCCESS(f"{match_id} - stored"))
+            if process_match(match_data, puuid_to_player, game_version=version, server="LIVE"):
+                self.stdout.write(self.style.SUCCESS(f"{match_id} - stored ({version})"))
+
                 count = recompute_unit_stats(server="LIVE")
                 self.stdout.write(self.style.SUCCESS(f"Done - updated stats for {count} unit(s)."))
             else:
@@ -247,33 +282,15 @@ class Command(BaseCommand):
             logger.error("Error processing %s: %s", match_id, exc, exc_info=True)
             self.stderr.write(self.style.ERROR(str(exc)))
 
-    def _build_fetch_cutoff_datetime_utc(self) -> datetime.datetime:
-        cutoff_date = DEFAULT_FETCH_CUTOFF_DATE.strip()
-        cutoff_time = DEFAULT_FETCH_CUTOFF_TIME.strip()
-        tz_name = DEFAULT_FETCH_CUTOFF_TZ.strip()
-
-        try:
-            tz = ZoneInfo(tz_name)
-        except ZoneInfoNotFoundError:
-            logger.warning("Invalid timezone '%s'. Falling back to UTC.", tz_name)
-            tz = datetime.timezone.utc
-
-        naive_cutoff = datetime.datetime.strptime(
-            f"{cutoff_date} {cutoff_time}", "%Y-%m-%d %H:%M"
-        )
-        local_cutoff = naive_cutoff.replace(tzinfo=tz)
-        return local_cutoff.astimezone(datetime.timezone.utc)
-
     async def _fetch_match_ids_for_player(
         self,
         api_key: str,
         puuid: str,
         region: str,
-        start_time: int,
     ) -> list[str]:
         service = RiotAPIService.for_platform(api_key, region)
         async with httpx.AsyncClient(timeout=httpx.Timeout(30.0), follow_redirects=True) as client:
-            return await service.get_match_ids(client, puuid, count=20, start_time=start_time)
+            return await service.get_match_ids(client, puuid, count=20)
 
     async def _fetch_single_match_async(
         self,

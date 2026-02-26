@@ -124,7 +124,9 @@ export default async function RootLayout({
                 </a>
               </div>
             </div>
-            <Nav />
+            <Suspense fallback={null}>
+              <Nav />
+            </Suspense>
           </div>
           <Suspense fallback={null}>
             <StatsBar />

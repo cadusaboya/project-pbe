@@ -1,4 +1,4 @@
-import WinningCompsList, { TraitInfo, WinningComp } from "../components/WinningCompsList";
+import WinningCompsList, { TraitInfo, WinningComp } from "../../components/WinningCompsList";
 import { backendUrl } from "@/lib/backend";
 
 async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
@@ -34,11 +34,11 @@ async function fetchItemData(): Promise<{ assets: Record<string, string>; names:
   }
 }
 
-async function fetchVersions(): Promise<string[]> {
+async function fetchVersions(server?: string): Promise<string[]> {
   try {
-    const res = await fetch(backendUrl("/api/versions/"), {
-      cache: "no-store",
-    });
+    const url = new URL(backendUrl("/api/versions/"));
+    if (server) url.searchParams.set("server", server);
+    const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -47,11 +47,15 @@ async function fetchVersions(): Promise<string[]> {
 }
 
 export default async function GamesFeedPage({
+  params,
   searchParams,
 }: {
-  searchParams: Promise<{ game_version?: string; server?: string }>;
+  params: Promise<{ server: string }>;
+  searchParams: Promise<{ game_version?: string }>;
 }) {
-  const { game_version: gameVersion, server = "PBE" } = await searchParams;
+  const { server: serverSlug } = await params;
+  const server = serverSlug.toUpperCase();
+  const { game_version: gameVersion } = await searchParams;
   let data: WinningComp[] = [];
   let itemAssets: Record<string, string> = {};
   let itemNames: Record<string, string> = {};
@@ -64,7 +68,7 @@ export default async function GamesFeedPage({
     [data, itemData, versions, traitBreakpoints] = await Promise.all([
       fetchWinningComps(gameVersion, server),
       fetchItemData(),
-      fetchVersions(),
+      fetchVersions(server),
       fetchTraitBreakpoints(),
     ]);
     itemAssets = itemData.assets;
@@ -78,7 +82,7 @@ export default async function GamesFeedPage({
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-tft-text">Games Feed</h1>
         <p className="text-tft-muted text-xs sm:text-sm mt-1">
-          PBE matches tracked, sorted by most recent. Click to see the full lobby.
+          Matches tracked, sorted by most recent. Click to see the full lobby.
         </p>
       </div>
 
@@ -101,7 +105,6 @@ export default async function GamesFeedPage({
         <WinningCompsList
           data={data}
           itemAssets={itemAssets}
-          itemNames={itemNames}
           versions={versions}
           selectedVersion={gameVersion ?? ""}
           traitData={traitBreakpoints}

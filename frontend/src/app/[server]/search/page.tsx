@@ -1,8 +1,8 @@
 import { Suspense } from "react";
-import SearchComps from "../components/SearchComps";
+import SearchComps from "../../components/SearchComps";
 import { backendUrl } from "@/lib/backend";
-import { UnitStat } from "../components/StatsTable";
-import { TraitInfo } from "../components/WinningCompsList";
+import { UnitStat } from "../../components/StatsTable";
+import { TraitInfo } from "../../components/WinningCompsList";
 
 async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
   try {
@@ -38,11 +38,12 @@ async function fetchUnits(server?: string): Promise<UnitStat[]> {
 }
 
 export default async function SearchPage({
-  searchParams,
+  params,
 }: {
-  searchParams: Promise<{ server?: string }>;
+  params: Promise<{ server: string }>;
 }) {
-  const { server = "PBE" } = await searchParams;
+  const { server: serverSlug } = await params;
+  const server = serverSlug.toUpperCase();
   const [units, itemData, traitData] = await Promise.all([
     fetchUnits(server),
     fetchItemData(),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { backendUrl } from "@/lib/backend";
 
@@ -10,6 +10,7 @@ interface GlobalStats {
   last_fetch_at: string | null;
 }
 
+const VALID_SERVERS = ["pbe", "live"];
 
 function formatRelativeUtc(iso: string): string {
   const then = new Date(iso).getTime();
@@ -37,8 +38,9 @@ function formatRelativeUtc(iso: string): string {
 }
 
 export default function StatsBar() {
-  const searchParams = useSearchParams();
-  const server = searchParams.get("server") ?? "PBE";
+  const pathname = usePathname();
+  const first = pathname.split("/")[1]?.toLowerCase();
+  const server = VALID_SERVERS.includes(first ?? "") ? first!.toUpperCase() : "PBE";
   const [stats, setStats] = useState<GlobalStats | null>(null);
 
   useEffect(() => {

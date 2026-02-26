@@ -1,4 +1,4 @@
-import CompsList, { CompStat } from "../../components/CompsList";
+import CompsList, { CompStat } from "../../../components/CompsList";
 import { backendUrl } from "@/lib/backend";
 
 async function fetchHiddenCompStats(
@@ -21,9 +21,11 @@ async function fetchHiddenCompStats(
   return res.json();
 }
 
-async function fetchVersions(): Promise<string[]> {
+async function fetchVersions(server?: string): Promise<string[]> {
   try {
-    const res = await fetch(backendUrl("/api/versions/"), { cache: "no-store" });
+    const url = new URL(backendUrl("/api/versions/"));
+    if (server) url.searchParams.set("server", server);
+    const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -42,15 +44,18 @@ async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; ic
 }
 
 export default async function HiddenCompsPage({
+  params,
   searchParams,
 }: {
-  searchParams: Promise<{ game_version?: string; core_sizes?: string; min_occurrences?: string; server?: string }>;
+  params: Promise<{ server: string }>;
+  searchParams: Promise<{ game_version?: string; core_sizes?: string; min_occurrences?: string }>;
 }) {
+  const { server: serverSlug } = await params;
+  const server = serverSlug.toUpperCase();
   const {
     game_version: gameVersion,
     core_sizes: coreSizes = "4,5,6",
     min_occurrences: minOccurrences = "100",
-    server = "PBE",
   } = await searchParams;
   let data: CompStat[] = [];
   let versions: string[] = [];
@@ -60,7 +65,7 @@ export default async function HiddenCompsPage({
   try {
     [data, versions, traitData] = await Promise.all([
       fetchHiddenCompStats(gameVersion, coreSizes, minOccurrences, server),
-      fetchVersions(),
+      fetchVersions(server),
       fetchTraits(),
     ]);
   } catch (e) {
@@ -88,7 +93,7 @@ export default async function HiddenCompsPage({
           data={data}
           versions={versions}
           selectedVersion={gameVersion ?? ""}
-          basePath="/comps/hidden"
+          basePath={`/${serverSlug}/comps/hidden`}
           showHiddenFilters
           selectedCoreSizes={coreSizes}
           selectedMinOccurrences={minOccurrences}

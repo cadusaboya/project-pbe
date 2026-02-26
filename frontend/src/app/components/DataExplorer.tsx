@@ -886,7 +886,7 @@ export default function DataExplorer({
     const p = new URLSearchParams(searchParams.toString());
     if (v) p.set("game_version", v);
     else p.delete("game_version");
-    router.push(`/explore?${p.toString()}`);
+    router.push(`/${server.toLowerCase()}/explore?${p.toString()}`);
   }
 
   function handleSearchSelect(item: SearchResultItem) {

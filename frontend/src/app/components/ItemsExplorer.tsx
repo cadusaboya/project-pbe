@@ -326,7 +326,7 @@ export default function ItemsExplorer({
     const params = new URLSearchParams(searchParams.toString());
     if (v) params.set("game_version", v);
     else params.delete("game_version");
-    router.push(`/items?${params.toString()}`);
+    router.push(`/${server.toLowerCase()}/items?${params.toString()}`);
   }
 
   function handleUnitSelect(unit: UnitStat | null) {

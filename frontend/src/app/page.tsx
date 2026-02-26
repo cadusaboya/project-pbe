@@ -146,37 +146,37 @@ const features = [
     icon: <IconGrid />,
     title: "Comp Tracker",
     desc: "See exactly what top players are running: boards, units, items, and star levels from real games.",
-    href: "/comps",
+    href: "/pbe/comps",
   },
   {
     icon: <IconChart />,
     title: "Unit Stats",
     desc: "AVP, top 4 rate, and win rate for every unit. Find what's broken before everyone else does.",
-    href: "/unit-stats",
+    href: "/pbe/unit-stats",
   },
   {
     icon: <IconSword />,
     title: "Item Explorer",
     desc: "Which items are winning on which champions? Data-driven itemization insights.",
-    href: "/items",
+    href: "/pbe/items",
   },
   {
     icon: <IconSearch />,
     title: "Unit Search",
     desc: "Search any champion and instantly see every comp it appears in with full stats.",
-    href: "/search",
+    href: "/pbe/search",
   },
   {
     icon: <IconFeed />,
     title: "Games Feed",
     desc: "Live feed of the latest lobbies. Watch the meta shift in real time.",
-    href: "/games-feed",
+    href: "/pbe/games-feed",
   },
   {
     icon: <IconTrophy />,
     title: "Player Stats",
     desc: "Player rankings, most played units, and performance breakdowns.",
-    href: "/players",
+    href: "/pbe/players",
   },
 ];
 
@@ -222,13 +222,13 @@ export default async function Home({
 
           <div className="flex flex-wrap justify-center gap-3 sm:gap-4 pt-4">
             <Link
-              href="/games-feed"
+              href="/pbe/games-feed"
               className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg bg-gradient-to-r from-tft-gold to-yellow-500 text-tft-bg font-bold text-base sm:text-lg hover:brightness-110 transition-all shadow-lg shadow-tft-gold/20"
             >
               Explore Live Data
             </Link>
             <Link
-              href="/comps"
+              href="/pbe/comps"
               className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg border border-tft-border bg-tft-surface/80 text-tft-text font-semibold text-base sm:text-lg hover:border-tft-gold/50 hover:bg-tft-hover transition-colors"
             >
               View Top Comps
@@ -243,7 +243,7 @@ export default async function Home({
           <div className="grid md:grid-cols-2 gap-6">
             {/* Top Units */}
             {topUnits.length > 0 && (
-              <Link href="/unit-stats" className="group rounded-xl border border-tft-border bg-tft-surface/40 p-5 hover:border-tft-gold/30 transition-colors">
+              <Link href="/pbe/unit-stats" className="group rounded-xl border border-tft-border bg-tft-surface/40 p-5 hover:border-tft-gold/30 transition-colors">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-tft-muted uppercase tracking-wider">Top Units by AVP</h3>
                   <span className="text-xs text-tft-muted group-hover:text-tft-gold transition-colors">View all →</span>
@@ -272,7 +272,7 @@ export default async function Home({
 
             {/* Top Comps */}
             {topComps.length > 0 && (
-              <Link href="/comps" className="group rounded-xl border border-tft-border bg-tft-surface/40 p-5 hover:border-tft-gold/30 transition-colors">
+              <Link href="/pbe/comps" className="group rounded-xl border border-tft-border bg-tft-surface/40 p-5 hover:border-tft-gold/30 transition-colors">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-tft-muted uppercase tracking-wider">Top Comps</h3>
                   <span className="text-xs text-tft-muted group-hover:text-tft-gold transition-colors">View all →</span>
@@ -423,7 +423,7 @@ export default async function Home({
         </p>
         <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
           <Link
-            href="/games-feed"
+            href="/pbe/games-feed"
             className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg bg-gradient-to-r from-tft-gold to-yellow-500 text-tft-bg font-bold text-base sm:text-lg hover:brightness-110 transition-all shadow-lg shadow-tft-gold/20"
           >
             Get Started
