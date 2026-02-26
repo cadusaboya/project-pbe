@@ -42,15 +42,28 @@ export default function StatsBar() {
   const first = pathname.split("/")[1]?.toLowerCase();
   const server = VALID_SERVERS.includes(first ?? "") ? first!.toUpperCase() : "PBE";
   const [stats, setStats] = useState<GlobalStats | null>(null);
+  const [, tick] = useState(0);
 
   useEffect(() => {
-    const url = new URL(backendUrl("/api/stats/"));
-    url.searchParams.set("server", server);
-    fetch(url.toString())
-      .then((r) => (r.ok ? r.json() : null))
-      .then(setStats)
-      .catch(() => setStats(null));
+    let cancelled = false;
+    const fetchStats = () => {
+      const url = new URL(backendUrl("/api/stats/"));
+      url.searchParams.set("server", server);
+      fetch(url.toString(), { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (!cancelled) setStats(d); })
+        .catch(() => { if (!cancelled) setStats(null); });
+    };
+    fetchStats();
+    const id = setInterval(fetchStats, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
   }, [server]);
+
+  // Re-render every 30s so the relative time stays fresh
+  useEffect(() => {
+    const id = setInterval(() => tick((n) => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   if (!stats) return null;
 

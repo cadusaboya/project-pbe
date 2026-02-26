@@ -397,13 +397,13 @@ class StatsView(APIView):
         if game_version:
             participant_qs = participant_qs.filter(match__game_version=game_version)
 
-        return Response({
+        return _cc(Response({
             "matches_analyzed": match_qs.count(),
             "players_tracked": players_count,
             "participants_recorded": participant_qs.count(),
             "last_fetch_at": last_run,
             "data_version": Match.objects.count(),
-        })
+        }), 15)
 
 
 class DataVersionView(APIView):
