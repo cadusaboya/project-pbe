@@ -1933,6 +1933,7 @@ class CompsView(APIView):
         total_games = len({b["match_id"] for b in boards})
         total_comps = len(boards)
 
+        result = [r for r in result if r["comps"] > 0]
         result.sort(key=lambda x: (-x["comps"], x["avg_placement"], x["name"]))
         comps_list = result[:limit] if limit is not None else result
         response_data = {"total_games": total_games, "total_comps": total_comps, "comps": comps_list}
