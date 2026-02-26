@@ -225,7 +225,7 @@ export default async function Home({
               href="/pbe/games-feed"
               className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg bg-gradient-to-r from-tft-gold to-yellow-500 text-tft-bg font-bold text-base sm:text-lg hover:brightness-110 transition-all shadow-lg shadow-tft-gold/20"
             >
-              Explore Games
+              Explore Project PBE Games
             </Link>
             <Link
               href="/pbe/comps"
