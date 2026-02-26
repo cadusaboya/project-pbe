@@ -204,7 +204,7 @@ export default async function Home({
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-tft-gold opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-tft-gold" />
             </span>
-            Currently tracking Project PBE
+            Tracking the best players worldwide
           </div>
 
           <h1 className="text-3xl sm:text-5xl md:text-7xl font-bold tracking-tight">
@@ -216,8 +216,8 @@ export default async function Home({
           </h1>
 
           <p className="max-w-2xl mx-auto text-base sm:text-lg md:text-xl text-tft-muted leading-relaxed">
-            We track every Project PBE lobby.
-            Everything analyzed and served in real time so you can get ready when the patch drops live.
+            We track the best players around the globe.
+            Everything analyzed and served in real time so you can learn from the best competitive TFT players in the world.
           </p>
 
           <div className="flex flex-wrap justify-center gap-3 sm:gap-4 pt-4">
@@ -225,7 +225,7 @@ export default async function Home({
               href="/pbe/games-feed"
               className="px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg bg-gradient-to-r from-tft-gold to-yellow-500 text-tft-bg font-bold text-base sm:text-lg hover:brightness-110 transition-all shadow-lg shadow-tft-gold/20"
             >
-              Explore Live Data
+              Explore Games
             </Link>
             <Link
               href="/pbe/comps"
@@ -324,7 +324,7 @@ export default async function Home({
             {
               step: "01",
               title: "We watch the best",
-              desc: "Our system currently tracks every single Project PBE lobby. Once the tournament ends, we will track only the pros, streamers and top players worldwide.",
+              desc: "Our system tracks pros, streamers, and top players across all major regions. Every ranked game from the best TFT players in the world.",
             },
             {
               step: "02",
@@ -372,7 +372,7 @@ export default async function Home({
         </div>
       </section>
 
-      {/* Coming Soon — Live Server */}
+      {/* Now Live — Live Server */}
       <section className="relative rounded-2xl border border-tft-gold/20 bg-gradient-to-br from-tft-surface via-tft-bg to-tft-surface overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute -top-32 -right-32 w-64 h-64 rounded-full bg-tft-gold/5 blur-[80px]" />
@@ -380,28 +380,32 @@ export default async function Home({
         </div>
 
         <div className="relative p-5 sm:p-8 md:p-12 space-y-4 sm:space-y-6 text-center">
-          <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-tft-accent/40 bg-tft-accent/10 text-tft-accent text-sm font-semibold uppercase tracking-wider">
-            Coming Soon
+          <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 text-sm font-semibold uppercase tracking-wider">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+            </span>
+            Now Live
           </span>
 
           <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold">
-            <span className="text-tft-text">From PBE to </span>
+            <span className="text-tft-text">Tracking the </span>
             <span className="bg-gradient-to-r from-tft-gold to-yellow-300 bg-clip-text text-transparent">
               Live Server
             </span>
           </h2>
 
           <p className="max-w-2xl mx-auto text-tft-muted text-sm sm:text-lg leading-relaxed">
-            When Project PBE ends, TFT Pro Radar will expand to
-            track <span className="text-tft-text font-semibold">how the best players play</span> on
-            the live server with same depth and speed, covering every ranked game
-            from pro player lobbies.
+            TFT Pro Radar is now tracking
+            <span className="text-tft-text font-semibold"> how the best players play</span> on
+            the live server with full depth and speed, covering every ranked game
+            from pro player lobbies across all regions.
           </p>
 
           <div className="grid sm:grid-cols-3 gap-6 pt-4 max-w-3xl mx-auto">
             {[
-              { value: "All Regions", label: "NA, EUW, CN, and more" },
-              { value: "Pro Players", label: "Track only the best players" },
+              { value: "All Regions", label: "NA, EUW, KR, and more" },
+              { value: "Pro Players", label: "Tracking only the best" },
               { value: "Real Time", label: "Games tracked as they finish" },
             ].map((stat) => (
               <div key={stat.label} className="space-y-1">
@@ -409,6 +413,15 @@ export default async function Home({
                 <p className="text-sm text-tft-muted">{stat.label}</p>
               </div>
             ))}
+          </div>
+
+          <div className="pt-2">
+            <Link
+              href="/live/games-feed"
+              className="inline-flex px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg bg-gradient-to-r from-tft-gold to-yellow-500 text-tft-bg font-bold text-base sm:text-lg hover:brightness-110 transition-all shadow-lg shadow-tft-gold/20"
+            >
+              Track Live Games Now
+            </Link>
           </div>
         </div>
       </section>
