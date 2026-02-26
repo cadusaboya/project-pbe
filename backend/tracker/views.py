@@ -392,10 +392,16 @@ class StatsView(APIView):
         else:
             players_count = Player.objects.filter(puuid__isnull=False).exclude(puuid="").exclude(region="PBE").count()
 
+        participant_qs = Participant.objects.filter(match__server=server)
+        if server == "LIVE":
+            participant_qs = participant_qs.filter(player__isnull=False)
+        if game_version:
+            participant_qs = participant_qs.filter(match__game_version=game_version)
+
         return Response({
             "matches_analyzed": match_qs.count(),
             "players_tracked": players_count,
-            "participants_recorded": Participant.objects.filter(match__server=server).count(),
+            "participants_recorded": participant_qs.count(),
             "last_fetch_at": last_run,
             "data_version": Match.objects.count(),
         })
@@ -1925,10 +1931,11 @@ class CompsView(APIView):
             })
 
         total_games = len({b["match_id"] for b in boards})
+        total_comps = len(boards)
 
         result.sort(key=lambda x: (-x["comps"], x["avg_placement"], x["name"]))
         comps_list = result[:limit] if limit is not None else result
-        response_data = {"total_games": total_games, "comps": comps_list}
+        response_data = {"total_games": total_games, "total_comps": total_comps, "comps": comps_list}
         if data_version != _COMPS_CACHE_VERSION.get(server, -1):
             stale_keys = [k for k in _COMPS_CACHE if k[0] == server]
             for k in stale_keys:

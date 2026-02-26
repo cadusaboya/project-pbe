@@ -3,6 +3,7 @@ import { backendUrl } from "@/lib/backend";
 
 interface CompsResponse {
   total_games: number;
+  total_comps: number;
   comps: CompStat[];
 }
 
@@ -51,7 +52,7 @@ export default async function CompsPage({
   const server = serverSlug.toUpperCase();
   const { game_version: gameVersion } = await searchParams;
   let data: CompStat[] = [];
-  let totalGames = 0;
+  let totalComps = 0;
   let versions: string[] = [];
   let traitData: Record<string, { breakpoints: number[]; icon: string }> = {};
   let error: string | null = null;
@@ -63,7 +64,7 @@ export default async function CompsPage({
       fetchTraits(),
     ]);
     data = compsRes.comps ?? [];
-    totalGames = compsRes.total_games ?? 0;
+    totalComps = compsRes.total_comps ?? 0;
     versions = v;
     traitData = t;
   } catch (e) {
@@ -98,7 +99,7 @@ export default async function CompsPage({
           basePath={`/${serverSlug}/comps`}
           showCompMeta={false}
           traitData={traitData}
-          totalGames={totalGames}
+          totalComps={totalComps}
           server={server}
         />
       )}
