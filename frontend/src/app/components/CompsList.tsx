@@ -16,6 +16,14 @@ interface FlexCombo {
   avg_placement: number;
 }
 
+interface FlexPick {
+  character_id: string;
+  cost: number;
+  rate: number;
+  games: number;
+  avg_placement: number;
+}
+
 interface CoreTrait {
   name: string;
   units: number;
@@ -33,6 +41,7 @@ export interface CompStat {
   win_rate?: number;
   top4_rate?: number;
   flex_combos: FlexCombo[];
+  flex_picks?: FlexPick[];
   // Constraint fields
   excluded_units?: string[];
   required_traits?: string[];
@@ -107,9 +116,9 @@ function MetaTag({ children }: { children: React.ReactNode }) {
 
 function CompCard({ comp, onExplore }: { comp: CompStat; onExplore?: (comp: CompStat) => void }) {
   const [expanded, setExpanded] = useState(false);
-  const suggestedFlex = comp.flex_combos[0];
   const winRate = (comp.win_rate ?? 0) * 100;
   const top4Rate = (comp.top4_rate ?? 0) * 100;
+  const flexPicks = comp.flex_picks ?? [];
 
   const hasMeta =
     comp.name ||
@@ -167,14 +176,14 @@ function CompCard({ comp, onExplore }: { comp: CompStat; onExplore?: (comp: Comp
               ))}
             </div>
 
-            {/* Flex suggestion */}
-            {suggestedFlex && (
+            {/* Top board flex inline */}
+            {comp.flex_combos[0] && (
               <div className="flex items-center gap-1 shrink-0">
                 <div className="w-px h-8 bg-tft-border/50 mx-0.5 sm:mx-1" />
                 <span className="text-[9px] uppercase tracking-widest text-tft-muted/50 mr-0.5">
                   flex
                 </span>
-                {suggestedFlex.units.map((u) => (
+                {comp.flex_combos[0].units.map((u) => (
                   <UnitChip key={`suggest-${u.character_id}`} unit={u} size={40} />
                 ))}
               </div>
@@ -207,38 +216,80 @@ function CompCard({ comp, onExplore }: { comp: CompStat; onExplore?: (comp: Comp
         </div>
       </div>
 
-      {/* Expanded: flex combos */}
+      {/* Expanded: flex picks + flex combos */}
       {expanded && (
         <div className="border-t border-tft-border bg-black/20">
-          {comp.flex_combos.length === 0 ? (
+          {flexPicks.length === 0 && comp.flex_combos.length === 0 ? (
             <p className="px-4 py-4 text-tft-muted text-sm">
-              No flex combos found for this core.
+              No flex data found for this core.
             </p>
           ) : (
-            <div className="divide-y divide-tft-border/40">
-              {comp.flex_combos.map((flex, idx) => (
-                <div key={idx} className="px-4 py-2.5 flex items-center gap-3 hover:bg-tft-hover/30 transition-colors">
-                  <span className="text-[11px] text-tft-muted w-8 shrink-0 tabular-nums font-medium">
-                    #{idx + 1}
-                  </span>
-                  <div className="flex gap-1">
-                    {flex.units.map((u) => (
-                      <UnitChip key={`${idx}-${u.character_id}`} unit={u} size={36} />
+            <>
+              {/* Section 1: Flex Picks */}
+              {flexPicks.length > 0 && (
+                <div className="px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-wider text-tft-muted/70 mb-2 font-medium">
+                    Flex Picks
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {flexPicks.slice(0, 10).map((pick) => (
+                      <div
+                        key={pick.character_id}
+                        className="flex items-center gap-1.5 bg-tft-surface/80 border border-tft-border/60 rounded-lg px-2 py-1.5"
+                      >
+                        <UnitChip
+                          unit={{ character_id: pick.character_id, cost: pick.cost }}
+                          size={40}
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-tft-text tabular-nums">
+                            {Math.round(pick.rate * 100)}%
+                          </span>
+                          <span className={`text-[9px] tabular-nums ${avpTextColor(pick.avg_placement)}`}>
+                            {pick.avg_placement.toFixed(2)} AVP
+                          </span>
+                        </div>
+                      </div>
                     ))}
                   </div>
-                  <div className="ml-auto flex items-center gap-3 shrink-0">
-                    <StatBadge value={String(flex.comps)} label="Freq" />
-                    <div className="w-px h-5 bg-tft-border/40" />
-                    <div className="flex flex-col items-center px-1">
-                      <div className={`text-base font-bold tabular-nums ${avpTextColor(flex.avg_placement)}`}>
-                        {flex.avg_placement.toFixed(2)}
-                      </div>
-                      <div className="text-[9px] uppercase tracking-wider text-tft-muted">AVP</div>
+                </div>
+              )}
+
+              {/* Section 2: Top Boards */}
+              {comp.flex_combos.length > 0 && (
+                <div className={flexPicks.length > 0 ? "border-t border-tft-border/40" : ""}>
+                  <div className="px-4 pt-3 pb-1">
+                    <div className="text-[10px] uppercase tracking-wider text-tft-muted/70 mb-1 font-medium">
+                      Most Common Boards
                     </div>
                   </div>
+                  <div className="divide-y divide-tft-border/40">
+                    {comp.flex_combos.map((flex, idx) => (
+                      <div key={idx} className="px-4 py-2.5 flex items-center gap-3 hover:bg-tft-hover/30 transition-colors">
+                        <span className="text-[11px] text-tft-muted w-8 shrink-0 tabular-nums font-medium">
+                          #{idx + 1}
+                        </span>
+                        <div className="flex gap-1">
+                          {flex.units.map((u) => (
+                            <UnitChip key={`${idx}-${u.character_id}`} unit={u} size={36} />
+                          ))}
+                        </div>
+                        <div className="ml-auto flex items-center gap-3 shrink-0">
+                          <StatBadge value={String(flex.comps)} label="Freq" />
+                          <div className="w-px h-5 bg-tft-border/40" />
+                          <div className="flex flex-col items-center px-1">
+                            <div className={`text-base font-bold tabular-nums ${avpTextColor(flex.avg_placement)}`}>
+                              {flex.avg_placement.toFixed(2)}
+                            </div>
+                            <div className="text-[9px] uppercase tracking-wider text-tft-muted">AVP</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       )}

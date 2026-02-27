@@ -127,39 +127,6 @@ def _slots_used(units: list[str] | tuple[str, ...]) -> int:
     return sum(_unit_slot_weight(u) for u in units)
 
 
-def _weighted_flex_combos(unit_pool: list[str], target_slots: int) -> set[tuple[str, ...]]:
-    """
-    Return unique combos (sorted tuple) from unit_pool whose total slot weight
-    matches target_slots. unit_pool may contain duplicates.
-    """
-    if target_slots < 0:
-        return set()
-    if target_slots == 0:
-        return {tuple()}
-
-    pool = list(unit_pool)
-    combos: set[tuple[str, ...]] = set()
-
-    def backtrack(idx: int, picked: list[str], slots: int):
-        if slots == target_slots:
-            combos.add(tuple(sorted(picked)))
-            return
-        if idx >= len(pool) or slots > target_slots:
-            return
-
-        # Option 1: skip current unit
-        backtrack(idx + 1, picked, slots)
-
-        # Option 2: include current unit
-        unit_id = pool[idx]
-        w = _unit_slot_weight(unit_id)
-        if slots + w <= target_slots:
-            picked.append(unit_id)
-            backtrack(idx + 1, picked, slots + w)
-            picked.pop()
-
-    backtrack(0, [], 0)
-    return combos
 
 
 def _parse_trait_data(data: dict, icon_base: str) -> tuple[dict, dict[str, str]]:
@@ -1452,9 +1419,9 @@ class HiddenCompsView(APIView):
             except ValueError:
                 target_level_override = None
         try:
-            top_flex = max(1, int(request.query_params.get("top_flex", 3)))
+            top_flex = max(1, int(request.query_params.get("top_flex", 5)))
         except ValueError:
-            top_flex = 3
+            top_flex = 5
 
         participants = (
             Participant.objects.filter(match__server=server)
@@ -1549,21 +1516,46 @@ class HiddenCompsView(APIView):
             flex_stats: dict[tuple[str, ...], dict] = defaultdict(
                 lambda: {"count": 0, "total_placement": 0, "matches": set()}
             )
+            flex_unit_stats: dict[str, dict] = defaultdict(
+                lambda: {"count": 0, "total_placement": 0}
+            )
+            matching_flex_count = 0
 
             for b in boards:
                 if not core_set.issubset(b["unit_set"]):
                     continue
                 remaining = sorted(b["unit_set"] - core_set)
-                for flex in _weighted_flex_combos(remaining, flex_size):
-                    row = flex_stats[flex]
-                    row["count"] += 1
-                    row["total_placement"] += b["placement"]
-                    row["matches"].add(b["match_id"])
+                if not remaining:
+                    continue
+                matching_flex_count += 1
+                flex_key = tuple(remaining)
+                row = flex_stats[flex_key]
+                row["count"] += 1
+                row["total_placement"] += b["placement"]
+                row["matches"].add(b["match_id"])
+                for unit_id in remaining:
+                    fp = flex_unit_stats[unit_id]
+                    fp["count"] += 1
+                    fp["total_placement"] += b["placement"]
 
             ranked_flex = sorted(
                 flex_stats.items(),
                 key=lambda kv: (-kv[1]["count"], (kv[1]["total_placement"] / kv[1]["count"]), kv[0]),
             )[:top_flex]
+
+            flex_picks = []
+            if matching_flex_count > 0:
+                for unit_id, fp_info in sorted(
+                    flex_unit_stats.items(),
+                    key=lambda kv: (-kv[1]["count"], kv[1]["total_placement"] / kv[1]["count"]),
+                ):
+                    flex_picks.append({
+                        "character_id": unit_id,
+                        "cost": unit_cost_map.get(unit_id, 0),
+                        "rate": round(fp_info["count"] / matching_flex_count, 3),
+                        "games": fp_info["count"],
+                        "avg_placement": round(fp_info["total_placement"] / fp_info["count"], 2),
+                    })
 
             trait_counts: dict[str, int] = defaultdict(int)
             for u in core_units:
@@ -1606,6 +1598,7 @@ class HiddenCompsView(APIView):
                     }
                     for flex_units, info in ranked_flex
                 ],
+                "flex_picks": flex_picks,
             })
 
         return Response(result)
@@ -1635,9 +1628,9 @@ class CompsView(APIView):
             except ValueError:
                 limit = None
         try:
-            top_flex = max(1, int(request.query_params.get("top_flex", 3)))
+            top_flex = max(1, int(request.query_params.get("top_flex", 5)))
         except ValueError:
-            top_flex = 3
+            top_flex = 5
 
         global _COMPS_CACHE, _COMPS_CACHE_VERSION
         comp_count = Comp.objects.filter(server=server).count()
@@ -1937,6 +1930,10 @@ class CompsView(APIView):
             flex_stats: dict[tuple[str, ...], dict] = defaultdict(
                 lambda: {"count": 0, "total_placement": 0, "matches": set()}
             )
+            flex_unit_stats: dict[str, dict] = defaultdict(
+                lambda: {"count": 0, "total_placement": 0}
+            )
+            matching_flex_count = 0
 
             for b in boards:
                 if excluded_set and (excluded_set & b["unit_set"]):
@@ -1949,7 +1946,6 @@ class CompsView(APIView):
                             break
                     if blocked_by_count:
                         continue
-                board_flex_size = (b["level"] or 0) - core_size
                 has_core_units = all(
                     b["unit_count_by_unit"].get(unit_id, 0) >= min_count
                     for unit_id, min_count in core_unit_counts.items()
@@ -2032,18 +2028,37 @@ class CompsView(APIView):
                 for unit_id, count in sorted(remaining_counter.items()):
                     if count > 0:
                         remaining_pool.extend([unit_id] * count)
-                if board_flex_size <= 0:
+                if not remaining_pool:
                     continue
-                for flex in _weighted_flex_combos(remaining_pool, board_flex_size):
-                    row = flex_stats[flex]
-                    row["count"] += 1
-                    row["total_placement"] += b["placement"]
-                    row["matches"].add(b["match_id"])
+                matching_flex_count += 1
+                flex_key = tuple(remaining_pool)
+                row = flex_stats[flex_key]
+                row["count"] += 1
+                row["total_placement"] += b["placement"]
+                row["matches"].add(b["match_id"])
+                for unit_id in set(remaining_pool):
+                    fp = flex_unit_stats[unit_id]
+                    fp["count"] += 1
+                    fp["total_placement"] += b["placement"]
 
             ranked_flex = sorted(
                 flex_stats.items(),
                 key=lambda kv: (-kv[1]["count"], (kv[1]["total_placement"] / kv[1]["count"]), kv[0]),
             )[:top_flex]
+
+            flex_picks = []
+            if matching_flex_count > 0:
+                for unit_id, fp_info in sorted(
+                    flex_unit_stats.items(),
+                    key=lambda kv: (-kv[1]["count"], kv[1]["total_placement"] / kv[1]["count"]),
+                ):
+                    flex_picks.append({
+                        "character_id": unit_id,
+                        "cost": unit_cost_map.get(unit_id, 0),
+                        "rate": round(fp_info["count"] / matching_flex_count, 3),
+                        "games": fp_info["count"],
+                        "avg_placement": round(fp_info["total_placement"] / fp_info["count"], 2),
+                    })
             avg_placement = round(core_total_placement / core_count, 2) if core_count else 0.0
             top4_rate = round(core_top4_count / core_count, 3) if core_count else 0.0
             win_rate = round(core_win_count / core_count, 3) if core_count else 0.0
@@ -2101,6 +2116,7 @@ class CompsView(APIView):
                     }
                     for flex_units, info in ranked_flex
                 ],
+                "flex_picks": flex_picks,
             })
 
         total_games = len({b["match_id"] for b in boards})
