@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import CompsList, { CompStat } from "../../../components/CompsList";
+import VersionFilter from "../../../components/VersionFilter";
 import PageSkeleton from "../../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
 import { DEFAULT_GAME_VERSION } from "@/lib/constants";
@@ -68,29 +69,32 @@ async function HiddenCompsContent({
     error = e instanceof Error ? e.message : "Unknown error";
   }
 
-  if (error) {
-    return (
-      <div className="rounded-xl border border-red-800 bg-red-950/40 px-5 py-4 text-red-400 text-sm">
-        <span className="font-semibold">Error:</span> {error}
-        <p className="mt-1 text-red-500/70">
-          Make sure the backend is running and reachable.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <CompsList
-      data={data}
-      versions={versions}
-      selectedVersion={gameVersion}
-      basePath={`/${serverSlug}/comps/hidden`}
-      showHiddenFilters
-      selectedCoreSizes={coreSizes}
-      selectedMinOccurrences={minOccurrences}
-      traitData={traitData}
-      server={server}
-    />
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <VersionFilter versions={versions} selectedVersion={gameVersion} />
+      </div>
+
+      {error ? (
+        <div className="rounded-xl border border-red-800 bg-red-950/40 px-5 py-4 text-red-400 text-sm">
+          <span className="font-semibold">Error:</span> {error}
+          <p className="mt-1 text-red-500/70">
+            Make sure the backend is running and reachable.
+          </p>
+        </div>
+      ) : (
+        <CompsList
+          data={data}
+          selectedVersion={gameVersion}
+          basePath={`/${serverSlug}/comps/hidden`}
+          showHiddenFilters
+          selectedCoreSizes={coreSizes}
+          selectedMinOccurrences={minOccurrences}
+          traitData={traitData}
+          server={server}
+        />
+      )}
+    </div>
   );
 }
 

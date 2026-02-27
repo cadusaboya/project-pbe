@@ -2347,6 +2347,7 @@ class PlayerStatsView(APIView):
       sort  — games | avg_placement (default) | win_rate | top4_rate
       search — case-insensitive substring on game_name
       min_games — exclude players below this threshold
+      game_version — filter matches by game version
     """
 
     def get(self, request):
@@ -2354,6 +2355,7 @@ class PlayerStatsView(APIView):
         sort_key = request.query_params.get("sort", "avg_placement")
         search = request.query_params.get("search", "").strip()
         min_games = int(request.query_params.get("min_games", 0))
+        game_version = request.query_params.get("game_version")
 
         if server == "PBE":
             players = Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid="")
@@ -2362,10 +2364,14 @@ class PlayerStatsView(APIView):
         if search:
             players = players.filter(game_name__icontains=search)
 
+        participant_qs = Participant.objects.filter(match__server=server)
+        if game_version:
+            participant_qs = participant_qs.filter(match__game_version=game_version)
+
         players = players.prefetch_related(
             Prefetch(
                 "participations",
-                queryset=Participant.objects.filter(match__server=server).prefetch_related(
+                queryset=participant_qs.prefetch_related(
                     Prefetch("unit_usages", queryset=UnitUsage.objects.select_related("unit"))
                 ),
             )

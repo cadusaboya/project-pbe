@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import StatsTable, { UnitStat } from "../../components/StatsTable";
+import VersionFilter from "../../components/VersionFilter";
 import PageSkeleton from "../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
 import { DEFAULT_GAME_VERSION } from "@/lib/constants";
@@ -43,36 +44,35 @@ async function StatsContent({
     error = e instanceof Error ? e.message : "Unknown error";
   }
 
-  if (error) {
-    return (
-      <div className="rounded-xl border border-red-800 bg-red-950/40 px-5 py-4 text-red-400 text-sm">
-        <span className="font-semibold">Error:</span> {error}
-        <p className="mt-1 text-red-500/70">
-          Make sure the backend is running and reachable.
-        </p>
-      </div>
-    );
-  }
-
-  if (data.length === 0) {
-    return (
-      <div className="rounded-xl border border-tft-border bg-tft-surface/40 px-5 py-12 text-center text-tft-muted text-sm">
-        No data yet. Run{" "}
-        <code className="font-mono text-tft-accent">
-          python manage.py fetch_pbe
-        </code>{" "}
-        to populate the database.
-      </div>
-    );
-  }
-
   return (
-    <StatsTable
-      data={data}
-      versions={versions}
-      selectedVersion={gameVersion}
-      server={server}
-    />
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <VersionFilter versions={versions} selectedVersion={gameVersion} />
+      </div>
+
+      {error ? (
+        <div className="rounded-xl border border-red-800 bg-red-950/40 px-5 py-4 text-red-400 text-sm">
+          <span className="font-semibold">Error:</span> {error}
+          <p className="mt-1 text-red-500/70">
+            Make sure the backend is running and reachable.
+          </p>
+        </div>
+      ) : data.length === 0 ? (
+        <div className="rounded-xl border border-tft-border bg-tft-surface/40 px-5 py-12 text-center text-tft-muted text-sm">
+          No data yet. Run{" "}
+          <code className="font-mono text-tft-accent">
+            python manage.py fetch_pbe
+          </code>{" "}
+          to populate the database.
+        </div>
+      ) : (
+        <StatsTable
+          data={data}
+          selectedVersion={gameVersion}
+          server={server}
+        />
+      )}
+    </div>
   );
 }
 

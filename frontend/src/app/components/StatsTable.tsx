@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, Fragment, useEffect } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { backendUrl } from "@/lib/backend";
 import { UnitImage, ItemImage } from "./TftImage";
 import { formatUnit, costBorderColor } from "@/lib/tftUtils";
@@ -200,18 +199,13 @@ function ItemStatsTable({ stats, itemAssets }: { stats: ItemStat[]; itemAssets: 
 
 export default function StatsTable({
   data,
-  versions,
   selectedVersion,
   server,
 }: {
   data: UnitStat[];
-  versions: string[];
   selectedVersion: string;
   server: string;
 }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const pathname = usePathname();
   const [sortKey, setSortKey] = useState<SortKey>("avg_placement");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [search, setSearch] = useState("");
@@ -233,12 +227,6 @@ export default function StatsTable({
       })
       .catch(() => {});
   }, [server]);
-
-  function handleVersionChange(v: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("game_version", v);
-    router.push(`${pathname}?${params.toString()}`);
-  }
 
   const handleSort = (key: SortKey, defaultDir: SortDir) => {
     if (sortKey === key) {
@@ -321,18 +309,6 @@ export default function StatsTable({
     <div className="space-y-4">
       {/* Filters */}
       <div className="flex flex-wrap gap-2 sm:gap-3 items-center">
-        {versions.length > 0 && (
-          <select
-            value={selectedVersion}
-            onChange={(e) => handleVersionChange(e.target.value)}
-            className="bg-tft-surface border border-tft-border text-tft-text rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-tft-accent transition-colors"
-          >
-            <option value="">All versions</option>
-            {versions.map((v) => (
-              <option key={v} value={v}>{v}</option>
-            ))}
-          </select>
-        )}
         <div className="relative flex-1 min-w-[120px] max-w-[200px]">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tft-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />

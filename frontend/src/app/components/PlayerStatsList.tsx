@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UnitImage } from "./TftImage";
-import { formatUnit } from "@/lib/tftUtils";
 
 interface TopUnit {
   character_id: string;

@@ -248,7 +248,6 @@ function CompCard({ comp, onExplore }: { comp: CompStat; onExplore?: (comp: Comp
 
 export default function CompsList({
   data,
-  versions,
   selectedVersion,
   basePath = "/comps",
   showCompMeta = true,
@@ -260,7 +259,6 @@ export default function CompsList({
   server,
 }: {
   data: CompStat[];
-  versions: string[];
   selectedVersion: string;
   basePath?: string;
   showCompMeta?: boolean;
@@ -288,12 +286,6 @@ export default function CompsList({
 
   function pushParams(next: URLSearchParams) {
     router.push(`${basePath}?${next.toString()}`);
-  }
-
-  function handleVersionChange(v: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("game_version", v);
-    pushParams(params);
   }
 
   function handleCoreSizesChange(v: string) {
@@ -420,19 +412,6 @@ export default function CompsList({
     <div className="space-y-4">
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
-        {versions.length > 0 && (
-          <select
-            value={selectedVersion}
-            onChange={(e) => handleVersionChange(e.target.value)}
-            className="bg-tft-surface border border-tft-border text-tft-text rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-tft-accent transition-colors"
-          >
-            <option value="">All versions</option>
-            {versions.map((v) => (
-              <option key={v} value={v}>{v}</option>
-            ))}
-          </select>
-        )}
-
         {showHiddenFilters && (
           <select
             value={selectedCoreSizes}
