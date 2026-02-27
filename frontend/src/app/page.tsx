@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { fetchJson } from "@/lib/api";
+import PageSkeleton from "./components/PageSkeleton";
 
 interface TopUnit {
   unit_name: string;
@@ -169,14 +171,92 @@ const features = [
   },
 ];
 
+async function QuickStatsContent({ server }: { server: string }) {
+  const [topUnits, topComps] = await Promise.all([fetchTopUnits(server), fetchTopComps(server)]);
+  const hasQuickStats = topUnits.length > 0 || topComps.length > 0;
+
+  if (!hasQuickStats) return null;
+
+  return (
+    <section className="space-y-6 -mt-12">
+      <div className="grid md:grid-cols-2 gap-6">
+        {topUnits.length > 0 && (
+          <Link href="/pbe/unit-stats" className="group rounded-xl border border-tft-border bg-tft-surface/40 p-5 hover:border-tft-gold/30 transition-colors">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-tft-muted uppercase tracking-wider">Top Units by AVP</h3>
+              <span className="text-xs text-tft-muted group-hover:text-tft-gold transition-colors">View all →</span>
+            </div>
+            <div className="space-y-2.5">
+              {topUnits.map((unit, i) => (
+                <div key={unit.unit_name} className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-tft-muted/50 w-5 tabular-nums">{i + 1}</span>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={unitImageUrl(unit.unit_name)}
+                    alt={formatUnit(unit.unit_name)}
+                    width={36}
+                    height={36}
+                    className={`w-9 h-9 rounded-lg border-2 ${COST_COLORS[unit.cost] ?? "border-gray-500"} object-cover`}
+                  />
+                  <span className="text-sm font-medium text-tft-text flex-1">{formatUnit(unit.unit_name)}</span>
+                  <span className={`text-sm font-semibold tabular-nums ${avpColor(unit.avg_placement)}`}>
+                    {unit.avg_placement.toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Link>
+        )}
+
+        {topComps.length > 0 && (
+          <Link href="/pbe/comps" className="group rounded-xl border border-tft-border bg-tft-surface/40 p-5 hover:border-tft-gold/30 transition-colors">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-tft-muted uppercase tracking-wider">Top Comps</h3>
+              <span className="text-xs text-tft-muted group-hover:text-tft-gold transition-colors">View all →</span>
+            </div>
+            <div className="space-y-2.5">
+              {topComps.map((comp, i) => {
+                const tier = compTier(comp.avg_placement);
+                const bestFlex = comp.flex_combos?.[0];
+                return (
+                  <div key={i} className="flex items-center gap-2 h-9">
+                    <span className="text-sm font-bold text-tft-muted/50 w-5 tabular-nums">{i + 1}</span>
+                    <span className={`text-xs font-bold w-5 h-5 flex items-center justify-center rounded ${tier.bg} ${tier.color}`}>
+                      {tier.label}
+                    </span>
+                    <div className="flex items-center gap-1 flex-1">
+                      {[...comp.core_units, ...(bestFlex?.units ?? [])].map((u) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={u.character_id}
+                          src={unitImageUrl(u.character_id)}
+                          alt={formatUnit(u.character_id)}
+                          width={28}
+                          height={28}
+                          className={`w-7 h-7 rounded border-2 ${COST_COLORS[u.cost] ?? "border-gray-500"} object-cover`}
+                        />
+                      ))}
+                    </div>
+                    <span className={`text-sm font-semibold tabular-nums ${avpColor(comp.avg_placement)}`}>
+                      {comp.avg_placement.toFixed(2)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </Link>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default async function Home({
   searchParams,
 }: {
   searchParams: Promise<{ server?: string }>;
 }) {
   const { server = "PBE" } = await searchParams;
-  const [topUnits, topComps] = await Promise.all([fetchTopUnits(server), fetchTopComps(server)]);
-  const hasQuickStats = topUnits.length > 0 || topComps.length > 0;
 
   return (
     <div className="space-y-12 sm:space-y-24 pb-8 sm:pb-16">
@@ -227,80 +307,9 @@ export default async function Home({
       </section>
 
       {/* Quick Stats — top units & comps at a glance */}
-      {hasQuickStats && (
-        <section className="space-y-6 -mt-12">
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Top Units */}
-            {topUnits.length > 0 && (
-              <Link href="/pbe/unit-stats" className="group rounded-xl border border-tft-border bg-tft-surface/40 p-5 hover:border-tft-gold/30 transition-colors">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold text-tft-muted uppercase tracking-wider">Top Units by AVP</h3>
-                  <span className="text-xs text-tft-muted group-hover:text-tft-gold transition-colors">View all →</span>
-                </div>
-                <div className="space-y-2.5">
-                  {topUnits.map((unit, i) => (
-                    <div key={unit.unit_name} className="flex items-center gap-3">
-                      <span className="text-sm font-bold text-tft-muted/50 w-5 tabular-nums">{i + 1}</span>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={unitImageUrl(unit.unit_name)}
-                        alt={formatUnit(unit.unit_name)}
-                        width={36}
-                        height={36}
-                        className={`w-9 h-9 rounded-lg border-2 ${COST_COLORS[unit.cost] ?? "border-gray-500"} object-cover`}
-                      />
-                      <span className="text-sm font-medium text-tft-text flex-1">{formatUnit(unit.unit_name)}</span>
-                      <span className={`text-sm font-semibold tabular-nums ${avpColor(unit.avg_placement)}`}>
-                        {unit.avg_placement.toFixed(2)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </Link>
-            )}
-
-            {/* Top Comps */}
-            {topComps.length > 0 && (
-              <Link href="/pbe/comps" className="group rounded-xl border border-tft-border bg-tft-surface/40 p-5 hover:border-tft-gold/30 transition-colors">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold text-tft-muted uppercase tracking-wider">Top Comps</h3>
-                  <span className="text-xs text-tft-muted group-hover:text-tft-gold transition-colors">View all →</span>
-                </div>
-                <div className="space-y-2.5">
-                  {topComps.map((comp, i) => {
-                    const tier = compTier(comp.avg_placement);
-                    const bestFlex = comp.flex_combos?.[0];
-                    return (
-                      <div key={i} className="flex items-center gap-2 h-9">
-                        <span className="text-sm font-bold text-tft-muted/50 w-5 tabular-nums">{i + 1}</span>
-                        <span className={`text-xs font-bold w-5 h-5 flex items-center justify-center rounded ${tier.bg} ${tier.color}`}>
-                          {tier.label}
-                        </span>
-                        <div className="flex items-center gap-1 flex-1">
-                          {[...comp.core_units, ...(bestFlex?.units ?? [])].map((u) => (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              key={u.character_id}
-                              src={unitImageUrl(u.character_id)}
-                              alt={formatUnit(u.character_id)}
-                              width={28}
-                              height={28}
-                              className={`w-7 h-7 rounded border-2 ${COST_COLORS[u.cost] ?? "border-gray-500"} object-cover`}
-                            />
-                          ))}
-                        </div>
-                        <span className={`text-sm font-semibold tabular-nums ${avpColor(comp.avg_placement)}`}>
-                          {comp.avg_placement.toFixed(2)}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Link>
-            )}
-          </div>
-        </section>
-      )}
+      <Suspense fallback={<PageSkeleton variant="landing" />}>
+        <QuickStatsContent server={server} />
+      </Suspense>
 
       {/* How it works */}
       <section className="space-y-6 sm:space-y-10">

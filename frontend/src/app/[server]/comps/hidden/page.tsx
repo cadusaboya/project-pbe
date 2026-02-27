@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import CompsList, { CompStat } from "../../../components/CompsList";
+import PageSkeleton from "../../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
 
 async function fetchHiddenCompStats(
@@ -34,20 +36,19 @@ async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; ic
   }
 }
 
-export default async function HiddenCompsPage({
-  params,
-  searchParams,
+async function HiddenCompsContent({
+  server,
+  serverSlug,
+  gameVersion,
+  coreSizes,
+  minOccurrences,
 }: {
-  params: Promise<{ server: string }>;
-  searchParams: Promise<{ game_version?: string; core_sizes?: string; min_occurrences?: string }>;
+  server: string;
+  serverSlug: string;
+  gameVersion: string;
+  coreSizes: string;
+  minOccurrences: string;
 }) {
-  const { server: serverSlug } = await params;
-  const server = serverSlug.toUpperCase();
-  const {
-    game_version: gameVersion,
-    core_sizes: coreSizes = "4,5,6",
-    min_occurrences: minOccurrences = "100",
-  } = await searchParams;
   let data: CompStat[] = [];
   let versions: string[] = [];
   let traitData: Record<string, { breakpoints: number[]; icon: string }> = {};
@@ -63,6 +64,47 @@ export default async function HiddenCompsPage({
     error = e instanceof Error ? e.message : "Unknown error";
   }
 
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-800 bg-red-950/40 px-5 py-4 text-red-400 text-sm">
+        <span className="font-semibold">Error:</span> {error}
+        <p className="mt-1 text-red-500/70">
+          Make sure the backend is running and reachable.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <CompsList
+      data={data}
+      versions={versions}
+      selectedVersion={gameVersion}
+      basePath={`/${serverSlug}/comps/hidden`}
+      showHiddenFilters
+      selectedCoreSizes={coreSizes}
+      selectedMinOccurrences={minOccurrences}
+      traitData={traitData}
+      server={server}
+    />
+  );
+}
+
+export default async function HiddenCompsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ server: string }>;
+  searchParams: Promise<{ game_version?: string; core_sizes?: string; min_occurrences?: string }>;
+}) {
+  const { server: serverSlug } = await params;
+  const server = serverSlug.toUpperCase();
+  const {
+    game_version: gameVersion,
+    core_sizes: coreSizes = "4,5,6",
+    min_occurrences: minOccurrences = "100",
+  } = await searchParams;
+
   return (
     <div className="space-y-6">
       <div>
@@ -72,26 +114,15 @@ export default async function HiddenCompsPage({
         </p>
       </div>
 
-      {error ? (
-        <div className="rounded-xl border border-red-800 bg-red-950/40 px-5 py-4 text-red-400 text-sm">
-          <span className="font-semibold">Error:</span> {error}
-          <p className="mt-1 text-red-500/70">
-            Make sure the backend is running and reachable.
-          </p>
-        </div>
-      ) : (
-        <CompsList
-          data={data}
-          versions={versions}
-          selectedVersion={gameVersion ?? ""}
-          basePath={`/${serverSlug}/comps/hidden`}
-          showHiddenFilters
-          selectedCoreSizes={coreSizes}
-          selectedMinOccurrences={minOccurrences}
-          traitData={traitData}
+      <Suspense fallback={<PageSkeleton variant="cards" />}>
+        <HiddenCompsContent
           server={server}
+          serverSlug={serverSlug}
+          gameVersion={gameVersion ?? ""}
+          coreSizes={coreSizes}
+          minOccurrences={minOccurrences}
         />
-      )}
+      </Suspense>
     </div>
   );
 }

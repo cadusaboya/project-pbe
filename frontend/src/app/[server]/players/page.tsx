@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import PlayerStatsList, { PlayerStat } from "../../components/PlayerStatsList";
+import PageSkeleton from "../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
 
 async function fetchPlayerStats(server?: string): Promise<PlayerStat[]> {
@@ -8,13 +10,7 @@ async function fetchPlayerStats(server?: string): Promise<PlayerStat[]> {
   return fetchJson<PlayerStat[]>(`/api/player-stats/${qs ? `?${qs}` : ""}`);
 }
 
-export default async function PlayersPage({
-  params,
-}: {
-  params: Promise<{ server: string }>;
-}) {
-  const { server: serverSlug } = await params;
-  const server = serverSlug.toUpperCase();
+async function PlayersContent({ server }: { server: string }) {
   let data: PlayerStat[] = [];
   let error: string | null = null;
 
@@ -23,6 +19,36 @@ export default async function PlayersPage({
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";
   }
+
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-800 bg-red-950/40 px-5 py-4 text-red-400 text-sm">
+        <span className="font-semibold">Error:</span> {error}
+        <p className="mt-1 text-red-500/70">
+          Make sure the backend is running and reachable.
+        </p>
+      </div>
+    );
+  }
+
+  if (data.length === 0) {
+    return (
+      <div className="rounded-xl border border-tft-border bg-tft-surface/40 px-5 py-12 text-center text-tft-muted text-sm">
+        No player data available.
+      </div>
+    );
+  }
+
+  return <PlayerStatsList data={data} server={server} />;
+}
+
+export default async function PlayersPage({
+  params,
+}: {
+  params: Promise<{ server: string }>;
+}) {
+  const { server: serverSlug } = await params;
+  const server = serverSlug.toUpperCase();
 
   return (
     <div className="space-y-6">
@@ -45,20 +71,9 @@ export default async function PlayersPage({
         )}
       </div>
 
-      {error ? (
-        <div className="rounded-xl border border-red-800 bg-red-950/40 px-5 py-4 text-red-400 text-sm">
-          <span className="font-semibold">Error:</span> {error}
-          <p className="mt-1 text-red-500/70">
-            Make sure the backend is running and reachable.
-          </p>
-        </div>
-      ) : data.length === 0 ? (
-        <div className="rounded-xl border border-tft-border bg-tft-surface/40 px-5 py-12 text-center text-tft-muted text-sm">
-          No player data available.
-        </div>
-      ) : (
-        <PlayerStatsList data={data} server={server} />
-      )}
+      <Suspense fallback={<PageSkeleton variant="table" />}>
+        <PlayersContent server={server} />
+      </Suspense>
     </div>
   );
 }

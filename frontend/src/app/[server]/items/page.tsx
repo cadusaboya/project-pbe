@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { fetchJson } from "@/lib/api";
 import ItemsExplorer from "../../components/ItemsExplorer";
+import PageSkeleton from "../../components/PageSkeleton";
 import { UnitStat } from "../../components/StatsTable";
 
 async function fetchUnits(server?: string): Promise<UnitStat[]> {
@@ -24,6 +25,25 @@ async function fetchVersions(server?: string): Promise<string[]> {
   }
 }
 
+async function ItemsContent({
+  server,
+  gameVersion,
+}: {
+  server: string;
+  gameVersion: string;
+}) {
+  const [units, versions] = await Promise.all([fetchUnits(server), fetchVersions(server)]);
+
+  return (
+    <ItemsExplorer
+      units={units}
+      versions={versions}
+      selectedVersion={gameVersion}
+      server={server}
+    />
+  );
+}
+
 export default async function ItemsPage({
   params,
   searchParams,
@@ -35,16 +55,9 @@ export default async function ItemsPage({
   const server = serverSlug.toUpperCase();
   const { game_version: gameVersion } = await searchParams;
 
-  const [units, versions] = await Promise.all([fetchUnits(server), fetchVersions(server)]);
-
   return (
-    <Suspense fallback={null}>
-      <ItemsExplorer
-        units={units}
-        versions={versions}
-        selectedVersion={gameVersion ?? ""}
-        server={server}
-      />
+    <Suspense fallback={<PageSkeleton variant="explorer" />}>
+      <ItemsContent server={server} gameVersion={gameVersion ?? ""} />
     </Suspense>
   );
 }

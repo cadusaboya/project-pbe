@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import TeamBuilder from "../../components/TeamBuilder";
+import PageSkeleton from "../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
 
 interface Champion {
@@ -26,12 +28,24 @@ async function fetchTraits(): Promise<TraitData> {
   }
 }
 
-export default async function TeamBuilderPage() {
+async function TeamBuilderContent() {
   const [champions, traitData] = await Promise.all([
     fetchChampions(),
     fetchTraits(),
   ]);
 
+  if (champions.length === 0) {
+    return (
+      <div className="rounded-xl border border-tft-border bg-tft-surface/40 px-5 py-12 text-center text-tft-muted text-sm">
+        Could not load champion data. Make sure the backend is running.
+      </div>
+    );
+  }
+
+  return <TeamBuilder champions={champions} traitData={traitData} />;
+}
+
+export default async function TeamBuilderPage() {
   return (
     <div className="space-y-6">
       <div>
@@ -42,13 +56,9 @@ export default async function TeamBuilderPage() {
         </p>
       </div>
 
-      {champions.length === 0 ? (
-        <div className="rounded-xl border border-tft-border bg-tft-surface/40 px-5 py-12 text-center text-tft-muted text-sm">
-          Could not load champion data. Make sure the backend is running.
-        </div>
-      ) : (
-        <TeamBuilder champions={champions} traitData={traitData} />
-      )}
+      <Suspense fallback={<PageSkeleton variant="explorer" />}>
+        <TeamBuilderContent />
+      </Suspense>
     </div>
   );
 }

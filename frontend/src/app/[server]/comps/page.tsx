@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import CompsList, { CompStat } from "../../components/CompsList";
+import PageSkeleton from "../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
 
 interface CompsResponse {
@@ -34,16 +36,15 @@ async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; ic
   }
 }
 
-export default async function CompsPage({
-  params,
-  searchParams,
+async function CompsContent({
+  server,
+  serverSlug,
+  gameVersion,
 }: {
-  params: Promise<{ server: string }>;
-  searchParams: Promise<{ game_version?: string }>;
+  server: string;
+  serverSlug: string;
+  gameVersion: string;
 }) {
-  const { server: serverSlug } = await params;
-  const server = serverSlug.toUpperCase();
-  const { game_version: gameVersion } = await searchParams;
   let data: CompStat[] = [];
   let totalComps = 0;
   let versions: string[] = [];
@@ -64,6 +65,50 @@ export default async function CompsPage({
     error = e instanceof Error ? e.message : "Unknown error";
   }
 
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-800 bg-red-950/40 px-5 py-4 text-red-400 text-sm">
+        <span className="font-semibold">Error:</span> {error}
+        <p className="mt-1 text-red-500/70">
+          Make sure the backend is running and reachable.
+        </p>
+      </div>
+    );
+  }
+
+  if (data.length === 0) {
+    return (
+      <div className="rounded-xl border border-tft-border bg-tft-surface/40 px-5 py-12 text-center text-tft-muted text-sm">
+        No comps created.
+      </div>
+    );
+  }
+
+  return (
+    <CompsList
+      data={data}
+      versions={versions}
+      selectedVersion={gameVersion}
+      basePath={`/${serverSlug}/comps`}
+      showCompMeta={false}
+      traitData={traitData}
+      totalComps={totalComps}
+      server={server}
+    />
+  );
+}
+
+export default async function CompsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ server: string }>;
+  searchParams: Promise<{ game_version?: string }>;
+}) {
+  const { server: serverSlug } = await params;
+  const server = serverSlug.toUpperCase();
+  const { game_version: gameVersion } = await searchParams;
+
   return (
     <div className="space-y-6">
       <div>
@@ -73,29 +118,9 @@ export default async function CompsPage({
         </p>
       </div>
 
-      {error ? (
-        <div className="rounded-xl border border-red-800 bg-red-950/40 px-5 py-4 text-red-400 text-sm">
-          <span className="font-semibold">Error:</span> {error}
-          <p className="mt-1 text-red-500/70">
-            Make sure the backend is running and reachable.
-          </p>
-        </div>
-      ) : data.length === 0 ? (
-        <div className="rounded-xl border border-tft-border bg-tft-surface/40 px-5 py-12 text-center text-tft-muted text-sm">
-          No comps created.
-        </div>
-      ) : (
-        <CompsList
-          data={data}
-          versions={versions}
-          selectedVersion={gameVersion ?? ""}
-          basePath={`/${serverSlug}/comps`}
-          showCompMeta={false}
-          traitData={traitData}
-          totalComps={totalComps}
-          server={server}
-        />
-      )}
+      <Suspense fallback={<PageSkeleton variant="cards" />}>
+        <CompsContent server={server} serverSlug={serverSlug} gameVersion={gameVersion ?? ""} />
+      </Suspense>
     </div>
   );
 }

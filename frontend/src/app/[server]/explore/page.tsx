@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { fetchJson } from "@/lib/api";
 import DataExplorer from "../../components/DataExplorer";
+import PageSkeleton from "../../components/PageSkeleton";
 import { UnitStat } from "../../components/StatsTable";
 
 async function fetchUnits(server?: string): Promise<UnitStat[]> {
@@ -59,19 +60,8 @@ function parseUnitCount(raw: string, defaultCount = 2) {
   return { unit: raw.slice(0, idx), count: isNaN(count) ? defaultCount : Math.max(1, count) };
 }
 
-export default async function ExplorePage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ server: string }>;
-  searchParams: Promise<RawParams>;
-}) {
-  const { server: serverSlug } = await params;
-  const server = serverSlug.toUpperCase();
-  const rawParams = await searchParams;
-  const gameVersion = rawParams.game_version ?? "";
-
-  const initialConditions = [
+function buildInitialConditions(rawParams: RawParams) {
+  return [
     ...toArray(rawParams.require_unit).map((unit) => ({ type: "require_unit" as const, unit })),
     ...toArray(rawParams.ban_unit).map((unit) => ({ type: "ban_unit" as const, unit })),
     ...toArray(rawParams.player_level).map((l) => ({ type: "player_level" as const, level: Number(l) })),
@@ -114,18 +104,52 @@ export default async function ExplorePage({
       return { type: "exclude_trait" as const, trait: raw.slice(0, idx), count: isNaN(count) ? 1 : Math.max(1, count) };
     }),
   ];
+}
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function ExploreContent({
+  server,
+  gameVersion,
+  initialConditions,
+}: {
+  server: string;
+  gameVersion: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  initialConditions: any[];
+}) {
   const [units, versions, traitData] = await Promise.all([fetchUnits(server), fetchVersions(server), fetchTraits()]);
 
   return (
-    <Suspense fallback={null}>
-      <DataExplorer
-        units={units}
-        versions={versions}
-        selectedVersion={gameVersion}
-        initialConditions={initialConditions}
-        traitData={traitData}
+    <DataExplorer
+      units={units}
+      versions={versions}
+      selectedVersion={gameVersion}
+      initialConditions={initialConditions}
+      traitData={traitData}
+      server={server}
+    />
+  );
+}
+
+export default async function ExplorePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ server: string }>;
+  searchParams: Promise<RawParams>;
+}) {
+  const { server: serverSlug } = await params;
+  const server = serverSlug.toUpperCase();
+  const rawParams = await searchParams;
+  const gameVersion = rawParams.game_version ?? "";
+  const initialConditions = buildInitialConditions(rawParams);
+
+  return (
+    <Suspense fallback={<PageSkeleton variant="explorer" />}>
+      <ExploreContent
         server={server}
+        gameVersion={gameVersion}
+        initialConditions={initialConditions}
       />
     </Suspense>
   );

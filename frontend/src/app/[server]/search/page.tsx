@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import SearchComps from "../../components/SearchComps";
+import PageSkeleton from "../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
 import { UnitStat } from "../../components/StatsTable";
 import { TraitInfo } from "../../components/WinningCompsList";
@@ -30,6 +31,24 @@ async function fetchUnits(server?: string): Promise<UnitStat[]> {
   }
 }
 
+async function SearchContent({ server }: { server: string }) {
+  const [units, itemData, traitData] = await Promise.all([
+    fetchUnits(server),
+    fetchItemData(),
+    fetchTraitBreakpoints(),
+  ]);
+
+  return (
+    <SearchComps
+      units={units}
+      itemAssets={itemData.assets}
+      itemNames={itemData.names}
+      traitData={traitData}
+      server={server}
+    />
+  );
+}
+
 export default async function SearchPage({
   params,
 }: {
@@ -37,11 +56,6 @@ export default async function SearchPage({
 }) {
   const { server: serverSlug } = await params;
   const server = serverSlug.toUpperCase();
-  const [units, itemData, traitData] = await Promise.all([
-    fetchUnits(server),
-    fetchItemData(),
-    fetchTraitBreakpoints(),
-  ]);
 
   return (
     <div className="space-y-6">
@@ -51,14 +65,8 @@ export default async function SearchPage({
           Search for all recorded comps that contain a specific unit or combination of units, across all placements.
         </p>
       </div>
-      <Suspense fallback={null}>
-        <SearchComps
-          units={units}
-          itemAssets={itemData.assets}
-          itemNames={itemData.names}
-          traitData={traitData}
-          server={server}
-        />
+      <Suspense fallback={<PageSkeleton variant="explorer" />}>
+        <SearchContent server={server} />
       </Suspense>
     </div>
   );

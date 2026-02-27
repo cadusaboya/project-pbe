@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import PlayerProfile, { PlayerProfileData, TraitInfo } from "../../../components/PlayerProfile";
+import PageSkeleton from "../../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
 import Link from "next/link";
 
@@ -25,15 +27,13 @@ async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
   }
 }
 
-export default async function PlayerPage({
-  params,
+async function ProfileContent({
+  decodedName,
+  server,
 }: {
-  params: Promise<{ server: string; name: string }>;
+  decodedName: string;
+  server: string;
 }) {
-  const { server: serverSlug, name } = await params;
-  const server = serverSlug.toUpperCase();
-  const decodedName = decodeURIComponent(name);
-
   let profile: PlayerProfileData | null = null;
   let itemAssets: Record<string, string> = {};
   let itemNames: Record<string, string> = {};
@@ -53,9 +53,35 @@ export default async function PlayerPage({
     error = e instanceof Error ? e.message : "Unknown error";
   }
 
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-800 bg-red-950/40 px-5 py-8 text-center">
+        <p className="text-red-400 text-lg font-semibold">{error}</p>
+        <p className="text-red-500/70 text-sm mt-2">
+          Player &quot;{decodedName}&quot; was not found in the tracked player list.
+        </p>
+      </div>
+    );
+  }
+
+  if (!profile) return null;
+
+  return (
+    <PlayerProfile data={profile} itemAssets={itemAssets} itemNames={itemNames} traitData={traitData} server={server} />
+  );
+}
+
+export default async function PlayerPage({
+  params,
+}: {
+  params: Promise<{ server: string; name: string }>;
+}) {
+  const { server: serverSlug, name } = await params;
+  const server = serverSlug.toUpperCase();
+  const decodedName = decodeURIComponent(name);
+
   return (
     <div className="space-y-6">
-      {/* Back link */}
       <Link
         href={`/${serverSlug}/games-feed`}
         className="inline-flex items-center gap-1.5 text-tft-muted hover:text-tft-gold text-sm transition-colors"
@@ -64,16 +90,9 @@ export default async function PlayerPage({
         <span>Back to Games Feed</span>
       </Link>
 
-      {error ? (
-        <div className="rounded-xl border border-red-800 bg-red-950/40 px-5 py-8 text-center">
-          <p className="text-red-400 text-lg font-semibold">{error}</p>
-          <p className="text-red-500/70 text-sm mt-2">
-            Player &quot;{decodedName}&quot; was not found in the tracked player list.
-          </p>
-        </div>
-      ) : profile ? (
-        <PlayerProfile data={profile} itemAssets={itemAssets} itemNames={itemNames} traitData={traitData} server={server} />
-      ) : null}
+      <Suspense fallback={<PageSkeleton variant="profile" />}>
+        <ProfileContent decodedName={decodedName} server={server} />
+      </Suspense>
     </div>
   );
 }
