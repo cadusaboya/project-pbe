@@ -14,4 +14,4 @@ python manage.py migrate --noinput
 done) &
 
 # Start gunicorn as main process
-exec gunicorn tft_tracker.wsgi --bind 0.0.0.0:$PORT --workers 4 --threads 4 --timeout 60
+exec gunicorn tft_tracker.wsgi --bind 0.0.0.0:$PORT --workers 8 --threads 2 --timeout 60
