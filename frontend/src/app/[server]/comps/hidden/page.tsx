@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import CompsList, { CompStat } from "../../../components/CompsList";
 import PageSkeleton from "../../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
+import { DEFAULT_GAME_VERSION } from "@/lib/constants";
 
 async function fetchHiddenCompStats(
   gameVersion?: string,
@@ -28,9 +29,12 @@ async function fetchVersions(server?: string): Promise<string[]> {
   }
 }
 
-async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
+async function fetchTraits(server?: string): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
   try {
-    return await fetchJson<Record<string, { breakpoints: number[]; icon: string }>>("/api/traits/");
+    const params = new URLSearchParams();
+    if (server) params.set("server", server);
+    const qs = params.toString();
+    return await fetchJson<Record<string, { breakpoints: number[]; icon: string }>>(`/api/traits/${qs ? `?${qs}` : ""}`);
   } catch {
     return {};
   }
@@ -58,7 +62,7 @@ async function HiddenCompsContent({
     [data, versions, traitData] = await Promise.all([
       fetchHiddenCompStats(gameVersion, coreSizes, minOccurrences, server),
       fetchVersions(server),
-      fetchTraits(),
+      fetchTraits(server),
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";
@@ -118,7 +122,7 @@ export default async function HiddenCompsPage({
         <HiddenCompsContent
           server={server}
           serverSlug={serverSlug}
-          gameVersion={gameVersion ?? ""}
+          gameVersion={gameVersion ?? DEFAULT_GAME_VERSION}
           coreSizes={coreSizes}
           minOccurrences={minOccurrences}
         />

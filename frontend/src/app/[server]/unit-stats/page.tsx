@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import StatsTable, { UnitStat } from "../../components/StatsTable";
 import PageSkeleton from "../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
+import { DEFAULT_GAME_VERSION } from "@/lib/constants";
 
 async function fetchStats(gameVersion?: string, server?: string): Promise<UnitStat[]> {
   const params = new URLSearchParams();
@@ -96,7 +97,7 @@ export default async function Home({
       </div>
 
       <Suspense fallback={<PageSkeleton variant="table" />}>
-        <StatsContent server={server} gameVersion={gameVersion ?? ""} />
+        <StatsContent server={server} gameVersion={gameVersion ?? DEFAULT_GAME_VERSION} />
       </Suspense>
     </div>
   );

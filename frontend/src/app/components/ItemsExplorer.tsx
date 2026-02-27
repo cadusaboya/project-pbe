@@ -324,8 +324,7 @@ export default function ItemsExplorer({
     setSelectedVersion(v);
     setSelectedItems([]);
     const params = new URLSearchParams(searchParams.toString());
-    if (v) params.set("game_version", v);
-    else params.delete("game_version");
+    params.set("game_version", v);
     router.push(`/${server.toLowerCase()}/items?${params.toString()}`);
   }
 

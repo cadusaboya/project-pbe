@@ -887,8 +887,7 @@ export default function DataExplorer({
   function handleVersionChange(v: string) {
     setSelectedVersion(v);
     const p = new URLSearchParams(searchParams.toString());
-    if (v) p.set("game_version", v);
-    else p.delete("game_version");
+    p.set("game_version", v);
     router.push(`/${server.toLowerCase()}/explore?${p.toString()}`);
   }
 

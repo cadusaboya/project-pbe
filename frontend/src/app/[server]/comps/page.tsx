@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import CompsList, { CompStat } from "../../components/CompsList";
 import PageSkeleton from "../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
+import { DEFAULT_GAME_VERSION } from "@/lib/constants";
 
 interface CompsResponse {
   total_games: number;
@@ -28,9 +29,12 @@ async function fetchVersions(server?: string): Promise<string[]> {
   }
 }
 
-async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
+async function fetchTraits(server?: string): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
   try {
-    return await fetchJson<Record<string, { breakpoints: number[]; icon: string }>>("/api/traits/");
+    const params = new URLSearchParams();
+    if (server) params.set("server", server);
+    const qs = params.toString();
+    return await fetchJson<Record<string, { breakpoints: number[]; icon: string }>>(`/api/traits/${qs ? `?${qs}` : ""}`);
   } catch {
     return {};
   }
@@ -55,7 +59,7 @@ async function CompsContent({
     const [compsRes, v, t] = await Promise.all([
       fetchCompStats(gameVersion, server),
       fetchVersions(server),
-      fetchTraits(),
+      fetchTraits(server),
     ]);
     data = compsRes.comps ?? [];
     totalComps = compsRes.total_comps ?? 0;
@@ -119,7 +123,7 @@ export default async function CompsPage({
       </div>
 
       <Suspense fallback={<PageSkeleton variant="cards" />}>
-        <CompsContent server={server} serverSlug={serverSlug} gameVersion={gameVersion ?? ""} />
+        <CompsContent server={server} serverSlug={serverSlug} gameVersion={gameVersion ?? DEFAULT_GAME_VERSION} />
       </Suspense>
     </div>
   );

@@ -12,26 +12,32 @@ interface Champion {
 
 type TraitData = Record<string, { breakpoints: number[]; icon: string }>;
 
-async function fetchChampions(): Promise<Champion[]> {
+async function fetchChampions(server?: string): Promise<Champion[]> {
   try {
-    return await fetchJson<Champion[]>("/api/champions/");
+    const params = new URLSearchParams();
+    if (server) params.set("server", server);
+    const qs = params.toString();
+    return await fetchJson<Champion[]>(`/api/champions/${qs ? `?${qs}` : ""}`);
   } catch {
     return [];
   }
 }
 
-async function fetchTraits(): Promise<TraitData> {
+async function fetchTraits(server?: string): Promise<TraitData> {
   try {
-    return await fetchJson<TraitData>("/api/traits/");
+    const params = new URLSearchParams();
+    if (server) params.set("server", server);
+    const qs = params.toString();
+    return await fetchJson<TraitData>(`/api/traits/${qs ? `?${qs}` : ""}`);
   } catch {
     return {};
   }
 }
 
-async function TeamBuilderContent() {
+async function TeamBuilderContent({ server }: { server: string }) {
   const [champions, traitData] = await Promise.all([
-    fetchChampions(),
-    fetchTraits(),
+    fetchChampions(server),
+    fetchTraits(server),
   ]);
 
   if (champions.length === 0) {
@@ -45,7 +51,14 @@ async function TeamBuilderContent() {
   return <TeamBuilder champions={champions} traitData={traitData} />;
 }
 
-export default async function TeamBuilderPage() {
+export default async function TeamBuilderPage({
+  params,
+}: {
+  params: Promise<{ server: string }>;
+}) {
+  const { server: serverSlug } = await params;
+  const server = serverSlug.toUpperCase();
+
   return (
     <div className="space-y-6">
       <div>
@@ -57,7 +70,7 @@ export default async function TeamBuilderPage() {
       </div>
 
       <Suspense fallback={<PageSkeleton variant="explorer" />}>
-        <TeamBuilderContent />
+        <TeamBuilderContent server={server} />
       </Suspense>
     </div>
   );

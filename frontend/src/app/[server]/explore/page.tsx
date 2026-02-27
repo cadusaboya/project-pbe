@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { fetchJson } from "@/lib/api";
+import { DEFAULT_GAME_VERSION } from "@/lib/constants";
 import DataExplorer from "../../components/DataExplorer";
 import PageSkeleton from "../../components/PageSkeleton";
 import { UnitStat } from "../../components/StatsTable";
@@ -25,9 +26,12 @@ async function fetchVersions(server?: string): Promise<string[]> {
   }
 }
 
-async function fetchTraits(): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
+async function fetchTraits(server?: string): Promise<Record<string, { breakpoints: number[]; icon: string }>> {
   try {
-    return await fetchJson<Record<string, { breakpoints: number[]; icon: string }>>("/api/traits/");
+    const params = new URLSearchParams();
+    if (server) params.set("server", server);
+    const qs = params.toString();
+    return await fetchJson<Record<string, { breakpoints: number[]; icon: string }>>(`/api/traits/${qs ? `?${qs}` : ""}`);
   } catch {
     return {};
   }
@@ -117,7 +121,7 @@ async function ExploreContent({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initialConditions: any[];
 }) {
-  const [units, versions, traitData] = await Promise.all([fetchUnits(server), fetchVersions(server), fetchTraits()]);
+  const [units, versions, traitData] = await Promise.all([fetchUnits(server), fetchVersions(server), fetchTraits(server)]);
 
   return (
     <DataExplorer
@@ -141,7 +145,7 @@ export default async function ExplorePage({
   const { server: serverSlug } = await params;
   const server = serverSlug.toUpperCase();
   const rawParams = await searchParams;
-  const gameVersion = rawParams.game_version ?? "";
+  const gameVersion = rawParams.game_version ?? DEFAULT_GAME_VERSION;
   const initialConditions = buildInitialConditions(rawParams);
 
   return (

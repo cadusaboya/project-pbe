@@ -247,7 +247,8 @@ def _ensure_trait_cache(server: str = "PBE") -> dict:
         _TRAIT_API_NAME_MAP[server] = api_map
         _save_trait_cache_to_disk(server, traits, api_map)
     except Exception:
-        _TRAIT_CACHE[server] = {}
+        # Don't cache empty result — allow retries on next request
+        return {}
 
     return _TRAIT_CACHE.get(server, {})
 
@@ -336,7 +337,8 @@ class ChampionsView(APIView):
             _CHAMPIONS_CACHE[server] = champions
             _save_champions_cache_to_disk(server, champions)
         except Exception:
-            _CHAMPIONS_CACHE[server] = []
+            # Don't cache empty result — allow retries on next request
+            return _cc(Response([]), 300)
 
         return _cc(Response(_CHAMPIONS_CACHE.get(server, [])), 300)
 
@@ -918,10 +920,12 @@ def _run_explore_filter(request):
                 return tier
         return 0
 
+    _server_trait_cache = _TRAIT_CACHE.get(server, {})
+
     def _breakpoint_tier(display_name: str, min_units: int) -> int:
-        tdata = _TRAIT_CACHE.get(display_name)
+        tdata = _server_trait_cache.get(display_name)
         if not tdata:
-            for dname, td in _TRAIT_CACHE.items():
+            for dname, td in _server_trait_cache.items():
                 if dname.lower() == display_name.lower():
                     tdata = td
                     break
