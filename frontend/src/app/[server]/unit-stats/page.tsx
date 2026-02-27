@@ -22,19 +22,6 @@ async function fetchVersions(server?: string): Promise<string[]> {
   }
 }
 
-async function fetchMatchesAnalyzed(gameVersion?: string, server?: string): Promise<number> {
-  try {
-    const params = new URLSearchParams();
-    if (gameVersion) params.set("game_version", gameVersion);
-    if (server) params.set("server", server);
-    const qs = params.toString();
-    const data = await fetchJson<{ matches_analyzed?: number }>(`/api/stats/${qs ? `?${qs}` : ""}`);
-    return Number(data.matches_analyzed ?? 0);
-  } catch {
-    return 0;
-  }
-}
-
 async function StatsContent({
   server,
   gameVersion,
@@ -44,14 +31,12 @@ async function StatsContent({
 }) {
   let data: UnitStat[] = [];
   let versions: string[] = [];
-  let matchesAnalyzed = 0;
   let error: string | null = null;
 
   try {
-    [data, versions, matchesAnalyzed] = await Promise.all([
+    [data, versions] = await Promise.all([
       fetchStats(gameVersion, server),
       fetchVersions(server),
-      fetchMatchesAnalyzed(gameVersion, server),
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";
@@ -85,7 +70,6 @@ async function StatsContent({
       data={data}
       versions={versions}
       selectedVersion={gameVersion}
-      matchesAnalyzed={matchesAnalyzed}
       server={server}
     />
   );

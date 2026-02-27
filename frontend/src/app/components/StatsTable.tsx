@@ -202,13 +202,11 @@ export default function StatsTable({
   data,
   versions,
   selectedVersion,
-  matchesAnalyzed,
   server,
 }: {
   data: UnitStat[];
   versions: string[];
   selectedVersion: string;
-  matchesAnalyzed: number;
   server: string;
 }) {
   const router = useRouter();
@@ -382,7 +380,7 @@ export default function StatsTable({
           ))}
         </div>
         <span className="text-tft-muted text-xs sm:text-sm ml-auto tabular-nums">
-          {filtered.length} units &middot; {matchesAnalyzed.toLocaleString("en-US")} games
+          {filtered.length} units
         </span>
       </div>
 

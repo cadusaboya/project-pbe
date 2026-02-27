@@ -12,7 +12,6 @@ interface GlobalStats {
 
 const VALID_SERVERS = ["pbe", "live"];
 const CACHE_TTL = 300_000; // 5 minutes
-const POLL_INTERVAL = 300_000; // 5 minutes
 
 function getCachedStats(server: string): GlobalStats | null {
   try {
@@ -71,26 +70,23 @@ export default function StatsBar() {
     const cached = getCachedStats(server);
     if (cached) {
       setStats(cached);
+      return;
     }
 
-    const fetchStats = () => {
-      const url = new URL(backendUrl("/api/stats/"));
-      url.searchParams.set("server", server);
-      fetch(url.toString(), { cache: "no-store" })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (cancelled || !d) return;
-          setStats(d);
-          setCachedStats(server, d);
-        })
-        .catch(() => { if (!cancelled) setStats(null); });
-    };
+    // Fetch once on mount when cache is stale/empty.
+    // No polling — FreshnessGuard reloads the page when new data arrives.
+    const url = new URL(backendUrl("/api/stats/"));
+    url.searchParams.set("server", server);
+    fetch(url.toString(), { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) return;
+        setStats(d);
+        setCachedStats(server, d);
+      })
+      .catch(() => { if (!cancelled) setStats(null); });
 
-    // Only fetch if cache is stale or empty
-    if (!cached) fetchStats();
-
-    const id = setInterval(fetchStats, POLL_INTERVAL);
-    return () => { cancelled = true; clearInterval(id); };
+    return () => { cancelled = true; };
   }, [server]);
 
   // Re-render every 60s so the relative time stays fresh
