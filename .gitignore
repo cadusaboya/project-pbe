@@ -12,6 +12,7 @@ __pycache__/
 *.pyc
 venv/
 .env
+.cdragon_cache/
 
 # Mac
 .DS_Store

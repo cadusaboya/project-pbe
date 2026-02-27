@@ -26,14 +26,17 @@ _CDRAGON_ICON_BASES = {
     "PBE": "https://raw.communitydragon.org/pbe/game/",
     "LIVE": "https://raw.communitydragon.org/latest/game/",
 }
+_CDRAGON_TIMEOUT = 10  # seconds — keep short to avoid blocking when CDragon is down
+
+# Persistent cache directory for CDragon data
+_CDRAGON_CACHE_DIR = Path(settings.BASE_DIR) / ".cdragon_cache"
+_CDRAGON_CACHE_DIR.mkdir(exist_ok=True)
+
 # Server-keyed caches: {server: data}
 _TRAIT_CACHE: dict[str, dict] = {}
-_TRAIT_CACHE_TS: dict[str, float] = {}
-_TRAIT_CACHE_TTL = 3600.0  # seconds
 _TRAIT_API_NAME_MAP: dict[str, dict[str, str]] = {}  # server -> {apiName: displayName}
 
 _CHAMPIONS_CACHE: dict[str, list] = {}
-_CHAMPIONS_CACHE_TS: dict[str, float] = {}
 
 # In-memory caches for data that rarely changes
 _ITEM_ASSETS_CACHE: dict | None = None
@@ -159,57 +162,92 @@ def _weighted_flex_combos(unit_pool: list[str], target_slots: int) -> set[tuple[
     return combos
 
 
-def _ensure_trait_cache(server: str = "PBE") -> dict:
-    """Populate _TRAIT_CACHE and _TRAIT_API_NAME_MAP from CDragon if stale."""
-    global _TRAIT_CACHE, _TRAIT_CACHE_TS, _TRAIT_API_NAME_MAP
+def _parse_trait_data(data: dict, icon_base: str) -> tuple[dict, dict[str, str]]:
+    """Extract traits and api_name map from raw CDragon JSON."""
+    traits: dict = {}
+    api_map: dict[str, str] = {}
+    current_set = data.get("sets", {}).get("16", {})
+    for trait in current_set.get("traits", []):
+        name = trait.get("name")
+        if not name:
+            continue
+        api_name = trait.get("apiName", "")
+        breakpoints = [
+            e["minUnits"]
+            for e in (trait.get("effects") or [])
+            if e.get("minUnits", 0) > 0
+        ]
+        if not breakpoints:
+            continue
+        raw_icon = trait.get("icon", "")
+        icon = ""
+        if raw_icon:
+            icon = (
+                icon_base
+                + raw_icon.replace("ASSETS/", "assets/")
+                          .replace(".tex", ".png")
+                          .lower()
+            )
+        traits[name] = {"breakpoints": breakpoints, "icon": icon}
+        if api_name:
+            api_map[api_name] = name
+    return traits, api_map
 
-    now = time.time()
-    if server in _TRAIT_CACHE and (now - _TRAIT_CACHE_TS.get(server, 0)) < _TRAIT_CACHE_TTL:
+
+def _load_trait_cache_from_disk(server: str) -> tuple[dict, dict[str, str]] | None:
+    """Load trait data from persistent file cache."""
+    cache_file = _CDRAGON_CACHE_DIR / f"traits_{server}.json"
+    if not cache_file.exists():
+        return None
+    try:
+        raw = json.loads(cache_file.read_text(encoding="utf-8"))
+        return raw.get("traits", {}), raw.get("api_map", {})
+    except Exception:
+        return None
+
+
+def _save_trait_cache_to_disk(server: str, traits: dict, api_map: dict[str, str]):
+    """Persist trait data to file."""
+    cache_file = _CDRAGON_CACHE_DIR / f"traits_{server}.json"
+    cache_file.write_text(
+        json.dumps({"traits": traits, "api_map": api_map}),
+        encoding="utf-8",
+    )
+
+
+def _ensure_trait_cache(server: str = "PBE") -> dict:
+    """Populate _TRAIT_CACHE and _TRAIT_API_NAME_MAP.
+
+    Priority: memory → disk → CDragon (last resort).
+    Trait/champion data only changes between sets, so disk cache is preferred.
+    """
+    global _TRAIT_CACHE, _TRAIT_API_NAME_MAP
+
+    if server in _TRAIT_CACHE:
         return _TRAIT_CACHE[server]
 
+    # Try disk cache first
+    disk = _load_trait_cache_from_disk(server)
+    if disk:
+        _TRAIT_CACHE[server] = disk[0]
+        _TRAIT_API_NAME_MAP[server] = disk[1]
+        return _TRAIT_CACHE[server]
+
+    # No disk cache — fetch from CDragon
     cdragon_url = _CDRAGON_TFT_URLS.get(server, _CDRAGON_TFT_URLS["PBE"])
     icon_base = _CDRAGON_ICON_BASES.get(server, _CDRAGON_ICON_BASES["PBE"])
-
     try:
-        with httpx.Client(timeout=120) as client:
+        with httpx.Client(timeout=_CDRAGON_TIMEOUT) as client:
             resp = client.get(cdragon_url)
             resp.raise_for_status()
             data = resp.json()
 
-        traits: dict = {}
-        api_map: dict[str, str] = {}
-        current_set = data.get("sets", {}).get("16", {})
-        for trait in current_set.get("traits", []):
-            name = trait.get("name")
-            if not name:
-                continue
-            api_name = trait.get("apiName", "")
-            breakpoints = [
-                e["minUnits"]
-                for e in (trait.get("effects") or [])
-                if e.get("minUnits", 0) > 0
-            ]
-            if not breakpoints:
-                continue
-            raw_icon = trait.get("icon", "")
-            icon = ""
-            if raw_icon:
-                icon = (
-                    icon_base
-                    + raw_icon.replace("ASSETS/", "assets/")
-                              .replace(".tex", ".png")
-                              .lower()
-                )
-            traits[name] = {"breakpoints": breakpoints, "icon": icon}
-            if api_name:
-                api_map[api_name] = name
-
+        traits, api_map = _parse_trait_data(data, icon_base)
         _TRAIT_CACHE[server] = traits
-        _TRAIT_CACHE_TS[server] = now
         _TRAIT_API_NAME_MAP[server] = api_map
+        _save_trait_cache_to_disk(server, traits, api_map)
     except Exception:
-        if server not in _TRAIT_CACHE:
-            _TRAIT_CACHE[server] = {}
+        _TRAIT_CACHE[server] = {}
 
     return _TRAIT_CACHE.get(server, {})
 
@@ -230,6 +268,41 @@ class TraitDataView(APIView):
         return _cc(Response(traits), 300)
 
 
+def _parse_champions_data(data: dict) -> list:
+    """Extract champion list from raw CDragon JSON."""
+    champions = []
+    current_set = data.get("sets", {}).get("16", {})
+    for champ in current_set.get("champions", []):
+        api_name: str = champ.get("apiName", "")
+        if not api_name:
+            continue
+        champions.append({
+            "apiName": api_name,
+            "name": champ.get("name", api_name.replace("TFT16_", "")),
+            "cost": champ.get("cost", 0),
+            "traits": champ.get("traits", []),
+        })
+    champions.sort(key=lambda c: (c["cost"], c["name"]))
+    return champions
+
+
+def _load_champions_cache_from_disk(server: str) -> list | None:
+    """Load champions data from persistent file cache."""
+    cache_file = _CDRAGON_CACHE_DIR / f"champions_{server}.json"
+    if not cache_file.exists():
+        return None
+    try:
+        return json.loads(cache_file.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _save_champions_cache_to_disk(server: str, champions: list):
+    """Persist champions data to file."""
+    cache_file = _CDRAGON_CACHE_DIR / f"champions_{server}.json"
+    cache_file.write_text(json.dumps(champions), encoding="utf-8")
+
+
 class ChampionsView(APIView):
     """
     GET /api/champions/
@@ -239,39 +312,31 @@ class ChampionsView(APIView):
     """
 
     def get(self, request):
-        global _CHAMPIONS_CACHE, _CHAMPIONS_CACHE_TS
+        global _CHAMPIONS_CACHE
         server = request.query_params.get("server", "PBE").upper()
 
-        now = time.time()
-        if server in _CHAMPIONS_CACHE and (now - _CHAMPIONS_CACHE_TS.get(server, 0)) < _TRAIT_CACHE_TTL:
+        if server in _CHAMPIONS_CACHE:
             return _cc(Response(_CHAMPIONS_CACHE[server]), 300)
 
+        # Try disk cache first
+        disk = _load_champions_cache_from_disk(server)
+        if disk is not None:
+            _CHAMPIONS_CACHE[server] = disk
+            return _cc(Response(_CHAMPIONS_CACHE[server]), 300)
+
+        # No disk cache — fetch from CDragon
         cdragon_url = _CDRAGON_TFT_URLS.get(server, _CDRAGON_TFT_URLS["PBE"])
         try:
-            with httpx.Client(timeout=120) as client:
+            with httpx.Client(timeout=_CDRAGON_TIMEOUT) as client:
                 resp = client.get(cdragon_url)
                 resp.raise_for_status()
                 data = resp.json()
 
-            champions = []
-            current_set = data.get("sets", {}).get("16", {})
-            for champ in current_set.get("champions", []):
-                api_name: str = champ.get("apiName", "")
-                if not api_name:
-                    continue
-                champions.append({
-                    "apiName": api_name,
-                    "name": champ.get("name", api_name.replace("TFT16_", "")),
-                    "cost": champ.get("cost", 0),
-                    "traits": champ.get("traits", []),
-                })
-
-            champions.sort(key=lambda c: (c["cost"], c["name"]))
+            champions = _parse_champions_data(data)
             _CHAMPIONS_CACHE[server] = champions
-            _CHAMPIONS_CACHE_TS[server] = now
+            _save_champions_cache_to_disk(server, champions)
         except Exception:
-            if server not in _CHAMPIONS_CACHE:
-                _CHAMPIONS_CACHE[server] = []
+            _CHAMPIONS_CACHE[server] = []
 
         return _cc(Response(_CHAMPIONS_CACHE.get(server, [])), 300)
 
