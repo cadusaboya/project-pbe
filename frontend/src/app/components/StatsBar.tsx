@@ -55,13 +55,13 @@ export default function StatsBar() {
         .catch(() => { if (!cancelled) setStats(null); });
     };
     fetchStats();
-    const id = setInterval(fetchStats, 30_000);
+    const id = setInterval(fetchStats, 300_000);
     return () => { cancelled = true; clearInterval(id); };
   }, [server]);
 
-  // Re-render every 30s so the relative time stays fresh
+  // Re-render every 60s so the relative time stays fresh
   useEffect(() => {
-    const id = setInterval(() => tick((n) => n + 1), 30_000);
+    const id = setInterval(() => tick((n) => n + 1), 60_000);
     return () => clearInterval(id);
   }, []);
 
