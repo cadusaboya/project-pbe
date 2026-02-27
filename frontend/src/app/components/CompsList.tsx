@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { UnitImage } from "./TftImage";
-import { formatUnit } from "@/lib/tftUtils";
+import { formatUnit, fetchTeamPlannerMap, generateTeamPlannerCode, type TeamPlannerMap } from "@/lib/tftUtils";
 
 interface CompUnit {
   character_id: string;
@@ -114,18 +114,23 @@ function MetaTag({ children }: { children: React.ReactNode }) {
   );
 }
 
-function CompCard({ comp, onExplore }: { comp: CompStat; onExplore?: (comp: CompStat) => void }) {
+function CompCard({ comp, onExplore, plannerMap, setKey }: { comp: CompStat; onExplore?: (comp: CompStat) => void; plannerMap: TeamPlannerMap; setKey: string }) {
   const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
   const winRate = (comp.win_rate ?? 0) * 100;
   const top4Rate = (comp.top4_rate ?? 0) * 100;
   const flexPicks = comp.flex_picks ?? [];
 
-  const hasMeta =
-    comp.name ||
-    comp.target_level ||
-    comp.core_size ||
-    comp.flex_slots ||
-    (comp.core_traits && comp.core_traits.length > 0);
+  function handleCopyTeamCode(e: React.MouseEvent) {
+    e.stopPropagation();
+    const coreIds = comp.core_units.map((u) => u.character_id);
+    const flexIds = comp.flex_combos[0]?.units.map((u) => u.character_id) ?? [];
+    const teamCode = generateTeamPlannerCode([...coreIds, ...flexIds], plannerMap, setKey);
+    navigator.clipboard.writeText(teamCode).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
 
   return (
     <div
@@ -136,9 +141,8 @@ function CompCard({ comp, onExplore }: { comp: CompStat; onExplore?: (comp: Comp
         className="px-4 py-3.5 cursor-pointer select-none hover:bg-tft-hover/50 transition-colors"
         onClick={() => setExpanded((v) => !v)}
       >
-        {/* Row 1: name + meta tags + explore button */}
-        {(hasMeta || onExplore) && (
-          <div className="flex items-center gap-2 flex-wrap mb-2.5">
+        {/* Row 1: name + meta tags + copy/explore buttons */}
+        <div className="flex items-center gap-2 flex-wrap mb-2.5">
             {comp.name && (
               <span className="text-base font-bold text-tft-text leading-none">{comp.name}</span>
             )}
@@ -154,16 +158,40 @@ function CompCard({ comp, onExplore }: { comp: CompStat; onExplore?: (comp: Comp
                 {formatTrait(t.name)} {t.units}
               </MetaTag>
             ))}
-            {onExplore && (
+            <div className="ml-auto flex items-center gap-2 shrink-0">
               <button
-                onClick={(e) => { e.stopPropagation(); onExplore(comp); }}
-                className="ml-auto text-xs text-tft-muted hover:text-tft-accent border border-tft-border hover:border-tft-accent/50 rounded px-2 py-0.5 transition-colors shrink-0"
+                onClick={handleCopyTeamCode}
+                className={`inline-flex items-center gap-1 text-xs font-medium border rounded-md px-2.5 py-1 transition-colors ${
+                  copied
+                    ? "text-emerald-400 border-emerald-500/50 bg-emerald-500/10"
+                    : "text-tft-text/80 hover:text-tft-accent border-tft-border hover:border-tft-accent/50 bg-tft-surface/80 hover:bg-tft-hover/60"
+                }`}
+                title="Copy team code to clipboard"
               >
-                Explore →
+                {copied ? (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+                  </svg>
+                )}
+                {copied ? "Copied!" : "Copy"}
               </button>
-            )}
-          </div>
-        )}
+              {onExplore && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onExplore(comp); }}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-tft-text/80 hover:text-tft-accent border border-tft-border hover:border-tft-accent/50 bg-tft-surface/80 hover:bg-tft-hover/60 rounded-md px-2.5 py-1 transition-colors"
+                >
+                  Explore
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                  </svg>
+                </button>
+              )}
+            </div>
+        </div>
 
         {/* Row 2: units + stats */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
@@ -329,6 +357,15 @@ export default function CompsList({
   const PAGE_SIZE = 10;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const [plannerMap, setPlannerMap] = useState<TeamPlannerMap>({});
+  const [plannerSetKey, setPlannerSetKey] = useState("TFTSet16");
+
+  // Fetch CDragon team planner data once to build code mapping
+  useEffect(() => {
+    fetchTeamPlannerMap()
+      .then(({ map, setKey }) => { setPlannerMap(map); setPlannerSetKey(setKey); })
+      .catch(() => {});
+  }, []);
 
   function handleSort(key: SortKey) {
     if (sort === key) setSortAsc((v) => !v);
@@ -553,6 +590,8 @@ export default function CompsList({
             <CompCard
               key={`${i}-${comp.core_units.map((u) => u.character_id).join("|")}`}
               onExplore={handleExploreComp}
+              plannerMap={plannerMap}
+              setKey={plannerSetKey}
               comp={{
                 ...comp,
                 target_level: showCompMeta ? comp.target_level : undefined,
