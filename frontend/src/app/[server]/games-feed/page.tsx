@@ -42,8 +42,16 @@ async function fetchAllUnits(server?: string): Promise<UnitStatBasic[]> {
     const params = new URLSearchParams();
     if (server) params.set("server", server);
     const qs = params.toString();
+    // Try lightweight cached champions endpoint first
     const data = await fetchJson<Array<{ apiName: string; cost: number }>>(`/api/champions/${qs ? `?${qs}` : ""}`);
-    return data.map((u) => ({ unit_name: u.apiName, cost: u.cost }));
+    if (data.length > 0) return data.map((u) => ({ unit_name: u.apiName, cost: u.cost }));
+  } catch { /* fall through */ }
+  // Fallback: unit-stats (pre-computed, reads from AggregatedUnitStat)
+  try {
+    const params = new URLSearchParams({ sort: "games" });
+    if (server) params.set("server", server);
+    const data = await fetchJson<Array<{ unit_name: string; cost: number }>>(`/api/unit-stats/?${params}`);
+    return data.map((u) => ({ unit_name: u.unit_name, cost: u.cost }));
   } catch {
     return [];
   }
