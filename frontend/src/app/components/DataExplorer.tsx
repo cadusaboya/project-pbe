@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { backendUrl } from "@/lib/backend";
 import { UnitStat } from "./StatsTable";
 import { UnitImage, ItemImage } from "./TftImage";
 import { formatUnit, costBorderColor } from "@/lib/tftUtils";
+
+const ExploreMatches = lazy(() => import("./ExploreMatches"));
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -835,7 +837,8 @@ export default function DataExplorer({
   const [itemAssets, setItemAssets] = useState<Record<string, string>>({});
 
   // Table
-  const [activeTab, setActiveTab] = useState<"units" | "items" | "traits">("units");
+  const [activeTab, setActiveTab] = useState<"units" | "items" | "traits" | "games">("units");
+  const [gamesTabLoaded, setGamesTabLoaded] = useState(false);
   const [unitSortKey, setUnitSortKey] = useState<"games" | "avg_placement" | "top4_rate" | "win_rate" | "delta">("games");
   const [unitSortDir, setUnitSortDir] = useState<SortDir>("desc");
   const [itemSortKey, setItemSortKey] = useState<"games" | "avg_placement" | "top4_rate" | "win_rate" | "delta">("games");
@@ -1258,27 +1261,33 @@ export default function DataExplorer({
           {/* Tabs + Search */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-tft-border">
             <div className="flex gap-0.5 sm:gap-1 overflow-x-auto scrollbar-hide">
-              {(["units", "items", "traits"] as const).map((tab) => (
+              {(["units", "items", "traits", "games"] as const).map((tab) => (
                 <button
                   key={tab}
-                  onClick={() => { setActiveTab(tab); setTableSearch(""); }}
+                  onClick={() => {
+                    setActiveTab(tab);
+                    setTableSearch("");
+                    if (tab === "games") setGamesTabLoaded(true);
+                  }}
                   className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium capitalize transition-colors border-b-2 -mb-px whitespace-nowrap ${
                     activeTab === tab
                       ? "border-tft-accent text-tft-text"
                       : "border-transparent text-tft-muted hover:text-tft-text"
                   }`}
                 >
-                  {tab === "units" ? "Units" : tab === "items" ? "Items" : "Traits"}
+                  {tab === "units" ? "Units" : tab === "items" ? "Items" : tab === "traits" ? "Traits" : "Last Games"}
                 </button>
               ))}
             </div>
-            <input
-              type="text"
-              placeholder={`Search ${activeTab}...`}
-              value={tableSearch}
-              onChange={(e) => setTableSearch(e.target.value)}
-              className="bg-tft-bg border border-tft-border text-tft-text rounded-lg px-3 py-1.5 text-sm w-full sm:w-48 focus:outline-none focus:border-tft-accent placeholder:text-tft-muted"
-            />
+            {activeTab !== "games" && (
+              <input
+                type="text"
+                placeholder={`Search ${activeTab}...`}
+                value={tableSearch}
+                onChange={(e) => setTableSearch(e.target.value)}
+                className="bg-tft-bg border border-tft-border text-tft-text rounded-lg px-3 py-1.5 text-sm w-full sm:w-48 focus:outline-none focus:border-tft-accent placeholder:text-tft-muted"
+              />
+            )}
           </div>
 
           {/* Units table */}
@@ -1627,6 +1636,24 @@ export default function DataExplorer({
                 Click a trait to add it as a filter.
               </p>
             </div>
+          )}
+
+          {/* Last Games tab */}
+          {activeTab === "games" && gamesTabLoaded && (
+            <Suspense
+              fallback={
+                <div className="rounded-xl border border-tft-border bg-tft-surface/40 px-5 py-12 text-center text-tft-muted text-sm">
+                  Loading...
+                </div>
+              }
+            >
+              <ExploreMatches
+                filterParams={`?${filtersToParams(filters, selectedVersion, traitData).toString()}&server=${encodeURIComponent(server)}`}
+                itemAssets={itemAssets}
+                traitData={traitData}
+                server={server}
+              />
+            </Suspense>
           )}
         </div>
       )}

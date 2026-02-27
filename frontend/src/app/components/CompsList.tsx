@@ -396,7 +396,7 @@ export default function CompsList({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [loadMore]);
+  }, [loadMore, visibleCount]);
 
   const filtered = useMemo(() => {
     let rows = data.filter((comp) => comp.comps > 0);

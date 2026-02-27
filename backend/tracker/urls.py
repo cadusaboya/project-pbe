@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import ChampionsView, CompsView, DataVersionView, ExploreView, HiddenCompsView, ItemAssetsView, ItemStatsView, MatchLobbyView, PlayerListView, PlayerProfileView, PlayerStatsView, SearchCompsView, StatsView, TraitDataView, UnitStarStatsView, UnitStatsView, VersionsView, WinningCompsView
+from .views import ChampionsView, CompsView, DataVersionView, ExploreMatchesView, ExploreView, HiddenCompsView, ItemAssetsView, ItemStatsView, MatchLobbyView, PlayerListView, PlayerProfileView, PlayerStatsView, SearchCompsView, StatsView, TraitDataView, UnitStarStatsView, UnitStatsView, VersionsView, WinningCompsView
 
 urlpatterns = [
     path("data-version/", DataVersionView.as_view(), name="data-version"),
@@ -9,6 +9,7 @@ urlpatterns = [
     path("unit-stats/<str:unit_name>/star-stats/", UnitStarStatsView.as_view(), name="unit-star-stats"),
     path("item-stats/", ItemStatsView.as_view(), name="item-stats"),
     path("explore/", ExploreView.as_view(), name="explore"),
+    path("explore/matches/", ExploreMatchesView.as_view(), name="explore-matches"),
     path("comps/", CompsView.as_view(), name="comps"),
     path("comps/hidden/", HiddenCompsView.as_view(), name="comps-hidden"),
     path("winning-comps/", WinningCompsView.as_view(), name="winning-comps"),

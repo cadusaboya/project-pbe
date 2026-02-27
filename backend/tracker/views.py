@@ -736,6 +736,236 @@ class ItemStatsView(APIView):
         })
 
 
+def _run_explore_filter(request):
+    """
+    Parse explore filter params from request, apply to cached participant data,
+    return dict with filtered participants and base stats.
+
+    Shared by ExploreView and ExploreMatchesView.
+    """
+    server = request.query_params.get("server", "PBE").upper()
+    game_version = request.query_params.get("game_version")
+    include_trait_stats = request.query_params.get("include_trait_stats") == "1"
+    require_units = set(request.query_params.getlist("require_unit"))
+    ban_units = set(request.query_params.getlist("ban_unit"))
+    require_items_raw = request.query_params.getlist("require_item_on_unit")
+    require_items_any = set(request.query_params.getlist("require_item"))
+    exclude_items = set(request.query_params.getlist("exclude_item"))
+    player_levels_raw = request.query_params.getlist("player_level")
+    player_levels = {int(v) for v in player_levels_raw if v.isdigit()}
+
+    require_items: list[tuple[str, str]] = []
+    for raw in require_items_raw:
+        if "::" in raw:
+            unit_id, item_id = raw.split("::", 1)
+            require_items.append((unit_id, item_id))
+
+    require_traits: dict[str, int] = {}
+    for raw in request.query_params.getlist("require_trait"):
+        idx = raw.rfind(":")
+        if idx > 0:
+            name, min_u = raw[:idx].strip(), 1
+            try:
+                min_u = max(1, int(raw[idx + 1:]))
+            except ValueError:
+                pass
+        else:
+            name, min_u = raw.strip(), 1
+        if name:
+            require_traits[name.lower()] = max(require_traits.get(name.lower(), 1), min_u)
+
+    def _parse_unit_int(param_key: str) -> dict[str, int]:
+        out: dict[str, int] = {}
+        for raw in request.query_params.getlist(param_key):
+            idx = raw.rfind(":")
+            if idx < 0:
+                continue
+            unit_id, count_str = raw[:idx].strip(), raw[idx + 1:]
+            try:
+                out[unit_id] = int(count_str)
+            except ValueError:
+                pass
+        return out
+
+    def _parse_trait_int(param_key: str) -> dict[str, int]:
+        out: dict[str, int] = {}
+        for raw in request.query_params.getlist(param_key):
+            idx = raw.rfind(":")
+            if idx < 0:
+                continue
+            name, count_str = raw[:idx].strip(), raw[idx + 1:]
+            try:
+                out[name.lower()] = int(count_str)
+            except ValueError:
+                pass
+        return out
+
+    exclude_unit_counts = _parse_unit_int("exclude_unit_count")
+    require_unit_counts = _parse_unit_int("require_unit_count")
+    require_unit_stars = {k: max(1, min(v, 3)) for k, v in _parse_unit_int("require_unit_star").items()}
+    require_unit_item_counts = {k: max(0, min(v, 3)) for k, v in _parse_unit_int("require_unit_item_count").items()}
+    excluded_traits = _parse_trait_int("exclude_trait")
+    require_trait_tiers = _parse_trait_int("require_trait_tier")
+    require_trait_max_tiers = _parse_trait_int("require_trait_max_tier")
+
+    needs_trait_data = bool(require_traits or excluded_traits or require_trait_tiers or require_trait_max_tiers or include_trait_stats)
+
+    if needs_trait_data:
+        _ensure_trait_cache(server)
+
+    global _EXPLORE_BASE_CACHE, _EXPLORE_CACHE_VERSION
+    match_count = Match.objects.filter(server=server).count()
+    cache_key = (server, game_version or "")
+    if match_count != _EXPLORE_CACHE_VERSION.get(server, -1):
+        stale_keys = [k for k in _EXPLORE_BASE_CACHE if k[0] == server]
+        for k in stale_keys:
+            _EXPLORE_BASE_CACHE.pop(k, None)
+        _EXPLORE_CACHE_VERSION[server] = match_count
+
+    if cache_key in _EXPLORE_BASE_CACHE:
+        participants = _EXPLORE_BASE_CACHE[cache_key]
+    else:
+        participants = ExploreView._build_participant_data(game_version, server)
+        _EXPLORE_BASE_CACHE[cache_key] = participants
+
+    _server_api_name_map = _TRAIT_API_NAME_MAP.get(server, {})
+
+    def _trait_matches(req_lower: str, api_name: str) -> bool:
+        if req_lower in api_name.lower():
+            return True
+        display = _server_api_name_map.get(api_name, "")
+        return bool(display and req_lower in display.lower())
+
+    def _max_trait_units(p_data: dict, req_lower: str) -> int:
+        matched = 0
+        for name, cnt in p_data["trait_unit_counts"].items():
+            if _trait_matches(req_lower, name):
+                matched = max(matched, cnt)
+        if matched == 0:
+            for name, cnt in p_data.get("derived_trait_counts", {}).items():
+                if _trait_matches(req_lower, name):
+                    matched = max(matched, cnt)
+        return matched
+
+    def _trait_tier(p_data: dict, req_lower: str) -> int:
+        for name, tier in p_data.get("trait_tiers", {}).items():
+            if _trait_matches(req_lower, name):
+                return tier
+        return 0
+
+    def _breakpoint_tier(display_name: str, min_units: int) -> int:
+        tdata = _TRAIT_CACHE.get(display_name)
+        if not tdata:
+            for dname, td in _TRAIT_CACHE.items():
+                if dname.lower() == display_name.lower():
+                    tdata = td
+                    break
+        if not tdata:
+            return 0
+        bps = tdata.get("breakpoints", [])
+        tier = 0
+        for i, bp in enumerate(bps):
+            if min_units >= bp:
+                tier = i + 1
+        return tier
+
+    _require_trait_tier_map: dict[str, int] = {}
+    if require_traits and needs_trait_data:
+        for trait_lower, min_u in require_traits.items():
+            if min_u > 1:
+                _require_trait_tier_map[trait_lower] = _breakpoint_tier(trait_lower, min_u)
+
+    cmap = _get_item_canonical_map()
+    require_items = [(u, cmap.get(i, i)) for u, i in require_items]
+    require_items_any = {cmap.get(i, i) for i in require_items_any}
+    exclude_items = {cmap.get(i, i) for i in exclude_items}
+
+    def matches(p_data: dict) -> bool:
+        unit_set = p_data["unit_set"]
+        unit_items = p_data["unit_items"]
+        if player_levels and p_data["level"] not in player_levels:
+            return False
+        if not require_units.issubset(unit_set):
+            return False
+        if ban_units & unit_set:
+            return False
+        for unit_id, item_id in require_items:
+            if unit_id not in unit_items or item_id not in unit_items[unit_id]:
+                return False
+        if require_items_any:
+            all_items_set: set = set()
+            for item_set in unit_items.values():
+                all_items_set |= item_set
+            if not require_items_any.issubset(all_items_set):
+                return False
+        if exclude_items:
+            all_items: set = set()
+            for item_set in unit_items.values():
+                all_items |= item_set
+            if all_items & exclude_items:
+                return False
+        if require_traits:
+            for trait_lower, min_u in require_traits.items():
+                req_tier = _require_trait_tier_map.get(trait_lower, 0)
+                if req_tier > 0:
+                    board_tier = _trait_tier(p_data, trait_lower)
+                    if board_tier < req_tier:
+                        return False
+                else:
+                    if _max_trait_units(p_data, trait_lower) < min_u:
+                        return False
+        if require_trait_tiers:
+            for trait_lower, min_tier in require_trait_tiers.items():
+                board_tier = _trait_tier(p_data, trait_lower)
+                if board_tier < min_tier:
+                    return False
+                max_tier = require_trait_max_tiers.get(trait_lower, 0)
+                if max_tier > 0 and board_tier > max_tier:
+                    return False
+        if exclude_unit_counts:
+            for unit_id, min_count in exclude_unit_counts.items():
+                if p_data["unit_count_by_unit"].get(unit_id, 0) >= min_count:
+                    return False
+        if require_unit_counts:
+            for unit_id, min_count in require_unit_counts.items():
+                if p_data["unit_count_by_unit"].get(unit_id, 0) < min_count:
+                    return False
+        if require_unit_stars:
+            for unit_id, min_star in require_unit_stars.items():
+                if p_data["unit_max_star_by_unit"].get(unit_id, 0) < min_star:
+                    return False
+        if require_unit_item_counts:
+            for unit_id, min_items in require_unit_item_counts.items():
+                if p_data["item_count_by_unit"].get(unit_id, 0) < min_items:
+                    return False
+        if excluded_traits:
+            for trait_lower, threshold in excluded_traits.items():
+                if _max_trait_units(p_data, trait_lower) >= threshold:
+                    return False
+        return True
+
+    filtered = [p for p in participants if matches(p)]
+
+    base_games = len(filtered)
+    base_avg = round(sum(p["placement"] for p in filtered) / base_games, 2) if base_games else 0.0
+    base_top4 = sum(1 for p in filtered if p["placement"] <= 4)
+    base_wins = sum(1 for p in filtered if p["placement"] == 1)
+    base_top4_rate = round(base_top4 / base_games, 4) if base_games else 0.0
+    base_win_rate = round(base_wins / base_games, 4) if base_games else 0.0
+
+    return {
+        "filtered": filtered,
+        "base_games": base_games,
+        "base_avg": base_avg,
+        "base_top4_rate": base_top4_rate,
+        "base_win_rate": base_win_rate,
+        "require_units": require_units,
+        "require_unit_counts": require_unit_counts,
+        "include_trait_stats": include_trait_stats,
+        "server": server,
+    }
+
+
 class ExploreView(APIView):
     """
     GET /api/explore/
@@ -773,7 +1003,7 @@ class ExploreView(APIView):
             qs = qs.filter(match__game_version=game_version)
         # Defer raw_json to avoid loading ~22KB per match in the JOIN;
         # load it separately as a dict keyed by match_id.
-        qs = qs.select_related("match").defer("match__raw_json").prefetch_related(
+        qs = qs.select_related("match", "player").defer("match__raw_json").prefetch_related(
             Prefetch(
                 "unit_usages",
                 queryset=UnitUsage.objects.select_related("unit"),
@@ -817,6 +1047,11 @@ class ExploreView(APIView):
                 )
 
             p_data: dict = {
+                "pk": p.pk,
+                "match_id": p.match_id,
+                "game_datetime": p.match.game_datetime,
+                "game_version": p.match.game_version,
+                "player_str": str(p.player) if p.player else (p.puuid[:12] if p.puuid else "Unknown"),
                 "placement": p.placement,
                 "level": p.level,
                 "unit_set": set(unit_map.keys()),
@@ -873,223 +1108,16 @@ class ExploreView(APIView):
         return participants
 
     def get(self, request):
-        server = request.query_params.get("server", "PBE").upper()
-        game_version = request.query_params.get("game_version")
-        include_trait_stats = request.query_params.get("include_trait_stats") == "1"
-        require_units = set(request.query_params.getlist("require_unit"))
-        ban_units = set(request.query_params.getlist("ban_unit"))
-        require_items_raw = request.query_params.getlist("require_item_on_unit")
-        require_items_any = set(request.query_params.getlist("require_item"))
-        exclude_items = set(request.query_params.getlist("exclude_item"))
-        player_levels_raw = request.query_params.getlist("player_level")
-        player_levels = {int(v) for v in player_levels_raw if v.isdigit()}
-
-        # Parse "unit_id::item_id" strings
-        require_items: list[tuple[str, str]] = []
-        for raw in require_items_raw:
-            if "::" in raw:
-                unit_id, item_id = raw.split("::", 1)
-                require_items.append((unit_id, item_id))
-
-        # require_trait: "TraitName" or "TraitName:MinUnits" → {lowercase: min_units}
-        require_traits: dict[str, int] = {}
-        for raw in request.query_params.getlist("require_trait"):
-            idx = raw.rfind(":")
-            if idx > 0:
-                name, min_u = raw[:idx].strip(), 1
-                try:
-                    min_u = max(1, int(raw[idx + 1:]))
-                except ValueError:
-                    pass
-            else:
-                name, min_u = raw.strip(), 1
-            if name:
-                require_traits[name.lower()] = max(require_traits.get(name.lower(), 1), min_u)
-
-        def _parse_unit_int(param_key: str) -> dict[str, int]:
-            out: dict[str, int] = {}
-            for raw in request.query_params.getlist(param_key):
-                idx = raw.rfind(":")
-                if idx < 0:
-                    continue
-                unit_id, count_str = raw[:idx].strip(), raw[idx + 1:]
-                try:
-                    out[unit_id] = int(count_str)
-                except ValueError:
-                    pass
-            return out
-
-        def _parse_trait_int(param_key: str) -> dict[str, int]:
-            out: dict[str, int] = {}
-            for raw in request.query_params.getlist(param_key):
-                idx = raw.rfind(":")
-                if idx < 0:
-                    continue
-                name, count_str = raw[:idx].strip(), raw[idx + 1:]
-                try:
-                    out[name.lower()] = int(count_str)
-                except ValueError:
-                    pass
-            return out
-
-        exclude_unit_counts = _parse_unit_int("exclude_unit_count")
-        require_unit_counts = _parse_unit_int("require_unit_count")
-        require_unit_stars = {k: max(1, min(v, 3)) for k, v in _parse_unit_int("require_unit_star").items()}
-        require_unit_item_counts = {k: max(0, min(v, 3)) for k, v in _parse_unit_int("require_unit_item_count").items()}
-        excluded_traits = _parse_trait_int("exclude_trait")
-        require_trait_tiers = _parse_trait_int("require_trait_tier")  # {trait_lower: min_tier}
-        require_trait_max_tiers = _parse_trait_int("require_trait_max_tier")  # {trait_lower: max_tier}
-
-        needs_trait_data = bool(require_traits or excluded_traits or require_trait_tiers or require_trait_max_tiers or include_trait_stats)
-        needs_extra_unit_data = bool(exclude_unit_counts or require_unit_counts or require_unit_stars or require_unit_item_counts or require_units)
-
-        if needs_trait_data:
-            _ensure_trait_cache(server)
-
-        # --- In-process cache: reuse pre-built participant dicts when match count unchanged ---
-        global _EXPLORE_BASE_CACHE, _EXPLORE_CACHE_VERSION
-        match_count = Match.objects.filter(server=server).count()
-        cache_key = (server, game_version or "")
-        if match_count != _EXPLORE_CACHE_VERSION.get(server, -1):
-            stale_keys = [k for k in _EXPLORE_BASE_CACHE if k[0] == server]
-            for k in stale_keys:
-                _EXPLORE_BASE_CACHE.pop(k, None)
-            _EXPLORE_CACHE_VERSION[server] = match_count
-
-        if cache_key in _EXPLORE_BASE_CACHE:
-            participants = _EXPLORE_BASE_CACHE[cache_key]
-        else:
-            participants = self._build_participant_data(game_version, server)
-            _EXPLORE_BASE_CACHE[cache_key] = participants
-
-        _server_api_name_map = _TRAIT_API_NAME_MAP.get(server, {})
-
-        def _trait_matches(req_lower: str, api_name: str) -> bool:
-            if req_lower in api_name.lower():
-                return True
-            display = _server_api_name_map.get(api_name, "")
-            return bool(display and req_lower in display.lower())
-
-        def _max_trait_units(p_data: dict, req_lower: str) -> int:
-            matched = 0
-            for name, cnt in p_data["trait_unit_counts"].items():
-                if _trait_matches(req_lower, name):
-                    matched = max(matched, cnt)
-            if matched == 0:
-                for name, cnt in p_data.get("derived_trait_counts", {}).items():
-                    if _trait_matches(req_lower, name):
-                        matched = max(matched, cnt)
-            return matched
-
-        def _trait_tier(p_data: dict, req_lower: str) -> int:
-            """Return the tier_current for a trait (case-insensitive substring match)."""
-            for name, tier in p_data.get("trait_tiers", {}).items():
-                if _trait_matches(req_lower, name):
-                    return tier
-            return 0
-
-        def _breakpoint_tier(display_name: str, min_units: int) -> int:
-            """Convert a min_units value to a 1-based tier using CDragon breakpoints."""
-            tdata = _TRAIT_CACHE.get(display_name)
-            if not tdata:
-                for dname, td in _TRAIT_CACHE.items():
-                    if dname.lower() == display_name.lower():
-                        tdata = td
-                        break
-            if not tdata:
-                return 0
-            bps = tdata.get("breakpoints", [])
-            tier = 0
-            for i, bp in enumerate(bps):
-                if min_units >= bp:
-                    tier = i + 1
-            return tier
-
-        # Precompute required tier for each require_trait with min_units > 1
-        _require_trait_tier_map: dict[str, int] = {}
-        if require_traits and needs_trait_data:
-            for trait_lower, min_u in require_traits.items():
-                if min_u > 1:
-                    _require_trait_tier_map[trait_lower] = _breakpoint_tier(trait_lower, min_u)
-
-        # Resolve item filter params to canonical IDs
-        cmap = _get_item_canonical_map()
-        require_items = [(u, cmap.get(i, i)) for u, i in require_items]
-        require_items_any = {cmap.get(i, i) for i in require_items_any}
-        exclude_items = {cmap.get(i, i) for i in exclude_items}
-
-        def matches(p_data: dict) -> bool:
-            unit_set = p_data["unit_set"]
-            unit_items = p_data["unit_items"]
-            if player_levels and p_data["level"] not in player_levels:
-                return False
-            if not require_units.issubset(unit_set):
-                return False
-            if ban_units & unit_set:
-                return False
-            for unit_id, item_id in require_items:
-                if unit_id not in unit_items or item_id not in unit_items[unit_id]:
-                    return False
-            if require_items_any:
-                all_items_set: set = set()
-                for item_set in unit_items.values():
-                    all_items_set |= item_set
-                if not require_items_any.issubset(all_items_set):
-                    return False
-            if exclude_items:
-                all_items: set = set()
-                for item_set in unit_items.values():
-                    all_items |= item_set
-                if all_items & exclude_items:
-                    return False
-            if require_traits:
-                for trait_lower, min_u in require_traits.items():
-                    req_tier = _require_trait_tier_map.get(trait_lower, 0)
-                    if req_tier > 0:
-                        board_tier = _trait_tier(p_data, trait_lower)
-                        if board_tier < req_tier:
-                            return False
-                    else:
-                        if _max_trait_units(p_data, trait_lower) < min_u:
-                            return False
-            if require_trait_tiers:
-                for trait_lower, min_tier in require_trait_tiers.items():
-                    board_tier = _trait_tier(p_data, trait_lower)
-                    if board_tier < min_tier:
-                        return False
-                    max_tier = require_trait_max_tiers.get(trait_lower, 0)
-                    if max_tier > 0 and board_tier > max_tier:
-                        return False
-            if exclude_unit_counts:
-                for unit_id, min_count in exclude_unit_counts.items():
-                    if p_data["unit_count_by_unit"].get(unit_id, 0) >= min_count:
-                        return False
-            if require_unit_counts:
-                for unit_id, min_count in require_unit_counts.items():
-                    if p_data["unit_count_by_unit"].get(unit_id, 0) < min_count:
-                        return False
-            if require_unit_stars:
-                for unit_id, min_star in require_unit_stars.items():
-                    if p_data["unit_max_star_by_unit"].get(unit_id, 0) < min_star:
-                        return False
-            if require_unit_item_counts:
-                for unit_id, min_items in require_unit_item_counts.items():
-                    if p_data["item_count_by_unit"].get(unit_id, 0) < min_items:
-                        return False
-            if excluded_traits:
-                for trait_lower, threshold in excluded_traits.items():
-                    if _max_trait_units(p_data, trait_lower) >= threshold:
-                        return False
-            return True
-
-        filtered = [p for p in participants if matches(p)]
-
-        base_games = len(filtered)
-        base_avg = round(sum(p["placement"] for p in filtered) / base_games, 2) if base_games else 0.0
-        base_top4 = sum(1 for p in filtered if p["placement"] <= 4)
-        base_wins = sum(1 for p in filtered if p["placement"] == 1)
-        base_top4_rate = round(base_top4 / base_games, 4) if base_games else 0.0
-        base_win_rate = round(base_wins / base_games, 4) if base_games else 0.0
+        ctx = _run_explore_filter(request)
+        filtered = ctx["filtered"]
+        base_games = ctx["base_games"]
+        base_avg = ctx["base_avg"]
+        base_top4_rate = ctx["base_top4_rate"]
+        base_win_rate = ctx["base_win_rate"]
+        require_units = ctx["require_units"]
+        require_unit_counts = ctx["require_unit_counts"]
+        include_trait_stats = ctx["include_trait_stats"]
+        server = ctx["server"]
 
         # Per-unit stats across filtered comps
         unit_agg: dict = defaultdict(lambda: {"games": 0, "total": 0, "top4": 0, "wins": 0})
@@ -1226,6 +1254,83 @@ class ExploreView(APIView):
         if include_trait_stats:
             response_data["trait_stats"] = trait_stats
         return _cc(Response(response_data), 300)
+
+
+class ExploreMatchesView(APIView):
+    """
+    GET /api/explore/matches/
+
+    Returns actual match boards that match explore filter conditions.
+    Same filter params as /api/explore/, plus pagination.
+
+    Extra query params:
+      limit  – max results per page (default 20, max 100)
+      offset – skip first N results (default 0)
+      sort   – recency (default) | placement
+    """
+
+    def get(self, request):
+        ctx = _run_explore_filter(request)
+        filtered = ctx["filtered"]
+
+        try:
+            limit = max(1, min(100, int(request.query_params.get("limit", 20))))
+        except ValueError:
+            limit = 20
+        try:
+            offset = max(0, int(request.query_params.get("offset", 0)))
+        except ValueError:
+            offset = 0
+        sort = request.query_params.get("sort", "recency")
+
+        if sort == "placement":
+            filtered.sort(key=lambda p: (p["placement"], -(p["game_datetime"].timestamp() if hasattr(p["game_datetime"], "timestamp") else 0)))
+        else:
+            filtered.sort(key=lambda p: p["game_datetime"], reverse=True)
+
+        total = len(filtered)
+        page = filtered[offset:offset + limit]
+
+        if not page:
+            return Response({"total": total, "results": []})
+
+        # Fetch full participant data for the page
+        pks = [p["pk"] for p in page]
+        qs = Participant.objects.filter(pk__in=pks).select_related(
+            "match", "player"
+        ).prefetch_related(
+            Prefetch("unit_usages", queryset=UnitUsage.objects.select_related("unit"))
+        )
+        pk_map = {p.pk: p for p in qs}
+
+        results = []
+        for p_data in page:
+            p = pk_map.get(p_data["pk"])
+            if not p:
+                continue
+            player_name = str(p.player) if p.player else p.puuid[:12]
+            units_out = []
+            for uu in p.unit_usages.all():
+                if not uu.unit_id or not uu.unit:
+                    continue
+                units_out.append({
+                    "character_id": uu.unit.character_id,
+                    "star_level": uu.star_level,
+                    "cost": uu.unit.cost,
+                    "traits": uu.unit.traits,
+                    "items": uu.items or [],
+                })
+            results.append({
+                "match_id": p.match.match_id,
+                "game_datetime": p.match.game_datetime,
+                "game_version": p.match.game_version,
+                "placement": p.placement,
+                "level": p.level,
+                "player": player_name,
+                "units": units_out,
+            })
+
+        return Response({"total": total, "results": results})
 
 
 class HiddenCompsView(APIView):
