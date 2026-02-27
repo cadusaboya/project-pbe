@@ -11,6 +11,26 @@ interface GlobalStats {
 }
 
 const VALID_SERVERS = ["pbe", "live"];
+const CACHE_TTL = 300_000; // 5 minutes
+const POLL_INTERVAL = 300_000; // 5 minutes
+
+function getCachedStats(server: string): GlobalStats | null {
+  try {
+    const raw = sessionStorage.getItem(`statsbar_${server}`);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedStats(server: string, data: GlobalStats) {
+  try {
+    sessionStorage.setItem(`statsbar_${server}`, JSON.stringify({ data, ts: Date.now() }));
+  } catch { /* ignore */ }
+}
 
 function formatRelativeUtc(iso: string): string {
   const then = new Date(iso).getTime();
@@ -46,16 +66,30 @@ export default function StatsBar() {
 
   useEffect(() => {
     let cancelled = false;
+
+    // Use cached data if fresh enough — skip network call entirely
+    const cached = getCachedStats(server);
+    if (cached) {
+      setStats(cached);
+    }
+
     const fetchStats = () => {
       const url = new URL(backendUrl("/api/stats/"));
       url.searchParams.set("server", server);
       fetch(url.toString(), { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : null))
-        .then((d) => { if (!cancelled) setStats(d); })
+        .then((d) => {
+          if (cancelled || !d) return;
+          setStats(d);
+          setCachedStats(server, d);
+        })
         .catch(() => { if (!cancelled) setStats(null); });
     };
-    fetchStats();
-    const id = setInterval(fetchStats, 300_000);
+
+    // Only fetch if cache is stale or empty
+    if (!cached) fetchStats();
+
+    const id = setInterval(fetchStats, POLL_INTERVAL);
     return () => { cancelled = true; clearInterval(id); };
   }, [server]);
 
