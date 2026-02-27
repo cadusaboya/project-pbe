@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import WinningCompsList, { TraitInfo, WinningComp, UnitStatBasic } from "../../components/WinningCompsList";
 import PageSkeleton from "../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
-import { DEFAULT_GAME_VERSION } from "@/lib/constants";
+import { getDefaultVersion } from "@/lib/api";
 
 async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
   try {
@@ -131,7 +131,7 @@ export default async function GamesFeedPage({
       </div>
 
       <Suspense fallback={<PageSkeleton variant="feed" />}>
-        <FeedContent server={server} gameVersion={gameVersion ?? DEFAULT_GAME_VERSION} />
+        <FeedContent server={server} gameVersion={gameVersion ?? await getDefaultVersion(server)} />
       </Suspense>
     </div>
   );

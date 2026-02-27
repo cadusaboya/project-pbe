@@ -3,7 +3,7 @@ import PlayerStatsList, { PlayerStat } from "../../components/PlayerStatsList";
 import VersionFilter from "../../components/VersionFilter";
 import PageSkeleton from "../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
-import { DEFAULT_GAME_VERSION } from "@/lib/constants";
+import { getDefaultVersion } from "@/lib/api";
 
 async function fetchPlayerStats(server?: string, gameVersion?: string): Promise<PlayerStat[]> {
   const params = new URLSearchParams();
@@ -101,7 +101,7 @@ export default async function PlayersPage({
       </div>
 
       <Suspense fallback={<PageSkeleton variant="table" />}>
-        <PlayersContent server={server} gameVersion={gameVersion ?? DEFAULT_GAME_VERSION} />
+        <PlayersContent server={server} gameVersion={gameVersion ?? await getDefaultVersion(server)} />
       </Suspense>
     </div>
   );

@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { fetchJson } from "@/lib/api";
-import { DEFAULT_GAME_VERSION } from "@/lib/constants";
+import { getDefaultVersion } from "@/lib/api";
 import ItemsExplorer from "../../components/ItemsExplorer";
 import PageSkeleton from "../../components/PageSkeleton";
 import { UnitStat } from "../../components/StatsTable";
@@ -58,7 +58,7 @@ export default async function ItemsPage({
 
   return (
     <Suspense fallback={<PageSkeleton variant="explorer" />}>
-      <ItemsContent server={server} gameVersion={gameVersion ?? DEFAULT_GAME_VERSION} />
+      <ItemsContent server={server} gameVersion={gameVersion ?? await getDefaultVersion(server)} />
     </Suspense>
   );
 }

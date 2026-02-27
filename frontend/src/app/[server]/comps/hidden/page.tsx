@@ -3,7 +3,7 @@ import CompsList, { CompStat } from "../../../components/CompsList";
 import VersionFilter from "../../../components/VersionFilter";
 import PageSkeleton from "../../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
-import { DEFAULT_GAME_VERSION } from "@/lib/constants";
+import { getDefaultVersion } from "@/lib/api";
 
 async function fetchHiddenCompStats(
   gameVersion?: string,
@@ -126,7 +126,7 @@ export default async function HiddenCompsPage({
         <HiddenCompsContent
           server={server}
           serverSlug={serverSlug}
-          gameVersion={gameVersion ?? DEFAULT_GAME_VERSION}
+          gameVersion={gameVersion ?? await getDefaultVersion(server)}
           coreSizes={coreSizes}
           minOccurrences={minOccurrences}
         />

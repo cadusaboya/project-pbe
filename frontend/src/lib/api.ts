@@ -1,4 +1,5 @@
 import { backendUrl } from "./backend";
+import { DEFAULT_GAME_VERSION } from "./constants";
 
 /**
  * Fetch the current data version (match count) from the backend.
@@ -46,4 +47,27 @@ export async function fetchJson<T>(
   const res = await fetchApi(path, opts, dv);
   if (!res.ok) throw new Error(`API ${path}: ${res.status}`);
   return res.json();
+}
+
+/**
+ * Fetch the list of available game versions for a server.
+ * Returns versions sorted descending (latest first).
+ */
+export async function fetchVersions(server: string): Promise<string[]> {
+  try {
+    return await fetchJson<string[]>(`/api/versions/?server=${server}`);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get the default game version for a server.
+ * Returns the latest available version from the API.
+ * Falls back to DEFAULT_GAME_VERSION for PBE, or empty string for LIVE.
+ */
+export async function getDefaultVersion(server: string): Promise<string> {
+  const versions = await fetchVersions(server);
+  if (versions.length > 0) return versions[0];
+  return server === "PBE" ? DEFAULT_GAME_VERSION : "";
 }

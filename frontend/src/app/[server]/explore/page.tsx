@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { fetchJson } from "@/lib/api";
-import { DEFAULT_GAME_VERSION } from "@/lib/constants";
+import { getDefaultVersion } from "@/lib/api";
 import DataExplorer from "../../components/DataExplorer";
 import PageSkeleton from "../../components/PageSkeleton";
 import { UnitStat } from "../../components/StatsTable";
@@ -145,7 +145,7 @@ export default async function ExplorePage({
   const { server: serverSlug } = await params;
   const server = serverSlug.toUpperCase();
   const rawParams = await searchParams;
-  const gameVersion = rawParams.game_version ?? DEFAULT_GAME_VERSION;
+  const gameVersion = rawParams.game_version ?? await getDefaultVersion(server);
   const initialConditions = buildInitialConditions(rawParams);
 
   return (

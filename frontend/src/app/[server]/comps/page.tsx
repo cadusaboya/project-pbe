@@ -3,7 +3,7 @@ import CompsList, { CompStat } from "../../components/CompsList";
 import VersionFilter from "../../components/VersionFilter";
 import PageSkeleton from "../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
-import { DEFAULT_GAME_VERSION } from "@/lib/constants";
+import { getDefaultVersion } from "@/lib/api";
 
 interface CompsResponse {
   total_games: number;
@@ -123,7 +123,7 @@ export default async function CompsPage({
       </div>
 
       <Suspense fallback={<PageSkeleton variant="cards" />}>
-        <CompsContent server={server} serverSlug={serverSlug} gameVersion={gameVersion ?? DEFAULT_GAME_VERSION} />
+        <CompsContent server={server} serverSlug={serverSlug} gameVersion={gameVersion ?? await getDefaultVersion(server)} />
       </Suspense>
     </div>
   );
