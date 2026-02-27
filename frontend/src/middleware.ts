@@ -25,7 +25,22 @@ export function middleware(request: NextRequest) {
   const first = segments[0].toLowerCase();
 
   // Already has a valid server prefix — let it through
-  if (VALID_SERVERS.has(first)) return;
+  if (VALID_SERVERS.has(first)) {
+    // Redirect /{server}/search → /{server}/games-feed
+    if (segments.length >= 2 && segments[1].toLowerCase() === "search") {
+      const url = request.nextUrl.clone();
+      url.pathname = `/${first}/games-feed`;
+      return NextResponse.redirect(url, 308);
+    }
+    return;
+  }
+
+  // Redirect bare /search → /pbe/games-feed
+  if (first === "search") {
+    const url = request.nextUrl.clone();
+    url.pathname = `/pbe/games-feed`;
+    return NextResponse.redirect(url, 308);
+  }
 
   // If the first segment is a known page slug, redirect to /pbe/<path>
   if (PAGE_SLUGS.has(first)) {

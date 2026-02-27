@@ -1,4 +1,4 @@
-import WinningCompsList, { TraitInfo, WinningComp } from "../../components/WinningCompsList";
+import WinningCompsList, { TraitInfo, WinningComp, UnitStatBasic } from "../../components/WinningCompsList";
 import { fetchJson } from "@/lib/api";
 
 async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
@@ -35,6 +35,17 @@ async function fetchVersions(server?: string): Promise<string[]> {
   }
 }
 
+async function fetchAllUnits(server?: string): Promise<UnitStatBasic[]> {
+  try {
+    const params = new URLSearchParams({ sort: "games" });
+    if (server) params.set("server", server);
+    const data = await fetchJson<Array<{ unit_name: string; cost: number }>>(`/api/unit-stats/?${params}`);
+    return data.map((u) => ({ unit_name: u.unit_name, cost: u.cost }));
+  } catch {
+    return [];
+  }
+}
+
 export default async function GamesFeedPage({
   params,
   searchParams,
@@ -47,21 +58,21 @@ export default async function GamesFeedPage({
   const { game_version: gameVersion } = await searchParams;
   let data: WinningComp[] = [];
   let itemAssets: Record<string, string> = {};
-  let itemNames: Record<string, string> = {};
   let versions: string[] = [];
+  let allUnits: UnitStatBasic[] = [];
   let error: string | null = null;
 
   let traitBreakpoints: Record<string, TraitInfo> = {};
   try {
     let itemData: { assets: Record<string, string>; names: Record<string, string> };
-    [data, itemData, versions, traitBreakpoints] = await Promise.all([
+    [data, itemData, versions, traitBreakpoints, allUnits] = await Promise.all([
       fetchWinningComps(gameVersion, server),
       fetchItemData(),
       fetchVersions(server),
       fetchTraitBreakpoints(),
+      fetchAllUnits(server),
     ]);
     itemAssets = itemData.assets;
-    itemNames = itemData.names;
   } catch (e) {
     error = e instanceof Error ? e.message : "Unknown error";
   }
@@ -71,7 +82,7 @@ export default async function GamesFeedPage({
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-tft-text">Games Feed</h1>
         <p className="text-tft-muted text-xs sm:text-sm mt-1">
-          Matches tracked, sorted by most recent. Click to see the full lobby.
+          Matches tracked, sorted by most recent. Filter by units to search across all placements.
         </p>
       </div>
 
@@ -82,14 +93,6 @@ export default async function GamesFeedPage({
             Make sure the backend is running and reachable.
           </p>
         </div>
-      ) : data.length === 0 ? (
-        <div className="rounded-xl border border-tft-border bg-tft-surface/40 px-5 py-12 text-center text-tft-muted text-sm">
-          No winning comps yet. Run{" "}
-          <code className="font-mono text-tft-accent">
-            python manage.py fetch_pbe
-          </code>{" "}
-          to populate the database.
-        </div>
       ) : (
         <WinningCompsList
           data={data}
@@ -98,6 +101,7 @@ export default async function GamesFeedPage({
           selectedVersion={gameVersion ?? ""}
           traitData={traitBreakpoints}
           server={server}
+          allUnits={allUnits}
         />
       )}
     </div>
