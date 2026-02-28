@@ -611,7 +611,7 @@ export default function WinningCompsList({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [loadMore, visibleCount]);
+  }, [loadMore, visibleCount, searchLoading]);
 
   function handleVersionChange(v: string) {
     const params = new URLSearchParams(searchParams.toString());
