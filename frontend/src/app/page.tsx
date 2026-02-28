@@ -430,7 +430,7 @@ export default async function Home({
           Stop guessing. Start climbing.
         </h2>
         <p className="text-tft-muted text-sm sm:text-lg max-w-xl mx-auto">
-          Join hundreds of players already using TFT Pro Radar to stay ahead of the meta.
+          Join thousands of players already using TFT Pro Radar to stay ahead of the meta.
         </p>
         <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
           <Link

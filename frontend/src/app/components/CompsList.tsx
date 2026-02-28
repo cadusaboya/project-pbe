@@ -351,6 +351,7 @@ export default function CompsList({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
+  const [minGames, setMinGames] = useState("");
   type SortKey = "avg_placement" | "comps" | "win_rate" | "top4_rate";
   const [sort, setSort] = useState<SortKey>("avg_placement");
   const [sortAsc, setSortAsc] = useState(true);
@@ -459,7 +460,7 @@ export default function CompsList({
   // Reset visible count when filters/sort change
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [search, sort, sortAsc, data]);
+  }, [search, sort, sortAsc, data, minGames]);
 
   const loadMore = useCallback(() => {
     setVisibleCount((prev) => prev + PAGE_SIZE);
@@ -478,7 +479,9 @@ export default function CompsList({
   }, [loadMore, visibleCount]);
 
   const filtered = useMemo(() => {
-    let rows = data.filter((comp) => comp.comps > 0);
+    const minG = parseInt(minGames, 10);
+    const minGamesThreshold = Number.isNaN(minG) || minG < 1 ? 1 : minG;
+    let rows = data.filter((comp) => comp.comps >= minGamesThreshold);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       rows = rows.filter((comp) => {
@@ -494,7 +497,7 @@ export default function CompsList({
       else { av = a.top4_rate ?? 0; bv = b.top4_rate ?? 0; }
       return sortAsc ? av - bv : bv - av;
     });
-  }, [data, search, sort, sortAsc]);
+  }, [data, search, sort, sortAsc, minGames]);
 
   return (
     <div className="space-y-4">
@@ -530,6 +533,16 @@ export default function CompsList({
             title="Min occurrences"
           />
         )}
+
+        <input
+          type="number"
+          min={1}
+          value={minGames}
+          onChange={(e) => setMinGames(e.target.value)}
+          className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-tft-accent w-28 transition-colors"
+          placeholder="Min games"
+          title="Minimum games"
+        />
 
         <div className="relative flex-1 min-w-[120px] max-w-[220px]">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tft-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
