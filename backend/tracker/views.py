@@ -543,8 +543,13 @@ class WinningCompsView(ListAPIView):
     PBE:  Returns the 1st-place composition for each stored match.
     LIVE: Returns the best-placing tracked pro for each stored match.
 
+    When ``player`` query param(s) are provided, returns ALL games for
+    those players at any placement (not just wins).
+
     Query params:
-      limit – number of results (default 50)
+      limit  – number of results (default 50)
+      player – (repeatable) case-insensitive game_name filter; returns
+               all placements for matched players
     """
 
     serializer_class = WinningCompSerializer
@@ -556,10 +561,29 @@ class WinningCompsView(ListAPIView):
         except ValueError:
             limit = 50
 
-        if server == "LIVE":
+        player_names = self.request.query_params.getlist("player")
+        player_names = [n.strip() for n in player_names if n.strip()]
+
+        if player_names:
+            from django.db.models import Q
+
+            q = Q()
+            for name in player_names:
+                q |= Q(player__game_name__iexact=name)
+            qs = (
+                Participant.objects.filter(
+                    q,
+                    match__server=server,
+                    player__isnull=False,
+                )
+                .select_related("match", "player")
+                .prefetch_related("unit_usages__unit")
+                .order_by("-match__game_datetime")
+            )
+        elif server == "LIVE":
             # Best tracked pro per match: only participants with a linked player,
             # pick the one with the lowest (best) placement per match.
-            from django.db.models import Min, OuterRef, Subquery
+            from django.db.models import OuterRef, Subquery
 
             best_per_match = (
                 Participant.objects.filter(

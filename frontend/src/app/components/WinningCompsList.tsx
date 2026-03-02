@@ -13,6 +13,12 @@ export interface UnitStatBasic {
   cost: number;
 }
 
+export interface PlayerInfo {
+  game_name: string;
+  tag_line: string;
+  region: string;
+}
+
 export interface WinningUnit {
   character_id: string;
   star_level: number;
@@ -259,6 +265,104 @@ function UnitPicker({
             ))}
             {filtered.length === 0 && (
               <p className="px-3 py-3 text-tft-muted text-sm text-center">No units found.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── PlayerPicker ─────────────────────────────────────────────────────────────────
+
+function PlayerPicker({
+  players,
+  selectedPlayers,
+  onSelect,
+}: {
+  players: PlayerInfo[];
+  selectedPlayers: string[];
+  onSelect: (playerName: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const selectedSet = new Set(selectedPlayers.map((n) => n.toLowerCase()));
+    const list = players.filter((p) => {
+      if (selectedSet.has(p.game_name.toLowerCase())) return false;
+      if (!q) return true;
+      return p.game_name.toLowerCase().includes(q);
+    });
+    return list.slice(0, 20);
+  }, [players, search, selectedPlayers]);
+
+  useEffect(() => { setHighlightedIndex(0); }, [filtered]);
+  useEffect(() => {
+    const item = listRef.current?.children[highlightedIndex] as HTMLElement | undefined;
+    item?.scrollIntoView({ block: "nearest" });
+  }, [highlightedIndex]);
+
+  function pick(name: string) {
+    onSelect(name);
+    setSearch("");
+    setOpen(false);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "ArrowDown") { e.preventDefault(); setHighlightedIndex((i) => Math.min(i + 1, filtered.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setHighlightedIndex((i) => Math.max(i - 1, 0)); }
+    else if (e.key === "Enter") { e.preventDefault(); if (filtered[highlightedIndex]) pick(filtered[highlightedIndex].game_name); }
+    else if (e.key === "Escape") { setOpen(false); }
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => { setOpen(true); setTimeout(() => inputRef.current?.focus(), 0); }}
+        className="flex items-center gap-2 bg-tft-surface border border-tft-border rounded-md px-3 py-2 text-sm hover:border-tft-accent transition-colors min-w-[140px] sm:min-w-[180px] text-left"
+      >
+        <span className="text-tft-muted">+ Filter by player...</span>
+      </button>
+      {open && (
+        <div className="absolute z-30 top-full left-0 mt-1 w-52 sm:w-56 bg-tft-surface border border-tft-border rounded-md shadow-xl overflow-hidden">
+          <div className="p-2 border-b border-tft-border">
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Search player..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="w-full bg-tft-bg border border-tft-border text-tft-text placeholder-tft-muted rounded px-2 py-1 text-sm focus:outline-none focus:border-tft-accent"
+            />
+          </div>
+          <div ref={listRef} className="max-h-56 overflow-y-auto">
+            {filtered.map((p, i) => (
+              <button
+                key={`${p.game_name}#${p.tag_line}`}
+                onClick={() => pick(p.game_name)}
+                className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${i === highlightedIndex ? "bg-tft-hover" : "hover:bg-tft-hover"}`}
+              >
+                <span className="text-tft-text text-sm">{p.game_name}</span>
+                <span className="text-tft-muted text-xs">#{p.tag_line}</span>
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <p className="px-3 py-3 text-tft-muted text-sm text-center">No players found.</p>
             )}
           </div>
         </div>
@@ -535,6 +639,7 @@ export default function WinningCompsList({
   traitData,
   server,
   allUnits,
+  allPlayers,
 }: {
   data: WinningComp[];
   itemAssets: Record<string, string>;
@@ -543,18 +648,24 @@ export default function WinningCompsList({
   traitData: Record<string, TraitInfo>;
   server: string;
   allUnits: UnitStatBasic[];
+  allPlayers: PlayerInfo[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [playerSearch, setPlayerSearch] = useState("");
+  const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
   const [requiredUnits, setRequiredUnits] = useState<string[]>([]);
   const [sort, setSort] = useState<"recency" | "placement">("recency");
 
-  // Search mode state
+  // Search mode state (units)
   const [searchResults, setSearchResults] = useState<DisplayComp[] | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Player search state
+  const [playerResults, setPlayerResults] = useState<DisplayComp[] | null>(null);
+  const [playerSearchLoading, setPlayerSearchLoading] = useState(false);
+  const [playerSearchError, setPlayerSearchError] = useState<string | null>(null);
 
   // Infinite scroll
   const PAGE_SIZE = 10;
@@ -596,10 +707,50 @@ export default function WinningCompsList({
     return () => { cancelled = true; };
   }, [requiredUnits, sort, server, selectedVersion]);
 
+  // Fetch player results when players are selected
+  useEffect(() => {
+    if (selectedPlayers.length === 0) {
+      setPlayerResults(null);
+      setPlayerSearchError(null);
+      return;
+    }
+    let cancelled = false;
+    const fetchData = async () => {
+      setPlayerSearchLoading(true);
+      setPlayerSearchError(null);
+      try {
+        const url = new URL(backendUrl("/api/winning-comps/"));
+        for (const p of selectedPlayers) url.searchParams.append("player", p);
+        url.searchParams.set("server", server);
+        url.searchParams.set("limit", "200");
+        if (selectedVersion) url.searchParams.set("game_version", selectedVersion);
+        const res = await fetch(url.toString());
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json: WinningComp[] = await res.json();
+        if (!cancelled) {
+          setPlayerResults(json.map((c) => ({
+            match_id: c.match_id,
+            game_datetime: c.game_datetime,
+            game_version: c.game_version,
+            player: c.winner,
+            placement: c.placement,
+            units: c.units,
+          })));
+        }
+      } catch (e) {
+        if (!cancelled) setPlayerSearchError(e instanceof Error ? e.message : "Error");
+      } finally {
+        if (!cancelled) setPlayerSearchLoading(false);
+      }
+    };
+    fetchData();
+    return () => { cancelled = true; };
+  }, [selectedPlayers, server, selectedVersion]);
+
   // Reset visible count when filters change
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [playerSearch, requiredUnits, sort, data, searchResults]);
+  }, [selectedPlayers, requiredUnits, sort, data, searchResults, playerResults]);
 
   // Infinite scroll observer
   useEffect(() => {
@@ -611,7 +762,7 @@ export default function WinningCompsList({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [loadMore, visibleCount, searchLoading]);
+  }, [loadMore, visibleCount, searchLoading, playerSearchLoading]);
 
   function handleVersionChange(v: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -628,16 +779,40 @@ export default function WinningCompsList({
     setRequiredUnits((prev) => prev.filter((u) => u !== unitName));
   }
 
+  function addPlayer(name: string) {
+    if (selectedPlayers.some((p) => p.toLowerCase() === name.toLowerCase())) return;
+    setSelectedPlayers((prev) => [...prev, name]);
+  }
+
+  function removePlayer(name: string) {
+    setSelectedPlayers((prev) => prev.filter((p) => p !== name));
+  }
+
   // Build display list
-  const isSearchMode = requiredUnits.length > 0;
+  const isUnitSearchMode = requiredUnits.length > 0;
+  const isPlayerSearchMode = selectedPlayers.length > 0;
 
   const displayData = useMemo<DisplayComp[]>(() => {
-    let rows: DisplayComp[];
+    // Player search takes priority — shows all games for selected players
+    if (isPlayerSearchMode && playerResults !== null) {
+      let rows = playerResults;
+      // If units are also selected, filter player results by those units
+      if (isUnitSearchMode) {
+        rows = rows.filter((r) =>
+          requiredUnits.every((req) =>
+            r.units.some((u) => u.character_id.toLowerCase().includes(req.toLowerCase()))
+          )
+        );
+      }
+      return rows;
+    }
 
-    if (isSearchMode && searchResults !== null) {
-      rows = searchResults;
-    } else if (!isSearchMode) {
-      rows = data.map((c) => ({
+    if (isUnitSearchMode && searchResults !== null) {
+      return searchResults;
+    }
+
+    if (!isUnitSearchMode && !isPlayerSearchMode) {
+      return data.map((c) => ({
         match_id: c.match_id,
         game_datetime: c.game_datetime,
         game_version: c.game_version,
@@ -645,19 +820,10 @@ export default function WinningCompsList({
         placement: c.placement,
         units: c.units,
       }));
-    } else {
-      rows = [];
     }
 
-    if (playerSearch.trim()) {
-      const q = playerSearch.trim().toLowerCase();
-      rows = rows.filter((r) =>
-        displayPlayerName(r.player).toLowerCase().includes(q)
-      );
-    }
-
-    return rows;
-  }, [data, searchResults, playerSearch, isSearchMode]);
+    return [];
+  }, [data, searchResults, playerResults, isUnitSearchMode, isPlayerSearchMode, requiredUnits]);
 
   const unitMap = useMemo(
     () => Object.fromEntries(allUnits.map((u) => [u.unit_name, u])),
@@ -680,24 +846,35 @@ export default function WinningCompsList({
             ))}
           </select>
         )}
-        <input
-          type="text"
-          placeholder="Search player..."
-          value={playerSearch}
-          onChange={(e) => setPlayerSearch(e.target.value)}
-          className="bg-tft-surface border border-tft-border text-tft-text placeholder-tft-muted rounded-md px-3 py-2 text-sm focus:outline-none focus:border-tft-accent flex-1 min-w-[120px] max-w-[200px]"
-        />
+        {allPlayers.length > 0 && (
+          <PlayerPicker players={allPlayers} selectedPlayers={selectedPlayers} onSelect={addPlayer} />
+        )}
         {allUnits.length > 0 && (
           <UnitPicker units={allUnits} onSelect={addUnit} />
         )}
         <span className="text-tft-muted text-xs sm:text-sm ml-auto">
-          {searchLoading ? "Searching..." : `${displayData.length} results`}
+          {(searchLoading || playerSearchLoading) ? "Searching..." : `${displayData.length} results`}
         </span>
       </div>
 
-      {/* Selected unit tags */}
-      {requiredUnits.length > 0 && (
+      {/* Selected filter tags */}
+      {(selectedPlayers.length > 0 || requiredUnits.length > 0) && (
         <div className="flex flex-wrap gap-2 items-center">
+          {selectedPlayers.map((name) => (
+            <div
+              key={name}
+              className="flex items-center gap-2 border border-blue-600 bg-blue-950/40 rounded-lg px-3 py-1.5 text-sm"
+            >
+              <span className="text-tft-text font-medium">{name}</span>
+              <button
+                onClick={() => removePlayer(name)}
+                className="text-tft-muted hover:text-tft-text text-base leading-none ml-0.5"
+                aria-label={`Remove ${name}`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
           {requiredUnits.map((unitName) => {
             const info = unitMap[unitName];
             return (
@@ -718,56 +895,60 @@ export default function WinningCompsList({
             );
           })}
           <button
-            onClick={() => setRequiredUnits([])}
+            onClick={() => { setSelectedPlayers([]); setRequiredUnits([]); }}
             className="text-tft-muted hover:text-red-400 text-xs px-2 py-1.5 transition-colors"
           >
             Clear all
           </button>
 
-          {/* Sort controls */}
-          <div className="flex items-center gap-2 ml-auto">
-            <span className="text-tft-muted text-xs">Sort:</span>
-            <button
-              onClick={() => setSort("recency")}
-              className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
-                sort === "recency"
-                  ? "bg-tft-accent/20 border-tft-accent text-tft-accent"
-                  : "bg-tft-surface border-tft-border text-tft-muted hover:text-tft-text"
-              }`}
-            >
-              Recent
-            </button>
-            <button
-              onClick={() => setSort("placement")}
-              className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
-                sort === "placement"
-                  ? "bg-tft-accent/20 border-tft-accent text-tft-accent"
-                  : "bg-tft-surface border-tft-border text-tft-muted hover:text-tft-text"
-              }`}
-            >
-              Placement
-            </button>
-          </div>
+          {/* Sort controls (only when unit search is active without player search) */}
+          {isUnitSearchMode && !isPlayerSearchMode && (
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-tft-muted text-xs">Sort:</span>
+              <button
+                onClick={() => setSort("recency")}
+                className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
+                  sort === "recency"
+                    ? "bg-tft-accent/20 border-tft-accent text-tft-accent"
+                    : "bg-tft-surface border-tft-border text-tft-muted hover:text-tft-text"
+                }`}
+              >
+                Recent
+              </button>
+              <button
+                onClick={() => setSort("placement")}
+                className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
+                  sort === "placement"
+                    ? "bg-tft-accent/20 border-tft-accent text-tft-accent"
+                    : "bg-tft-surface border-tft-border text-tft-muted hover:text-tft-text"
+                }`}
+              >
+                Placement
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       {/* Error */}
-      {searchError && (
+      {(searchError || playerSearchError) && (
         <div className="rounded-xl border border-red-800 bg-red-950/40 px-5 py-4 text-red-400 text-sm">
-          <span className="font-semibold">Error:</span> {searchError}
+          <span className="font-semibold">Error:</span> {searchError || playerSearchError}
         </div>
       )}
 
       {/* Cards */}
-      {!searchError && (searchLoading ? (
+      {!searchError && !playerSearchError && ((searchLoading || playerSearchLoading) ? (
         <div className="rounded-xl border border-tft-border bg-tft-surface/40 px-5 py-12 text-center text-tft-muted text-sm">
           Loading...
         </div>
       ) : displayData.length === 0 ? (
         <div className="rounded-xl border border-tft-border bg-tft-surface/40 px-5 py-12 text-center text-tft-muted text-sm">
-          {isSearchMode
-            ? `No matches found with ${requiredUnits.map(formatUnit).join(" + ")}.`
-            : "No matches found."}
+          {isPlayerSearchMode
+            ? `No matches found for ${selectedPlayers.join(", ")}${isUnitSearchMode ? ` with ${requiredUnits.map(formatUnit).join(" + ")}` : ""}.`
+            : isUnitSearchMode
+              ? `No matches found with ${requiredUnits.map(formatUnit).join(" + ")}.`
+              : "No matches found."}
         </div>
       ) : (
         <div className="grid gap-4">
@@ -778,7 +959,7 @@ export default function WinningCompsList({
               itemAssets={itemAssets}
               traitData={traitData}
               server={server}
-              highlightedUnits={isSearchMode ? requiredUnits : undefined}
+              highlightedUnits={isUnitSearchMode ? requiredUnits : undefined}
             />
           ))}
           {visibleCount < displayData.length && (

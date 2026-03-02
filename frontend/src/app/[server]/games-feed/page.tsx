@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import WinningCompsList, { TraitInfo, WinningComp, UnitStatBasic } from "../../components/WinningCompsList";
+import WinningCompsList, { TraitInfo, WinningComp, UnitStatBasic, PlayerInfo } from "../../components/WinningCompsList";
 import PageSkeleton from "../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
 import { getDefaultVersion } from "@/lib/api";
@@ -38,6 +38,17 @@ async function fetchVersions(server?: string): Promise<string[]> {
   }
 }
 
+async function fetchPlayers(server?: string): Promise<PlayerInfo[]> {
+  try {
+    const params = new URLSearchParams();
+    if (server) params.set("server", server);
+    const qs = params.toString();
+    return await fetchJson<PlayerInfo[]>(`/api/players/${qs ? `?${qs}` : ""}`);
+  } catch {
+    return [];
+  }
+}
+
 async function fetchAllUnits(server?: string): Promise<UnitStatBasic[]> {
   try {
     const params = new URLSearchParams();
@@ -69,17 +80,19 @@ async function FeedContent({
   let itemAssets: Record<string, string> = {};
   let versions: string[] = [];
   let allUnits: UnitStatBasic[] = [];
+  let allPlayers: PlayerInfo[] = [];
   let error: string | null = null;
   let traitBreakpoints: Record<string, TraitInfo> = {};
 
   try {
     let itemData: { assets: Record<string, string>; names: Record<string, string> };
-    [data, itemData, versions, traitBreakpoints, allUnits] = await Promise.all([
+    [data, itemData, versions, traitBreakpoints, allUnits, allPlayers] = await Promise.all([
       fetchWinningComps(gameVersion, server),
       fetchItemData(),
       fetchVersions(server),
       fetchTraitBreakpoints(),
       fetchAllUnits(server),
+      fetchPlayers(server),
     ]);
     itemAssets = itemData.assets;
   } catch (e) {
@@ -106,6 +119,7 @@ async function FeedContent({
       traitData={traitBreakpoints}
       server={server}
       allUnits={allUnits}
+      allPlayers={allPlayers}
     />
   );
 }
