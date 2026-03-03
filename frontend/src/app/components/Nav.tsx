@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const VALID_SERVERS = ["pbe", "live"];
+const VALID_SERVERS = ["pbe", "live", "scrims"];
 
 const navItems = [
   {

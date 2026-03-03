@@ -10,7 +10,7 @@ interface GlobalStats {
   last_fetch_at: string | null;
 }
 
-const VALID_SERVERS = ["pbe", "live"];
+const VALID_SERVERS = ["pbe", "live", "scrims"];
 const CACHE_TTL = 300_000; // 5 minutes
 
 function getCachedStats(server: string): GlobalStats | null {

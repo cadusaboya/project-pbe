@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const VALID_SERVERS = new Set(["pbe", "live"]);
+const VALID_SERVERS = new Set(["pbe", "live", "scrims"]);
 
 const PAGE_SLUGS = new Set([
   "comps",
@@ -14,6 +14,7 @@ const PAGE_SLUGS = new Set([
   "explore",
   "last-games",
   "teambuilder",
+  "upload",
 ]);
 
 export function middleware(request: NextRequest) {

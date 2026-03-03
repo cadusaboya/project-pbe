@@ -1,6 +1,6 @@
 from django.db import models
 
-SERVER_CHOICES = [("PBE", "PBE"), ("LIVE", "Live")]
+SERVER_CHOICES = [("PBE", "PBE"), ("LIVE", "Live"), ("SCRIMS", "Scrims")]
 
 
 class Player(models.Model):

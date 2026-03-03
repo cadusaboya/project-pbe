@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-const VALID_SERVERS = new Set(["pbe", "live"]);
+const VALID_SERVERS = new Set(["pbe", "live", "scrims"]);
 
 export default async function ServerLayout({
   children,
