@@ -29,7 +29,7 @@ def recompute_unit_stats(server: str | None = None) -> int:
     """
     from tracker.models import AggregatedUnitStat, UnitUsage  # avoid circular import
 
-    servers = [server] if server else ["PBE", "LIVE"]
+    servers = [server] if server else ["PBE", "LIVE", "SCRIMS"]
     updated = 0
 
     for srv in servers:

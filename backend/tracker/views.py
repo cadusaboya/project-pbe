@@ -1,6 +1,9 @@
 import json
+import os
 import re
+import tempfile
 import time
+import uuid
 from collections import Counter, defaultdict
 from itertools import combinations
 from pathlib import Path
@@ -10,6 +13,7 @@ import httpx
 from django.conf import settings
 from django.db.models import Count, Max, Prefetch, Q, Sum
 from rest_framework.generics import ListAPIView
+from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -21,10 +25,12 @@ _ITEM_NAMES_FILE = Path(settings.BASE_DIR) / "item_names.json"
 _CDRAGON_TFT_URLS = {
     "PBE": "https://raw.communitydragon.org/pbe/cdragon/tft/en_us.json",
     "LIVE": "https://raw.communitydragon.org/latest/cdragon/tft/en_us.json",
+    "SCRIMS": "https://raw.communitydragon.org/pbe/cdragon/tft/en_us.json",
 }
 _CDRAGON_ICON_BASES = {
     "PBE": "https://raw.communitydragon.org/pbe/game/",
     "LIVE": "https://raw.communitydragon.org/latest/game/",
+    "SCRIMS": "https://raw.communitydragon.org/pbe/game/",
 }
 _CDRAGON_TIMEOUT = 10  # seconds — keep short to avoid blocking when CDragon is down
 
@@ -416,14 +422,19 @@ class StatsView(APIView):
         if game_version:
             match_qs = match_qs.filter(game_version=game_version)
 
-        if server == "PBE":
+        if server == "SCRIMS":
+            players_count = 0
+            last_run = None
+        elif server == "PBE":
             player_qs = Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid="")
+            players_count = player_qs.count()
+            last_polled = player_qs.aggregate(latest=Max("last_polled_at"))["latest"]
+            last_run = last_polled.isoformat() if last_polled else None
         else:
             player_qs = Player.objects.filter(puuid__isnull=False).exclude(puuid="").exclude(region="PBE")
-        players_count = player_qs.count()
-
-        last_polled = player_qs.aggregate(latest=Max("last_polled_at"))["latest"]
-        last_run = last_polled.isoformat() if last_polled else None
+            players_count = player_qs.count()
+            last_polled = player_qs.aggregate(latest=Max("last_polled_at"))["latest"]
+            last_run = last_polled.isoformat() if last_polled else None
 
         participant_qs = Participant.objects.filter(match__server=server)
         if server == "LIVE":
@@ -2356,10 +2367,12 @@ class PlayerListView(APIView):
     def get(self, request):
         global _PLAYERS_CACHE, _PLAYERS_CACHE_VERSION
         server = request.query_params.get("server", "PBE").upper()
-        if server == "PBE":
+        if server == "SCRIMS":
+            players = Player.objects.filter(region="SCRIMS")
+        elif server == "PBE":
             players = Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid="")
         else:
-            players = Player.objects.filter(puuid__isnull=False).exclude(puuid="").exclude(region="PBE")
+            players = Player.objects.filter(puuid__isnull=False).exclude(puuid="").exclude(region="PBE").exclude(region="SCRIMS")
         player_count = players.count()
         if server in _PLAYERS_CACHE and player_count == _PLAYERS_CACHE_VERSION.get(server, -1):
             return _cc(Response(_PLAYERS_CACHE[server]), 300)
@@ -2397,10 +2410,12 @@ class PlayerStatsView(APIView):
         min_games = int(request.query_params.get("min_games", 0))
         game_version = request.query_params.get("game_version")
 
-        if server == "PBE":
+        if server == "SCRIMS":
+            players = Player.objects.filter(region="SCRIMS")
+        elif server == "PBE":
             players = Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid="")
         else:
-            players = Player.objects.filter(puuid__isnull=False).exclude(puuid="").exclude(region="PBE")
+            players = Player.objects.filter(puuid__isnull=False).exclude(puuid="").exclude(region="PBE").exclude(region="SCRIMS")
         if search:
             players = players.filter(game_name__icontains=search)
 
@@ -2483,3 +2498,231 @@ class VersionsView(APIView):
         _VERSIONS_CACHE[server] = versions
         _VERSIONS_CACHE_VERSION[server] = match_count
         return _cc(Response(versions), 300)
+
+
+# ── Scrims OCR Upload & Confirm ──────────────────────────────────────────
+
+_ITEM_REVERSE_MAP: dict[str, str] | None = None  # display_name -> item_id
+
+
+def _build_item_reverse_map() -> dict[str, str]:
+    """Build display_name -> canonical item_id from item_names.json."""
+    global _ITEM_REVERSE_MAP
+    if _ITEM_REVERSE_MAP is not None:
+        return _ITEM_REVERSE_MAP
+
+    try:
+        id_to_name = json.loads(_ITEM_NAMES_FILE.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        _ITEM_REVERSE_MAP = {}
+        return _ITEM_REVERSE_MAP
+
+    VARIANT_MARKERS = ("Corrupted", "Tutorial", "Assist", "Encounter", "ChoiceItem")
+    name_to_id: dict[str, str] = {}
+    for item_id, display_name in id_to_name.items():
+        if not isinstance(display_name, str):
+            continue
+        if not display_name or display_name.startswith("@") or display_name.startswith("tft_item"):
+            continue
+        if not item_id.startswith("TFT_Item_") and not item_id.startswith("TFT16_Item_"):
+            continue
+        existing = name_to_id.get(display_name)
+        if existing is None:
+            name_to_id[display_name] = item_id
+        else:
+            has_variant = any(m in item_id for m in VARIANT_MARKERS)
+            existing_has_variant = any(m in existing for m in VARIANT_MARKERS)
+            if existing_has_variant and not has_variant:
+                name_to_id[display_name] = item_id
+
+    _ITEM_REVERSE_MAP = name_to_id
+    return _ITEM_REVERSE_MAP
+
+
+class ScrimUploadView(APIView):
+    """POST /api/scrims/upload/ — upload a lobby screenshot, get OCR results."""
+
+    parser_classes = [MultiPartParser]
+
+    def post(self, request):
+        image_file = request.FILES.get("image")
+        if not image_file:
+            return Response({"error": "No image uploaded"}, status=400)
+
+        suffix = os.path.splitext(image_file.name)[1] or ".png"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            for chunk in image_file.chunks():
+                tmp.write(chunk)
+            tmp_path = tmp.name
+
+        try:
+            import sys
+            ocr_dir = str(Path(settings.BASE_DIR))
+            if ocr_dir not in sys.path:
+                sys.path.insert(0, ocr_dir)
+            from ocr_match import analyze_screenshot
+            ocr_results = analyze_screenshot(tmp_path)
+        except Exception as e:
+            return Response({"error": f"OCR failed: {e}"}, status=500)
+        finally:
+            os.unlink(tmp_path)
+
+        item_reverse = _build_item_reverse_map()
+        unit_map = {u.character_id: {"cost": u.cost, "traits": u.traits} for u in Unit.objects.all()}
+
+        placements = []
+        for row in ocr_results:
+            champions = []
+            for champ in row.get("champions", []):
+                raw_name = champ["name"]
+                character_id = f"TFT16_{raw_name}"
+                unit_info = unit_map.get(character_id, {})
+
+                items_enriched = []
+                for item_display in champ.get("items", []):
+                    item_id = item_reverse.get(item_display, "")
+                    items_enriched.append({
+                        "display_name": item_display,
+                        "item_id": item_id,
+                    })
+
+                champions.append({
+                    "name": raw_name,
+                    "character_id": character_id,
+                    "cost": unit_info.get("cost", 0),
+                    "stars": champ.get("stars", 1),
+                    "items": items_enriched,
+                    "score": champ.get("score", 0),
+                })
+
+            placements.append({
+                "placement": row["placement"],
+                "player_name": row.get("player_name", ""),
+                "champions": champions,
+            })
+
+        return Response({"placements": placements})
+
+
+class ScrimConfirmView(APIView):
+    """POST /api/scrims/confirm/ — save reviewed scrim match to DB."""
+
+    def post(self, request):
+        from tracker.services.aggregation import recompute_unit_stats
+
+        data = request.data
+        placements = data.get("placements", [])
+        game_version = data.get("game_version", "16.6 Scrims")
+
+        if not placements:
+            return Response({"error": "No placement data provided"}, status=400)
+        if len(placements) > 8:
+            return Response({"error": "Maximum 8 placements per match"}, status=400)
+
+        match_uuid = uuid.uuid4().hex[:12]
+
+        # Accept optional game_datetime from client (ISO format, already UTC)
+        raw_dt = data.get("game_datetime")
+        if raw_dt:
+            try:
+                game_datetime = datetime.datetime.fromisoformat(raw_dt.replace("Z", "+00:00"))
+                if game_datetime.tzinfo is None:
+                    game_datetime = game_datetime.replace(tzinfo=datetime.timezone.utc)
+            except (ValueError, AttributeError):
+                game_datetime = datetime.datetime.now(datetime.timezone.utc)
+        else:
+            game_datetime = datetime.datetime.now(datetime.timezone.utc)
+
+        timestamp = int(game_datetime.timestamp())
+        match_id = f"SCRIM_{timestamp}_{match_uuid}"
+
+        # Build synthetic raw_json in Riot API format
+        raw_participants = []
+        for i, p_data in enumerate(placements):
+            puuid = f"scrim_{match_uuid}_p{i + 1}"
+            player_name_raw = (p_data.get("player_name") or "").strip()
+            units_raw = []
+            for champ in p_data.get("champions", []):
+                char_id = champ.get("character_id", "")
+                unit_obj = Unit.objects.filter(character_id=char_id).first()
+                rarity = (unit_obj.cost - 1) if unit_obj and unit_obj.cost > 0 else 0
+                units_raw.append({
+                    "character_id": char_id,
+                    "tier": champ.get("stars", 1),
+                    "rarity": rarity,
+                    "itemNames": champ.get("items", []),
+                })
+            raw_p = {
+                "puuid": puuid,
+                "placement": p_data.get("placement", i + 1),
+                "level": p_data.get("level", 8),
+                "gold_left": 0,
+                "units": units_raw,
+                "traits": [],
+                "augments": [],
+            }
+            if player_name_raw:
+                raw_p["riotIdGameName"] = player_name_raw
+                raw_p["riotIdTagline"] = "scrims"
+            raw_participants.append(raw_p)
+
+        raw_json = {
+            "metadata": {"match_id": match_id},
+            "info": {
+                "game_datetime": int(game_datetime.timestamp() * 1000),
+                "game_version": game_version,
+                "participants": raw_participants,
+            },
+        }
+
+        match = Match.objects.create(
+            match_id=match_id,
+            game_datetime=game_datetime,
+            game_version=game_version,
+            server="SCRIMS",
+            raw_json=raw_json,
+        )
+
+        participants_created = 0
+        for i, p_data in enumerate(placements):
+            puuid = f"scrim_{match_uuid}_p{i + 1}"
+            player_name = (p_data.get("player_name") or "").strip()
+            player_obj = None
+            if player_name:
+                player_obj, _ = Player.objects.get_or_create(
+                    game_name=player_name,
+                    tag_line="scrims",
+                    region="SCRIMS",
+                )
+            participant = Participant.objects.create(
+                match=match,
+                player=player_obj,
+                puuid=puuid,
+                placement=p_data.get("placement", i + 1),
+                level=p_data.get("level", 8),
+                gold_left=0,
+            )
+            participants_created += 1
+
+            unit_usages = []
+            for champ in p_data.get("champions", []):
+                char_id = champ.get("character_id", "")
+                if not char_id:
+                    continue
+                unit, _ = Unit.objects.get_or_create(character_id=char_id)
+                unit_usages.append(UnitUsage(
+                    participant=participant,
+                    unit=unit,
+                    star_level=champ.get("stars", 1),
+                    rarity=unit.cost - 1 if unit.cost > 0 else 0,
+                    items=champ.get("items", []),
+                ))
+            if unit_usages:
+                UnitUsage.objects.bulk_create(unit_usages)
+
+        recompute_unit_stats(server="SCRIMS")
+
+        return Response({
+            "match_id": match_id,
+            "participants_created": participants_created,
+        }, status=201)

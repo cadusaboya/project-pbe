@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from "next/navigation";
 
-const VALID_SERVERS = ["pbe", "live"];
+const VALID_SERVERS = ["pbe", "live", "scrims"];
 
 const SERVERS = [
   { value: "pbe", label: "PBE" },
