@@ -668,18 +668,80 @@ def match_row(row_img: np.ndarray, templates: dict[str, np.ndarray],
     return results
 
 
+def _detect_sidebar_x(img: np.ndarray) -> int:
+    """Detect if a sidebar (friends list) is open on the right side.
+
+    Analyzes column-wise std-dev across the row band. Champion icons
+    create high variance columns; the sidebar (or empty space beyond
+    the lobby) has distinctly lower variance. Returns the x coordinate
+    where game content ends, or the full image width if no sidebar.
+    """
+    h, w = img.shape[:2]
+
+    # Analyze the vertical band where player rows live (~15-90% of height).
+    y1 = int(h * 0.15)
+    y2 = int(h * 0.90)
+    gray = cv2.cvtColor(img[y1:y2, :], cv2.COLOR_BGR2GRAY).astype(float)
+
+    # Per-column standard deviation.
+    col_std = np.std(gray, axis=0)
+
+    # Smooth to avoid noise spikes.
+    k = max(3, w // 80)
+    if k % 2 == 0:
+        k += 1
+    smoothed = np.convolve(col_std, np.ones(k) / k, mode="same")
+
+    # Measure the "normal" high-variance level in the champion icon area
+    # (roughly 25-55% of width — always inside the lobby).
+    ref_start = int(w * 0.25)
+    ref_end = int(w * 0.55)
+    ref_level = np.mean(smoothed[ref_start:ref_end])
+    if ref_level < 5:
+        return w  # image too dark/uniform to judge
+
+    # Search from 60% of width rightward for a sustained drop.
+    search_start = int(w * 0.60)
+    drop_thresh = ref_level * 0.25
+    run_length = max(10, int(w * 0.04))  # must stay low for 4% of width
+
+    low_run = 0
+    for x in range(search_start, w):
+        if smoothed[x] < drop_thresh:
+            low_run += 1
+            if low_run >= run_length:
+                sidebar_x = x - low_run + 1
+                print(f"  Sidebar detected at x={sidebar_x} (width {w})")
+                return sidebar_x
+        else:
+            low_run = 0
+
+    return w
+
+
 def analyze_screenshot(image_path: str, debug: bool = False) -> list[dict]:
     img = cv2.imread(image_path, cv2.IMREAD_COLOR)
     if img is None:
         raise FileNotFoundError(f"Could not load: {image_path}")
 
     h, w = img.shape[:2]
+
+    # Detect and crop sidebar (friends list) before any processing.
+    content_w = _detect_sidebar_x(img)
+    if content_w < w:
+        img = img[:, :content_w]
+        h, w = img.shape[:2]
+
     sx = w / REF_W
 
     # Detect rows FIRST — row height drives icon/template sizing.
     # This handles headers, banners, or any overlay that shifts content.
     rows = get_rows(h, img=img)
-    avg_row_h = sum(y2 - y1 for y1, y2 in rows) / len(rows)
+
+    # Use median row height — robust to outliers (e.g. row 8 absorbing
+    # the "Play Again" button area when row detection overshoots).
+    row_heights = sorted(y2 - y1 for y1, y2 in rows)
+    avg_row_h = row_heights[len(row_heights) // 2]
 
     # Derive icon size from actual row height (reference: 66px icon / 90px row ≈ 0.73)
     icon_sz = max(20, int(avg_row_h * 0.73))
@@ -704,7 +766,7 @@ def analyze_screenshot(image_path: str, debug: bool = False) -> list[dict]:
     results = []
 
     x1 = int(ICONS_X_START * sx)
-    x2 = int(ICONS_X_END * sx)
+    x2 = min(int(ICONS_X_END * sx), w)
 
     for i, (ry1, ry2) in enumerate(rows):
         # Detect player name from the left side of the row.

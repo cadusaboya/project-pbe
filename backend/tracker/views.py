@@ -607,6 +607,49 @@ class EditLobbyView(APIView):
         })
 
 
+# ── raw_json sync helpers for edit endpoints ─────────────────────────────
+
+def _sync_unit_to_raw_json(match, puuid, character_id, *, items=None, tier=None):
+    """Update a unit's itemNames/tier in match.raw_json."""
+    raw_participants = match.raw_json.get("info", {}).get("participants", [])
+    for rp in raw_participants:
+        if rp.get("puuid") == puuid:
+            for ru in rp.get("units", []):
+                if ru.get("character_id") == character_id:
+                    if items is not None:
+                        ru["itemNames"] = items
+                    if tier is not None:
+                        ru["tier"] = tier
+                    break
+            break
+    match.save(update_fields=["raw_json"])
+
+
+def _remove_unit_from_raw_json(match, puuid, character_id):
+    """Remove a unit from match.raw_json."""
+    raw_participants = match.raw_json.get("info", {}).get("participants", [])
+    for rp in raw_participants:
+        if rp.get("puuid") == puuid:
+            rp["units"] = [u for u in rp.get("units", []) if u.get("character_id") != character_id]
+            break
+    match.save(update_fields=["raw_json"])
+
+
+def _add_unit_to_raw_json(match, puuid, character_id, star_level, rarity):
+    """Add a unit to match.raw_json."""
+    raw_participants = match.raw_json.get("info", {}).get("participants", [])
+    for rp in raw_participants:
+        if rp.get("puuid") == puuid:
+            rp.setdefault("units", []).append({
+                "character_id": character_id,
+                "tier": star_level,
+                "rarity": rarity,
+                "itemNames": [],
+            })
+            break
+    match.save(update_fields=["raw_json"])
+
+
 class EditUnitItemsView(APIView):
     """
     PATCH /api/unit-usage/<usage_id>/items/
@@ -620,7 +663,7 @@ class EditUnitItemsView(APIView):
     def patch(self, request, usage_id):
         global _EDIT_VERSION
         try:
-            usage = UnitUsage.objects.select_related("unit").get(id=usage_id)
+            usage = UnitUsage.objects.select_related("unit", "participant__match").get(id=usage_id)
         except UnitUsage.DoesNotExist:
             return Response({"error": "UnitUsage not found"}, status=404)
 
@@ -642,6 +685,9 @@ class EditUnitItemsView(APIView):
         if update_fields:
             usage.save(update_fields=update_fields)
             _EDIT_VERSION += 1
+            _sync_unit_to_raw_json(usage.participant.match, usage.participant.puuid,
+                                   usage.unit.character_id,
+                                   items=usage.items, tier=usage.star_level)
 
         return Response({
             "usage_id": usage.id,
@@ -653,12 +699,15 @@ class EditUnitItemsView(APIView):
     def delete(self, request, usage_id):
         global _EDIT_VERSION
         try:
-            usage = UnitUsage.objects.select_related("unit").get(id=usage_id)
+            usage = UnitUsage.objects.select_related("unit", "participant__match").get(id=usage_id)
         except UnitUsage.DoesNotExist:
             return Response({"error": "UnitUsage not found"}, status=404)
         char_id = usage.unit.character_id
+        match = usage.participant.match
+        puuid = usage.participant.puuid
         usage.delete()
         _EDIT_VERSION += 1
+        _remove_unit_from_raw_json(match, puuid, char_id)
         return Response({"deleted": char_id})
 
 
@@ -672,7 +721,7 @@ class AddUnitView(APIView):
     def post(self, request, match_id):
         global _EDIT_VERSION
         try:
-            Match.objects.get(match_id=match_id)
+            match = Match.objects.get(match_id=match_id)
         except Match.DoesNotExist:
             return Response({"error": "Match not found"}, status=404)
 
@@ -693,14 +742,16 @@ class AddUnitView(APIView):
         except Unit.DoesNotExist:
             return Response({"error": f"Unit {character_id} not found"}, status=404)
 
+        rarity = max(0, unit.cost - 1) if unit.cost < 7 else 6
         usage = UnitUsage.objects.create(
             participant=participant,
             unit=unit,
             star_level=star_level,
-            rarity=max(0, unit.cost - 1) if unit.cost < 7 else 6,
+            rarity=rarity,
             items=[],
         )
         _EDIT_VERSION += 1
+        _add_unit_to_raw_json(match, participant.puuid, character_id, star_level, rarity)
 
         return Response({
             "usage_id": usage.id,
