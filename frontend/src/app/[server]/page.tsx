@@ -7,5 +7,5 @@ export default async function ServerIndex({
 }) {
   const { server } = await params;
   const slug = server.toLowerCase();
-  redirect(slug === "scrims" ? `/${slug}/upload` : `/${slug}/comps`);
+  redirect(`/${slug}/comps`);
 }

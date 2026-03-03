@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import AddUnitView, ChampionsView, CompsView, DataVersionView, EditLobbyView, EditMatchView, EditUnitItemsView, ExploreMatchesView, ExploreView, HiddenCompsView, ItemAssetsView, ItemStatsView, MatchLobbyView, PlayerListView, PlayerProfileView, PlayerStatsView, ScrimConfirmView, ScrimUploadView, SearchCompsView, StatsView, TraitDataView, UnitStarStatsView, UnitStatsView, VersionsView, WinningCompsView
+from .views import ChampionsView, CompsView, DataVersionView, ExploreMatchesView, ExploreView, HiddenCompsView, ItemAssetsView, ItemStatsView, MatchLobbyView, PlayerListView, PlayerProfileView, PlayerStatsView, SearchCompsView, StatsView, TraitDataView, UnitStarStatsView, UnitStatsView, VersionsView, WinningCompsView
 
 urlpatterns = [
     path("data-version/", DataVersionView.as_view(), name="data-version"),
@@ -17,15 +17,9 @@ urlpatterns = [
     path("traits/", TraitDataView.as_view(), name="traits"),
     path("item-assets/", ItemAssetsView.as_view(), name="item-assets"),
     path("match/<str:match_id>/lobby", MatchLobbyView.as_view(), name="match-lobby"),
-    path("match/<str:match_id>/edit-lobby/", EditLobbyView.as_view(), name="edit-lobby"),
-    path("unit-usage/<int:usage_id>/items/", EditUnitItemsView.as_view(), name="edit-unit-items"),
-    path("match/<str:match_id>/add-unit/", AddUnitView.as_view(), name="add-unit"),
-    path("match/<str:match_id>/edit/", EditMatchView.as_view(), name="edit-match"),
     path("search-comps/", SearchCompsView.as_view(), name="search-comps"),
     path("player/<str:player_name>/profile/", PlayerProfileView.as_view(), name="player-profile"),
     path("players/", PlayerListView.as_view(), name="player-list"),
     path("player-stats/", PlayerStatsView.as_view(), name="player-stats"),
     path("champions/", ChampionsView.as_view(), name="champions"),
-    path("scrims/upload/", ScrimUploadView.as_view(), name="scrims-upload"),
-    path("scrims/confirm/", ScrimConfirmView.as_view(), name="scrims-confirm"),
 ]

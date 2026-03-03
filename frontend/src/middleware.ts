@@ -14,7 +14,6 @@ const PAGE_SLUGS = new Set([
   "explore",
   "last-games",
   "teambuilder",
-  "upload",
 ]);
 
 export function middleware(request: NextRequest) {
