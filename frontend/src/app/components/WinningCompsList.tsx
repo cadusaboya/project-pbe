@@ -133,14 +133,16 @@ function computeTraits(
 function TraitChips({
   units,
   traitData,
+  small = false,
 }: {
   units: WinningUnit[];
   traitData: Record<string, TraitInfo>;
+  small?: boolean;
 }) {
   const traits = computeTraits(units, traitData);
   if (traits.length === 0) return null;
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className={`flex flex-wrap ${small ? "gap-0.5" : "gap-1"}`}>
       {traits.map((t) => {
         const style = TRAIT_TIER_STYLES[t.tier] ?? TRAIT_TIER_STYLES[1];
         const activeBp = t.isUnique ? t.breakpoints[0] : t.breakpoints[t.tier - 1];
@@ -149,12 +151,16 @@ function TraitChips({
         return (
           <span
             key={t.name}
-            className={`inline-flex items-center gap-0.5 pl-0.5 pr-1.5 h-6 rounded border text-xs font-bold ${style.chip}`}
+            className={`inline-flex items-center rounded border font-bold ${
+              small
+                ? "gap-0 pl-0.5 pr-1 h-5 text-[10px]"
+                : "gap-0.5 pl-0.5 pr-1.5 h-6 text-xs"
+            } ${style.chip}`}
             title={`${t.name} ${suffix} — breakpoints ${t.breakpoints.join("/")}`}
           >
             {t.icon && (
               <span
-                className="w-4 h-4 shrink-0 inline-block"
+                className={`${small ? "w-3.5 h-3.5" : "w-4 h-4"} shrink-0 inline-block`}
                 style={{
                   backgroundColor: style.iconColor,
                   WebkitMaskImage: `url(${t.icon})`,
@@ -438,14 +444,14 @@ function UnitChipSmall({
       className="relative rounded"
       title={`${formatUnit(unit.character_id)}${unit.traits.length ? ` — ${unit.traits.join(", ")}` : ""}`}
     >
-      <UnitImage characterId={unit.character_id} cost={unit.cost} size={32} className="block rounded" />
-      <div className="absolute -top-2.5 left-0 right-0 flex justify-center z-10 pointer-events-none">
+      <UnitImage characterId={unit.character_id} cost={unit.cost} size={40} className="block rounded" />
+      <div className="absolute -top-3 left-0 right-0 flex justify-center z-10 pointer-events-none">
         <StarLevel level={unit.star_level} />
       </div>
       {unit.items.length > 0 && (
         <div className="absolute -bottom-2.5 left-0 right-0 flex justify-center z-10 pointer-events-none">
           {unit.items.slice(0, 3).map((item, i) => (
-            <ItemImage key={i} itemId={item} itemAssets={itemAssets} size={12} className="rounded" />
+            <ItemImage key={i} itemId={item} itemAssets={itemAssets} size={14} className="rounded" />
           ))}
         </div>
       )}
@@ -605,7 +611,7 @@ function CompCard({
                       {displayPlayerName(participant.name)}
                     </a>
                     <div className="flex flex-col gap-2.5 flex-1 min-w-0">
-                      <TraitChips units={participant.units} traitData={traitData} />
+                      <TraitChips units={participant.units} traitData={traitData} small />
                       <div className="flex flex-wrap gap-1">
                         {participant.units
                           .slice()
