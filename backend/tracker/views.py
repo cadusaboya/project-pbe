@@ -2707,7 +2707,7 @@ def _build_item_reverse_map() -> dict[str, str]:
             continue
         if not display_name or display_name.startswith("@") or display_name.startswith("tft_item"):
             continue
-        if not item_id.startswith("TFT_Item_") and not item_id.startswith("TFT16_Item_") and not item_id.startswith("TFT4_Item_Ornn") and not item_id.startswith("TFT5_Item_"):
+        if not re.match(r"TFT\d*_Item_", item_id):
             continue
         existing = name_to_id.get(display_name)
         if existing is None:

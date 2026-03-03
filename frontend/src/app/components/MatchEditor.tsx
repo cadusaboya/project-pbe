@@ -67,14 +67,7 @@ function buildItemOptions(
   const result: { id: string; name: string }[] = [];
   for (const [id, name] of Object.entries(itemNames)) {
     if (!name || name.startsWith("@") || name.startsWith("tft_item")) continue;
-    if (
-      !id.startsWith("TFT_Item_") &&
-      !id.startsWith("TFT16_Item_") &&
-      !id.startsWith("TFT7_Item_") &&
-      !id.startsWith("TFT4_Item_Ornn") &&
-      !id.startsWith("TFT5_Item_")
-    )
-      continue;
+    if (!/^TFT\d*_Item_/.test(id)) continue;
     if (seen.has(name)) continue;
     seen.add(name);
     result.push({ id, name });
