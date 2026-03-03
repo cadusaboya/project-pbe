@@ -250,9 +250,12 @@ def _parse_champions_data(data: dict) -> list:
         api_name: str = champ.get("apiName", "")
         if not api_name:
             continue
+        name = champ.get("name", api_name.replace("TFT16_", ""))
+        if api_name == "TFT16_AnnieTibbers":
+            name = "Annie (Tibbers)"
         champions.append({
             "apiName": api_name,
-            "name": champ.get("name", api_name.replace("TFT16_", "")),
+            "name": name,
             "cost": champ.get("cost", 0),
             "traits": champ.get("traits", []),
         })
@@ -545,6 +548,186 @@ class MatchLobbyView(APIView):
 
         result.sort(key=lambda x: x["placement"])
         return Response(result)
+
+
+class EditLobbyView(APIView):
+    """
+    GET /api/match/<match_id>/edit-lobby/
+
+    Returns lobby data from UnitUsage models (not raw_json) with usage IDs
+    so the frontend can target specific records for editing.
+    """
+
+    def get(self, request, match_id):
+        try:
+            match = Match.objects.get(match_id=match_id)
+        except Match.DoesNotExist:
+            return Response({"error": "Match not found"}, status=404)
+
+        participants = (
+            Participant.objects.filter(match=match)
+            .select_related("player")
+            .prefetch_related(
+                Prefetch("unit_usages", queryset=UnitUsage.objects.select_related("unit"))
+            )
+            .order_by("placement")
+        )
+
+        result = []
+        for p in participants:
+            player_name = p.player.game_name if p.player else (p.puuid[:12] if p.puuid else "Unknown")
+            units = []
+            for uu in p.unit_usages.all():
+                if not uu.unit_id or not uu.unit:
+                    continue
+                units.append({
+                    "usage_id": uu.id,
+                    "character_id": uu.unit.character_id,
+                    "star_level": uu.star_level,
+                    "cost": uu.unit.cost,
+                    "items": uu.items or [],
+                })
+            result.append({
+                "participant_id": p.id,
+                "player_name": player_name,
+                "placement": p.placement,
+                "level": p.level,
+                "units": units,
+            })
+
+        return Response({
+            "match_id": match.match_id,
+            "server": match.server,
+            "game_datetime": match.game_datetime,
+            "game_version": match.game_version,
+            "participants": result,
+        })
+
+
+class EditUnitItemsView(APIView):
+    """
+    PATCH /api/unit-usage/<usage_id>/items/
+    Update items and/or star_level for a specific UnitUsage record.
+    Body: {"items": [...], "star_level": 2}  (both optional)
+
+    DELETE /api/unit-usage/<usage_id>/items/
+    Remove a unit from the participant's board.
+    """
+
+    def patch(self, request, usage_id):
+        try:
+            usage = UnitUsage.objects.select_related("unit").get(id=usage_id)
+        except UnitUsage.DoesNotExist:
+            return Response({"error": "UnitUsage not found"}, status=404)
+
+        update_fields = []
+        items = request.data.get("items")
+        if items is not None:
+            if not isinstance(items, list):
+                return Response({"error": "items must be a list"}, status=400)
+            usage.items = items
+            update_fields.append("items")
+
+        star_level = request.data.get("star_level")
+        if star_level is not None:
+            if not isinstance(star_level, int) or star_level < 1 or star_level > 3:
+                return Response({"error": "star_level must be 1, 2, or 3"}, status=400)
+            usage.star_level = star_level
+            update_fields.append("star_level")
+
+        if update_fields:
+            usage.save(update_fields=update_fields)
+
+        return Response({
+            "usage_id": usage.id,
+            "character_id": usage.unit.character_id,
+            "star_level": usage.star_level,
+            "items": usage.items,
+        })
+
+    def delete(self, request, usage_id):
+        try:
+            usage = UnitUsage.objects.select_related("unit").get(id=usage_id)
+        except UnitUsage.DoesNotExist:
+            return Response({"error": "UnitUsage not found"}, status=404)
+        char_id = usage.unit.character_id
+        usage.delete()
+        return Response({"deleted": char_id})
+
+
+class AddUnitView(APIView):
+    """
+    POST /api/match/<match_id>/add-unit/
+    Add a unit to a participant's board.
+    Body: {"participant_id": 123, "character_id": "TFT16_Kalista", "star_level": 2}
+    """
+
+    def post(self, request, match_id):
+        try:
+            Match.objects.get(match_id=match_id)
+        except Match.DoesNotExist:
+            return Response({"error": "Match not found"}, status=404)
+
+        participant_id = request.data.get("participant_id")
+        character_id = request.data.get("character_id")
+        star_level = request.data.get("star_level", 1)
+
+        if not participant_id or not character_id:
+            return Response({"error": "participant_id and character_id are required"}, status=400)
+
+        try:
+            participant = Participant.objects.get(id=participant_id, match__match_id=match_id)
+        except Participant.DoesNotExist:
+            return Response({"error": "Participant not found in this match"}, status=404)
+
+        try:
+            unit = Unit.objects.get(character_id=character_id)
+        except Unit.DoesNotExist:
+            return Response({"error": f"Unit {character_id} not found"}, status=404)
+
+        usage = UnitUsage.objects.create(
+            participant=participant,
+            unit=unit,
+            star_level=star_level,
+            rarity=max(0, unit.cost - 1) if unit.cost < 7 else 6,
+            items=[],
+        )
+
+        return Response({
+            "usage_id": usage.id,
+            "character_id": unit.character_id,
+            "star_level": usage.star_level,
+            "cost": unit.cost,
+            "items": [],
+        }, status=201)
+
+
+class EditMatchView(APIView):
+    """
+    PATCH /api/match/<match_id>/edit/
+    Update match metadata (game_datetime).
+    Body: {"game_datetime": "2026-03-03T13:09:00Z"}
+    """
+
+    def patch(self, request, match_id):
+        try:
+            match = Match.objects.get(match_id=match_id)
+        except Match.DoesNotExist:
+            return Response({"error": "Match not found"}, status=404)
+
+        game_datetime = request.data.get("game_datetime")
+        if game_datetime:
+            from django.utils.dateparse import parse_datetime
+            dt = parse_datetime(game_datetime)
+            if not dt:
+                return Response({"error": "Invalid datetime format"}, status=400)
+            match.game_datetime = dt
+            match.save(update_fields=["game_datetime"])
+
+        return Response({
+            "match_id": match.match_id,
+            "game_datetime": match.game_datetime,
+        })
 
 
 class WinningCompsView(ListAPIView):
@@ -2524,7 +2707,7 @@ def _build_item_reverse_map() -> dict[str, str]:
             continue
         if not display_name or display_name.startswith("@") or display_name.startswith("tft_item"):
             continue
-        if not item_id.startswith("TFT_Item_") and not item_id.startswith("TFT16_Item_"):
+        if not item_id.startswith("TFT_Item_") and not item_id.startswith("TFT16_Item_") and not item_id.startswith("TFT4_Item_Ornn") and not item_id.startswith("TFT5_Item_"):
             continue
         existing = name_to_id.get(display_name)
         if existing is None:
