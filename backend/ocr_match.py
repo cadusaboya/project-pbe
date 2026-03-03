@@ -262,7 +262,7 @@ def load_item_templates(item_dir: Path, target_size: int) -> dict[str, np.ndarra
         "TFT_Item_RadiantVirtue",  # Virtue of the Martyr — false positive prone
         "TFT_Item_MortalReminder",  # broken CDragon name
         "TFT_Item_Thornmail",  # broken CDragon name
-        "TFT_Item_Quicksilver",  # Generic diamond shape matches every item border at 13px
+        # "TFT_Item_Quicksilver",  # Re-enabled: HSV histogram scoring now distinguishes it
         # TFT_Item_MadredsBloodrazor = Giant Slayer — keep it, no other template exists
     }
 
