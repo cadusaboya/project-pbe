@@ -56,6 +56,9 @@ _COMPS_CACHE_VERSION: dict[str, int] = {}
 _EXPLORE_BASE_CACHE: dict[str, list[dict]] = {}  # (server, game_version) -> participant dicts
 _EXPLORE_CACHE_VERSION: dict[str, int] = {}
 
+# Edit counter: bumped by edit endpoints so DataVersionView changes even when match count doesn't
+_EDIT_VERSION = 0
+
 # Canonical item mapping: maps every item_id to a single "canonical" ID
 # so that duplicates (e.g. TFT_Item_InfinityEdge vs TFT_Item_CorruptedInfinityEdge)
 # get merged into one entry.
@@ -458,7 +461,7 @@ class DataVersionView(APIView):
     """GET /api/data-version/ — lightweight data version for cache busting."""
 
     def get(self, request):
-        return _cc(Response({"data_version": Match.objects.count()}), 30)
+        return _cc(Response({"data_version": Match.objects.count() + _EDIT_VERSION}), 30)
 
 
 class ItemAssetsView(APIView):
@@ -615,6 +618,7 @@ class EditUnitItemsView(APIView):
     """
 
     def patch(self, request, usage_id):
+        global _EDIT_VERSION
         try:
             usage = UnitUsage.objects.select_related("unit").get(id=usage_id)
         except UnitUsage.DoesNotExist:
@@ -637,6 +641,7 @@ class EditUnitItemsView(APIView):
 
         if update_fields:
             usage.save(update_fields=update_fields)
+            _EDIT_VERSION += 1
 
         return Response({
             "usage_id": usage.id,
@@ -646,12 +651,14 @@ class EditUnitItemsView(APIView):
         })
 
     def delete(self, request, usage_id):
+        global _EDIT_VERSION
         try:
             usage = UnitUsage.objects.select_related("unit").get(id=usage_id)
         except UnitUsage.DoesNotExist:
             return Response({"error": "UnitUsage not found"}, status=404)
         char_id = usage.unit.character_id
         usage.delete()
+        _EDIT_VERSION += 1
         return Response({"deleted": char_id})
 
 
@@ -663,6 +670,7 @@ class AddUnitView(APIView):
     """
 
     def post(self, request, match_id):
+        global _EDIT_VERSION
         try:
             Match.objects.get(match_id=match_id)
         except Match.DoesNotExist:
@@ -692,6 +700,7 @@ class AddUnitView(APIView):
             rarity=max(0, unit.cost - 1) if unit.cost < 7 else 6,
             items=[],
         )
+        _EDIT_VERSION += 1
 
         return Response({
             "usage_id": usage.id,
@@ -710,6 +719,7 @@ class EditMatchView(APIView):
     """
 
     def patch(self, request, match_id):
+        global _EDIT_VERSION
         try:
             match = Match.objects.get(match_id=match_id)
         except Match.DoesNotExist:
@@ -723,6 +733,7 @@ class EditMatchView(APIView):
                 return Response({"error": "Invalid datetime format"}, status=400)
             match.game_datetime = dt
             match.save(update_fields=["game_datetime"])
+            _EDIT_VERSION += 1
 
         return Response({
             "match_id": match.match_id,
@@ -2707,7 +2718,7 @@ def _build_item_reverse_map() -> dict[str, str]:
             continue
         if not display_name or display_name.startswith("@") or display_name.startswith("tft_item"):
             continue
-        if not re.match(r"TFT\d*_Item_", item_id):
+        if not re.match(r"TFT\d*_Item_", item_id) and not re.match(r"TFT\d+_TheDarkin", item_id):
             continue
         existing = name_to_id.get(display_name)
         if existing is None:
