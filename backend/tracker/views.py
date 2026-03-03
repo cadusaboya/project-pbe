@@ -2248,7 +2248,19 @@ class PlayerProfileView(APIView):
 
     def get(self, request, player_name: str):
         server = request.query_params.get("server", "PBE").upper()
-        player = Player.objects.filter(game_name__iexact=player_name).first()
+
+        # Filter player by region matching the server to avoid name collisions
+        if server == "SCRIMS":
+            player = Player.objects.filter(game_name__iexact=player_name, region="SCRIMS").first()
+        elif server == "PBE":
+            player = Player.objects.filter(game_name__iexact=player_name, region="PBE").first()
+        else:
+            player = (
+                Player.objects.filter(game_name__iexact=player_name)
+                .exclude(region="PBE")
+                .exclude(region="SCRIMS")
+                .first()
+            )
         if not player:
             return Response({"error": "Player not found"}, status=404)
 
