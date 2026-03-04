@@ -205,5 +205,19 @@
   "TFT16_Item_IxtalEmblemItem": "Ixtal Emblem",
   "TFT16_Item_IoniaEmblemItem": "Ionia Emblem",
   "TFT16_Item_DemaciaEmblemItem": "Demacia Emblem",
-  "TFT16_Item_DefenderEmblemItem": "Defender Emblem"
+  "TFT16_Item_DefenderEmblemItem": "Defender Emblem",
+  "TFT16_TheDarkinScythe": "The Darkin Scythe",
+  "TFT16_TheDarkinAegis": "The Darkin Aegis",
+  "TFT16_TheDarkinStaff": "The Darkin Staff",
+  "TFT16_TheDarkinBow": "The Darkin Bow",
+  "TFT16_Item_Bilgewater_DeadmansDagger": "Dead Man's Dagger",
+  "TFT16_Item_Bilgewater_LuckyEyepatch": "Lucky Doubloon",
+  "TFT16_Item_Bilgewater_BilgeratCutlass": "Cutthroat's Cutlass",
+  "TFT16_Item_Bilgewater_BlackmarketExplosives": "Blackmarket Explosives",
+  "TFT16_Item_Bilgewater_PileOCitrus": "Pile O' Citrus",
+  "TFT16_Item_Bilgewater_DreadwayCannon": "Dreadway Cannon",
+  "TFT16_Item_Bilgewater_JollyRoger": "Captain's Hat",
+  "TFT16_Item_Bilgewater_HauntedSpyglass": "Haunted Spyglass",
+  "TFT16_Item_Bilgewater_FreebootersFrock": "Barknuckles",
+  "TFT16_Item_Bilgewater_BWLesserDuplicator": "Bilgewater Lesser Duplicator"
 }

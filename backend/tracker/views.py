@@ -557,8 +557,10 @@ class EditLobbyView(APIView):
     """
     GET /api/match/<match_id>/edit-lobby/
 
-    Returns lobby data from UnitUsage models (not raw_json) with usage IDs
-    so the frontend can target specific records for editing.
+    Returns lobby data read from raw_json (the source of truth) with
+    UnitUsage IDs mapped by position so the frontend can target specific
+    records for editing.  This ensures the edit view shows the same data
+    as the regular lobby view (MatchLobbyView).
     """
 
     def get(self, request, match_id):
@@ -567,36 +569,69 @@ class EditLobbyView(APIView):
         except Match.DoesNotExist:
             return Response({"error": "Match not found"}, status=404)
 
-        participants = (
-            Participant.objects.filter(match=match)
+        raw_participants = match.raw_json.get("info", {}).get("participants", [])
+
+        # Build puuid → Participant mapping
+        db_participants = {
+            p.puuid: p
+            for p in Participant.objects.filter(match=match)
             .select_related("player")
             .prefetch_related(
-                Prefetch("unit_usages", queryset=UnitUsage.objects.select_related("unit"))
+                Prefetch("unit_usages", queryset=UnitUsage.objects.select_related("unit").order_by("id"))
             )
-            .order_by("placement")
-        )
+        }
+
+        # character_id → Unit for cost lookup
+        all_char_ids = {
+            u.get("character_id", "")
+            for rp in raw_participants
+            for u in rp.get("units", [])
+            if u.get("character_id")
+        }
+        units_by_id = {u.character_id: u for u in Unit.objects.filter(character_id__in=all_char_ids)}
 
         result = []
-        for p in participants:
-            player_name = p.player.game_name if p.player else (p.puuid[:12] if p.puuid else "Unknown")
+        for rp in raw_participants:
+            puuid = rp.get("puuid", "")
+            db_p = db_participants.get(puuid)
+
+            if db_p and db_p.player:
+                player_name = db_p.player.game_name
+            else:
+                game_name = rp.get("riotIdGameName", "")
+                tag_line = rp.get("riotIdTagline", "")
+                player_name = f"{game_name}#{tag_line}" if game_name else (puuid[:12] if puuid else "Unknown")
+
+            # Map raw_json units to UnitUsage IDs by creation order
+            usage_list = list(db_p.unit_usages.all()) if db_p else []
+
             units = []
-            for uu in p.unit_usages.all():
-                if not uu.unit_id or not uu.unit:
-                    continue
+            for i, u_data in enumerate(rp.get("units", [])):
+                char_id = u_data.get("character_id", "")
+                unit_obj = units_by_id.get(char_id)
+                rarity = u_data.get("rarity", 0)
+                cost = unit_obj.cost if unit_obj else (7 if rarity == 6 else rarity + 1)
+
+                # UnitUsage at same index (both created in raw_json order)
+                usage = usage_list[i] if i < len(usage_list) else None
+
                 units.append({
-                    "usage_id": uu.id,
-                    "character_id": uu.unit.character_id,
-                    "star_level": uu.star_level,
-                    "cost": uu.unit.cost,
-                    "items": uu.items or [],
+                    "usage_id": usage.id if usage else None,
+                    "character_id": char_id,
+                    "star_level": u_data.get("tier", 1),
+                    "cost": cost,
+                    "items": u_data.get("itemNames", []),
                 })
+
             result.append({
-                "participant_id": p.id,
+                "participant_id": db_p.id if db_p else None,
                 "player_name": player_name,
-                "placement": p.placement,
-                "level": p.level,
+                "placement": rp.get("placement", 0),
+                "level": rp.get("level", 1),
                 "units": units,
             })
+
+        result.sort(key=lambda x: x["placement"])
 
         return Response({
             "match_id": match.match_id,
@@ -609,34 +644,49 @@ class EditLobbyView(APIView):
 
 # ── raw_json sync helpers for edit endpoints ─────────────────────────────
 
-def _sync_unit_to_raw_json(match, puuid, character_id, *, items=None, tier=None):
-    """Update a unit's itemNames/tier in match.raw_json."""
+def _get_raw_json_unit_index(usage):
+    """
+    Get the position of this UnitUsage in its participant's unit list.
+    UnitUsage records are bulk_created in raw_json order, so ordering by
+    id gives the same sequence as the raw_json units array.
+    """
+    usage_ids = list(
+        UnitUsage.objects.filter(participant=usage.participant)
+        .order_by("id")
+        .values_list("id", flat=True)
+    )
+    return usage_ids.index(usage.id)
+
+
+def _sync_unit_to_raw_json(match, puuid, raw_index, *, items=None, tier=None):
+    """Update a unit's itemNames/tier in match.raw_json by array index."""
     raw_participants = match.raw_json.get("info", {}).get("participants", [])
     for rp in raw_participants:
         if rp.get("puuid") == puuid:
-            for ru in rp.get("units", []):
-                if ru.get("character_id") == character_id:
-                    if items is not None:
-                        ru["itemNames"] = items
-                    if tier is not None:
-                        ru["tier"] = tier
-                    break
+            units = rp.get("units", [])
+            if raw_index < len(units):
+                if items is not None:
+                    units[raw_index]["itemNames"] = items
+                if tier is not None:
+                    units[raw_index]["tier"] = tier
             break
     match.save(update_fields=["raw_json"])
 
 
-def _remove_unit_from_raw_json(match, puuid, character_id):
-    """Remove a unit from match.raw_json."""
+def _remove_unit_from_raw_json(match, puuid, raw_index):
+    """Remove a single unit from match.raw_json by array index."""
     raw_participants = match.raw_json.get("info", {}).get("participants", [])
     for rp in raw_participants:
         if rp.get("puuid") == puuid:
-            rp["units"] = [u for u in rp.get("units", []) if u.get("character_id") != character_id]
+            units = rp.get("units", [])
+            if raw_index < len(units):
+                units.pop(raw_index)
             break
     match.save(update_fields=["raw_json"])
 
 
 def _add_unit_to_raw_json(match, puuid, character_id, star_level, rarity):
-    """Add a unit to match.raw_json."""
+    """Add a unit to match.raw_json (appended at end)."""
     raw_participants = match.raw_json.get("info", {}).get("participants", [])
     for rp in raw_participants:
         if rp.get("puuid") == puuid:
@@ -667,6 +717,9 @@ class EditUnitItemsView(APIView):
         except UnitUsage.DoesNotExist:
             return Response({"error": "UnitUsage not found"}, status=404)
 
+        # Compute raw_json index BEFORE any changes
+        raw_index = _get_raw_json_unit_index(usage)
+
         update_fields = []
         items = request.data.get("items")
         if items is not None:
@@ -686,7 +739,7 @@ class EditUnitItemsView(APIView):
             usage.save(update_fields=update_fields)
             _EDIT_VERSION += 1
             _sync_unit_to_raw_json(usage.participant.match, usage.participant.puuid,
-                                   usage.unit.character_id,
+                                   raw_index,
                                    items=usage.items, tier=usage.star_level)
 
         return Response({
@@ -702,12 +755,15 @@ class EditUnitItemsView(APIView):
             usage = UnitUsage.objects.select_related("unit", "participant__match").get(id=usage_id)
         except UnitUsage.DoesNotExist:
             return Response({"error": "UnitUsage not found"}, status=404)
+
+        # Compute raw_json index BEFORE deleting
+        raw_index = _get_raw_json_unit_index(usage)
         char_id = usage.unit.character_id
         match = usage.participant.match
         puuid = usage.participant.puuid
         usage.delete()
         _EDIT_VERSION += 1
-        _remove_unit_from_raw_json(match, puuid, char_id)
+        _remove_unit_from_raw_json(match, puuid, raw_index)
         return Response({"deleted": char_id})
 
 
@@ -790,6 +846,16 @@ class EditMatchView(APIView):
             "match_id": match.match_id,
             "game_datetime": match.game_datetime,
         })
+
+    def delete(self, request, match_id):
+        global _EDIT_VERSION
+        try:
+            match = Match.objects.get(match_id=match_id)
+        except Match.DoesNotExist:
+            return Response({"error": "Match not found"}, status=404)
+        match.delete()
+        _EDIT_VERSION += 1
+        return Response({"deleted": match_id})
 
 
 class WinningCompsView(ListAPIView):
@@ -2494,7 +2560,19 @@ class PlayerProfileView(APIView):
 
     def get(self, request, player_name: str):
         server = request.query_params.get("server", "PBE").upper()
-        player = Player.objects.filter(game_name__iexact=player_name).first()
+
+        # Filter player by region matching the server to avoid name collisions
+        if server == "SCRIMS":
+            player = Player.objects.filter(game_name__iexact=player_name, region="SCRIMS").first()
+        elif server == "PBE":
+            player = Player.objects.filter(game_name__iexact=player_name, region="PBE").first()
+        else:
+            player = (
+                Player.objects.filter(game_name__iexact=player_name)
+                .exclude(region="PBE")
+                .exclude(region="SCRIMS")
+                .first()
+            )
         if not player:
             return Response({"error": "Player not found"}, status=404)
 

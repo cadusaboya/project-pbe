@@ -34,15 +34,22 @@ def main():
     items = data.get("items", [])
     print(f"Total items in CDragon: {len(items)}")
 
-    # Filter to only standard equippable items
+    # Filter to equippable items
     equippable = []
     for item in items:
-        api_name = item.get("apiName", "")
+        api_name = item.get("apiName", "") or ""
+        icon = item.get("icon", "") or ""
         # Standard items: TFT_Item_* (components, completed, radiant, artifact, etc.)
         if api_name.startswith("TFT_Item_"):
             equippable.append(item)
+        # Darkin weapons (Set 16): TFT16_TheDarkin*
+        elif api_name.startswith("TFT16_TheDarkin"):
+            equippable.append(item)
+        # Bilgewater equippable items (Set 16)
+        elif api_name.startswith("TFT16_Item_Bilgewater_"):
+            equippable.append(item)
 
-    print(f"Equippable items (TFT_Item_*): {len(equippable)}")
+    print(f"Equippable items: {len(equippable)}")
 
     OUTPUT_DIR.mkdir(exist_ok=True)
     names = {}

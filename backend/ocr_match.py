@@ -272,7 +272,8 @@ def load_item_templates(item_dir: Path, target_size: int) -> dict[str, np.ndarra
         with open(names_path) as f:
             item_names = json.load(f)
 
-    for pattern in ["TFT_Item_*.png", "TFT16_Item_*EmblemItem.png"]:
+    for pattern in ["TFT_Item_*.png", "TFT16_Item_*EmblemItem.png",
+                     "TFT16_TheDarkin*.png", "TFT16_Item_Bilgewater_*.png"]:
         for f in item_dir.glob(pattern):
             item_id = f.stem
             if any(item_id.startswith(p) for p in SKIP_PREFIXES) or item_id in SKIP_EXACT:
@@ -447,6 +448,13 @@ def detect_items(row_img: np.ndarray, x_center: int, icon_size: int,
             dup_count = sum(1 for _, rn, _ in results if rn == best_name)
             if best_combined >= accept_thresh + dup_count * dup_penalty:
                 results.append((best_id, best_name, best_combined))
+
+    # Thief's Gloves (and Radiant variant) consume all 3 item slots.
+    # If detected, keep only the TG — other detections are false positives.
+    TG_NAMES = {"Thief's Gloves", "Radiant Thief's Gloves"}
+    tg = [name for _, name, _ in results if name in TG_NAMES]
+    if tg:
+        return tg[:1]
 
     return [name for _, name, _ in results]
 

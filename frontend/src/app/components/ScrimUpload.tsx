@@ -719,7 +719,7 @@ export default function ScrimUpload({
                     {champ.name || formatUnit(champ.character_id)}
                   </span>
                   {champ.score !== undefined && champ.score > 0 && (
-                    <span className="text-[10px] text-tft-muted">
+                    <span className={`text-[10px] ${champ.score < 0.75 ? "text-red-400 font-semibold" : "text-tft-muted"}`}>
                       OCR: {(champ.score * 100).toFixed(0)}%
                     </span>
                   )}

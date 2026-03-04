@@ -432,6 +432,27 @@ export default function MatchEditor({
     }
   }, [lobby, datetimeValue, flash]);
 
+  // ── Delete match ─────────────────────────────────────────────────────
+
+  const deleteMatch = useCallback(async () => {
+    if (!lobby) return;
+    if (!confirm(`Delete match ${lobby.match_id}? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(backendUrl(`/api/match/${lobby.match_id}/edit/`), {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        setError("Failed to delete match");
+        return;
+      }
+      setMatches((prev) => prev.filter((m) => m.match_id !== lobby.match_id));
+      setLobby(null);
+      flash("Match deleted");
+    } catch {
+      setError("Failed to delete match");
+    }
+  }, [lobby, flash]);
+
   // Open datetime editor with current value
   const openDatetimeEditor = useCallback(() => {
     if (!lobby) return;
@@ -562,12 +583,20 @@ export default function MatchEditor({
                 )}
               </div>
             </div>
-            <button
-              onClick={() => setLobby(null)}
-              className="text-xs text-tft-muted hover:text-tft-text"
-            >
-              Back to matches
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={deleteMatch}
+                className="text-xs text-red-400/60 hover:text-red-400 transition-colors"
+              >
+                Delete match
+              </button>
+              <button
+                onClick={() => setLobby(null)}
+                className="text-xs text-tft-muted hover:text-tft-text"
+              >
+                Back to matches
+              </button>
+            </div>
           </div>
 
           {/* Participants */}
