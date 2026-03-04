@@ -122,7 +122,7 @@ class Command(BaseCommand):
             "--server",
             type=str,
             default="PBE",
-            help="Server this comp belongs to: PBE or LIVE (default: PBE).",
+            help="Server this comp belongs to: PBE, LIVE, or SCRIMS (default: PBE).",
         )
 
     def handle(self, *args, **options):
@@ -140,8 +140,8 @@ class Command(BaseCommand):
         require_trait_breakpoints_raw = (options.get("require_trait_breakpoints") or "").strip()
         exclude_traits_raw = (options.get("exclude_traits") or "").strip()
         server = (options.get("server") or "PBE").strip().upper()
-        if server not in ("PBE", "LIVE"):
-            raise CommandError("--server must be PBE or LIVE.")
+        if server not in ("PBE", "LIVE", "SCRIMS"):
+            raise CommandError("--server must be PBE, LIVE, or SCRIMS.")
 
         if not name:
             raise CommandError("--name cannot be empty.")
