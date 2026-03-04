@@ -32,9 +32,30 @@ class WinningCompSerializer(serializers.ModelSerializer):
 
     placement = serializers.IntegerField(read_only=True)
 
+    lobby_players = serializers.SerializerMethodField()
+
     class Meta:
         model = Participant
-        fields = ["match_id", "game_datetime", "game_version", "winner", "placement", "units"]
+        fields = ["match_id", "game_datetime", "game_version", "winner", "placement", "units", "lobby_players"]
 
     def get_winner(self, obj):
         return str(obj.player) if obj.player else obj.puuid
+
+    def get_lobby_players(self, obj):
+        tracked = getattr(obj.match, "_tracked_lobby", None)
+        if tracked is not None:
+            return [
+                {"name": str(p.player), "placement": p.placement}
+                for p in tracked
+                if p.pk != obj.pk
+            ]
+        others = (
+            Participant.objects.filter(match=obj.match, player__isnull=False)
+            .exclude(pk=obj.pk)
+            .select_related("player")
+            .order_by("placement")
+        )
+        return [
+            {"name": str(p.player), "placement": p.placement}
+            for p in others
+        ]

@@ -574,6 +574,14 @@ class WinningCompsView(ListAPIView):
         player_names = self.request.query_params.getlist("player")
         player_names = [n.strip() for n in player_names if n.strip()]
 
+        tracked_lobby = Prefetch(
+            "match__participants",
+            queryset=Participant.objects.filter(player__isnull=False)
+            .select_related("player")
+            .order_by("placement"),
+            to_attr="_tracked_lobby",
+        )
+
         if player_names:
             from django.db.models import Q
 
@@ -587,7 +595,7 @@ class WinningCompsView(ListAPIView):
                     player__isnull=False,
                 )
                 .select_related("match", "player")
-                .prefetch_related("unit_usages__unit")
+                .prefetch_related("unit_usages__unit", tracked_lobby)
                 .order_by("-match__game_datetime")
             )
         elif server == "LIVE":
@@ -611,14 +619,14 @@ class WinningCompsView(ListAPIView):
                     player__isnull=False,
                 )
                 .select_related("match", "player")
-                .prefetch_related("unit_usages__unit")
+                .prefetch_related("unit_usages__unit", tracked_lobby)
                 .order_by("-match__game_datetime")
             )
         else:
             qs = (
                 Participant.objects.filter(placement=1, match__server=server)
                 .select_related("match", "player")
-                .prefetch_related("unit_usages__unit")
+                .prefetch_related("unit_usages__unit", tracked_lobby)
                 .order_by("-match__game_datetime")
             )
 
@@ -2192,8 +2200,16 @@ class SearchCompsView(APIView):
             limit = 200
         sort = request.query_params.get("sort", "recency")
 
+        tracked_lobby = Prefetch(
+            "match__participants",
+            queryset=Participant.objects.filter(player__isnull=False)
+            .select_related("player")
+            .order_by("placement"),
+            to_attr="_tracked_lobby",
+        )
         qs = Participant.objects.filter(match__server=server).select_related("match", "player").prefetch_related(
-            Prefetch("unit_usages", queryset=UnitUsage.objects.select_related("unit"))
+            Prefetch("unit_usages", queryset=UnitUsage.objects.select_related("unit")),
+            tracked_lobby,
         )
         if server == "LIVE":
             qs = qs.filter(player__isnull=False)
@@ -2223,6 +2239,11 @@ class SearchCompsView(APIView):
                     "traits": uu.unit.traits,
                     "items": uu.items or [],
                 })
+            lobby = [
+                {"name": str(lp.player), "placement": lp.placement}
+                for lp in getattr(p.match, "_tracked_lobby", [])
+                if lp.pk != p.pk
+            ]
             result.append({
                 "match_id": p.match.match_id,
                 "game_datetime": p.match.game_datetime,
@@ -2231,6 +2252,7 @@ class SearchCompsView(APIView):
                 "level": p.level,
                 "player": player_name,
                 "units": units_out,
+                "lobby_players": lobby,
             })
 
         return Response(result)

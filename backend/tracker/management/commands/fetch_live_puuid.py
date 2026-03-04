@@ -99,7 +99,6 @@ Opale#EUW:EUW
 SLY Voltariux#EUW:EUW
 PeepoGlad#EUW:EUW
 ZyK0o#EUW:EUW
-
 ViggoZe#EUW:EUW
 Clemou#EUW:EUW
 L3SCoco#EUW:EUW
