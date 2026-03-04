@@ -6,8 +6,8 @@ from django.core.management.base import BaseCommand
 
 class Command(BaseCommand):
     help = (
-        "Continuously fetch LIVE matches first, then PBE matches, "
-        "refresh unit stats, wait, and repeat. Default interval is 300 seconds."
+        "Continuously fetch LIVE matches, refresh unit stats, wait, and repeat. "
+        "Default interval is 300 seconds."
     )
 
     def add_arguments(self, parser):
@@ -30,7 +30,7 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Starting fetch loop: LIVE → PBE (interval={interval}s, "
+                f"Starting fetch loop: LIVE only (interval={interval}s, "
                 f"max_cycles={max_cycles or 'infinite'})."
             )
         )
@@ -48,15 +48,6 @@ class Command(BaseCommand):
                 except Exception as exc:
                     self.stderr.write(
                         self.style.ERROR(f"[cycle {cycle}] fetch_live failed: {exc}")
-                    )
-
-                # --- PBE ---
-                try:
-                    self.stdout.write(self.style.HTTP_INFO(f"[cycle {cycle}] running fetch_pbe..."))
-                    call_command("fetch_pbe")
-                except Exception as exc:
-                    self.stderr.write(
-                        self.style.ERROR(f"[cycle {cycle}] fetch_pbe failed: {exc}")
                     )
 
                 if max_cycles and cycle >= max_cycles:

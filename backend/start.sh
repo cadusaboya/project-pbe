@@ -6,7 +6,7 @@ cd /app
 # Run migrations
 python manage.py migrate --noinput
 
-# Start fetch loop in background (LIVE first, then PBE — auto-restarts on crash)
+# Start fetch loop in background (LIVE only — auto-restarts on crash)
 (while true; do
     python manage.py fetch_loop --interval 300
     echo "fetch_loop exited, restarting in 30s..."

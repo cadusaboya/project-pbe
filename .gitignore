@@ -13,6 +13,7 @@ __pycache__/
 venv/
 .env
 .cdragon_cache/
+backend/test_lobbies/
 
 # Mac
 .DS_Store

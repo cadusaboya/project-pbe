@@ -72,6 +72,70 @@ Fungster#fungu:NA
 Broseph#LAB:NA
 milala#milal:NA
 hsk#NA2
+
+kubixon#EUNE:EUNE
+RykoMastery NA#NA1:NA
+SLY Vomendeth#EUWW:EUW
+Dalesom#EUW:EUW
+Tomino#EUW:EUW
+AEG Gobosteur#WTB:EUW
+Deis1k#NA1:NA
+m0tiv#EUW:EUW
+KC Double#1011:EUW
+Tarteman#EUW:EUW
+AUG#1410:EUW
+Ginggg#NA2:NA
+Dicob#BAO:EUW
+SLY Yobidashi#Yob:EUW
+traviscwat#cat:EUW
+RCS Xperion#EUW11:EUW
+Crescent#78887:NA
+HoroX#EUW:EUW
+Hypno#EUW:EUW
+Reven#EUW:EUW
+M00ritz#EUW:EUW
+Wet Jungler#123:EUW
+Opale#EUW:EUW
+SLY Voltariux#EUW:EUW
+PeepoGlad#EUW:EUW
+ZyK0o#EUW:EUW
+
+ViggoZe#EUW:EUW
+Clemou#EUW:EUW
+L3SCoco#EUW:EUW
+Lyyyress#EUW:EUW
+MIH bensac#WTB:EUW
+RRQ Kevin Parker#EUW:EUW
+Alegory#EUW:EUW
+luffy57773#EUW:EUW
+MKOI ODESZA#000:EUW
+NLV Petikk#EUW:EUW
+Gullosko#EUW:EUW
+Skipaeus#9232:EUW
+blah blah blah#tft:EUW
+XAN Jonction#EUW:EUW
+Marks#EUW:EUW
+MKOI Safo20#BAD:EUW
+TEHGEO#EUW:EUW
+KC Canbizz#EUW:EUW
+Loescher#yerba:EUW
+Lloydd#EUW:EUW
+xus0o#EUW:EUW
+TFT PANDA#2025:EUW
+Narkez#nicha:EUW
+Adiq#EUW:EUW
+Elia#269:EUW
+M8 Jedusor#EUW:EUW
+Lelouuch#EUW:EUW
+M8 Enzo#EUW:EUW
+whyyoumadpro#EUW:EUW
+Arzoo#EUW:EUW
+Phos#EUW:EUW
+Cynar#EUW:EUW
+ToonTv#EUW:EUW
+NoelTFT#EUNE:EUNE
+Bural#EUW:EUW
+Garkes#EUW:EUW
 """
 
 _STRIP_CHARS = "\u2066\u2069\u200b\u200c\u200d\ufeff"
