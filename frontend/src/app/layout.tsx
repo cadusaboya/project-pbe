@@ -72,7 +72,7 @@ export default async function RootLayout({
       </head>
       <body className="min-h-screen bg-tft-bg text-tft-text antialiased">
         <header className="border-b border-tft-border bg-gradient-to-b from-tft-surface to-tft-bg/95 backdrop-blur-sm sticky top-0 z-20">
-          <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 sm:py-3 space-y-2 sm:space-y-3">
+          <div className="px-3 sm:px-6 py-2 sm:py-3 space-y-2 sm:space-y-3">
             <div className="flex items-center gap-2 sm:gap-3">
               <Link href="/" className="flex items-center gap-2 shrink-0">
                 <Image
@@ -133,7 +133,7 @@ export default async function RootLayout({
           </Suspense>
         </header>
         <FreshnessGuard dataVersion={dv} />
-        <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">{children}</main>
+        <main className="px-3 sm:px-6 py-4 sm:py-8">{children}</main>
         <Analytics />
         <SpeedInsights />
       </body>

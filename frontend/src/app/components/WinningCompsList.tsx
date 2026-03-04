@@ -27,6 +27,11 @@ export interface WinningUnit {
   items: string[];
 }
 
+export interface LobbyPlayer {
+  name: string;
+  placement: number;
+}
+
 export interface WinningComp {
   match_id: string;
   game_datetime: string;
@@ -34,6 +39,7 @@ export interface WinningComp {
   winner: string;
   placement: number;
   units: WinningUnit[];
+  lobby_players?: LobbyPlayer[];
 }
 
 interface DisplayComp {
@@ -44,6 +50,7 @@ interface DisplayComp {
   placement: number;
   level?: number;
   units: WinningUnit[];
+  lobby_players?: LobbyPlayer[];
 }
 
 interface LobbyParticipant {
@@ -154,13 +161,13 @@ function TraitChips({
             className={`inline-flex items-center rounded border font-bold ${
               small
                 ? "gap-0 pl-0.5 pr-1 h-5 text-[10px]"
-                : "gap-0.5 pl-0.5 pr-1.5 h-6 text-xs"
+                : "gap-0 pl-0.5 pr-1 h-5 text-[10px]"
             } ${style.chip}`}
             title={`${t.name} ${suffix} — breakpoints ${t.breakpoints.join("/")}`}
           >
             {t.icon && (
               <span
-                className={`${small ? "w-3.5 h-3.5" : "w-4 h-4"} shrink-0 inline-block`}
+                className={`${small ? "w-3.5 h-3.5" : "w-3.5 h-3.5"} shrink-0 inline-block`}
                 style={{
                   backgroundColor: style.iconColor,
                   WebkitMaskImage: `url(${t.icon})`,
@@ -410,7 +417,7 @@ function UnitChip({
       <UnitImage
         characterId={unit.character_id}
         cost={unit.cost}
-        size={44}
+        size={52}
         className={highlighted ? "!border-tft-gold" : undefined}
       />
       <div className="absolute -top-3 left-0 right-0 flex justify-center z-10 pointer-events-none">
@@ -540,6 +547,11 @@ function CompCard({
               >
                 {displayPlayerName(comp.player)}
               </a>
+              {comp.lobby_players && comp.lobby_players.length > 0 && (
+                <span className="text-tft-muted/50 text-xs font-normal truncate">
+                  Also in lobby: {comp.lobby_players.map((lp) => displayPlayerName(lp.name)).join(", ")}
+                </span>
+              )}
               {comp.level != null && (
                 <span className="text-tft-muted text-xs">Lvl {comp.level}</span>
               )}
@@ -741,6 +753,7 @@ export default function WinningCompsList({
             player: c.winner,
             placement: c.placement,
             units: c.units,
+            lobby_players: c.lobby_players,
           })));
         }
       } catch (e) {
@@ -825,6 +838,7 @@ export default function WinningCompsList({
         player: c.winner,
         placement: c.placement,
         units: c.units,
+        lobby_players: c.lobby_players,
       }));
     }
 
