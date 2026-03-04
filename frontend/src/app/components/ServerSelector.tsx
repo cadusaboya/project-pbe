@@ -7,7 +7,6 @@ const VALID_SERVERS = ["pbe", "live", "scrims"];
 const SERVERS = [
   { value: "pbe", label: "PBE" },
   { value: "live", label: "Live" },
-  { value: "scrims", label: "Scrims" },
 ] as const;
 
 export default function ServerSelector() {
