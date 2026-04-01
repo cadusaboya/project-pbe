@@ -27,7 +27,7 @@ def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "
         True  — match was new and has been stored.
         False — match already existed in the database; nothing changed.
     """
-    from tracker.models import Match, Participant, Player, Unit, UnitUsage  # avoid top-level circular
+    from tracker.models import Match, Participant, Unit, UnitUsage  # avoid top-level circular
 
     match_id: str = match_data["metadata"]["match_id"]
     game_datetime_ms: int = match_data["info"]["game_datetime"]
