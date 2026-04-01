@@ -14,6 +14,7 @@ Usage:
 import httpx
 from django.core.management.base import BaseCommand
 
+from tracker.constants import CURRENT_SET_NUMBER, CURRENT_SET_PREFIX
 from tracker.models import Unit
 
 CDRAGON_URL = (
@@ -52,19 +53,39 @@ class Command(BaseCommand):
 
         self.stdout.write(f"Found data for {len(champion_lookup)} champions.")
 
+        # Create missing Units for the current set
+        existing_ids = set(Unit.objects.values_list("character_id", flat=True))
+        created = 0
+        for api_name, entry in champion_lookup.items():
+            if api_name.startswith(CURRENT_SET_PREFIX) and api_name not in existing_ids:
+                Unit.objects.create(
+                    character_id=api_name,
+                    cost=entry["cost"],
+                    traits=entry["traits"],
+                )
+                self.stdout.write(
+                    self.style.SUCCESS(f"  + {api_name}: cost={entry['cost']}, traits={entry['traits']}")
+                )
+                created += 1
+
+        if created:
+            self.stdout.write(self.style.SUCCESS(f"Created {created} new Set {CURRENT_SET_NUMBER} units."))
+
+        # Update existing Units
         units = list(Unit.objects.all())
         updated, not_found = 0, []
 
         for unit in units:
             entry = champion_lookup.get(unit.character_id)
             if entry:
-                unit.cost = entry["cost"]
-                unit.traits = entry["traits"]
-                unit.save(update_fields=["cost", "traits"])
-                self.stdout.write(
-                    f"  {unit.character_id}: cost={unit.cost}, traits={unit.traits}"
-                )
-                updated += 1
+                if unit.cost != entry["cost"] or unit.traits != entry["traits"]:
+                    unit.cost = entry["cost"]
+                    unit.traits = entry["traits"]
+                    unit.save(update_fields=["cost", "traits"])
+                    self.stdout.write(
+                        f"  ~ {unit.character_id}: cost={unit.cost}, traits={unit.traits}"
+                    )
+                    updated += 1
             else:
                 not_found.append(unit.character_id)
 
