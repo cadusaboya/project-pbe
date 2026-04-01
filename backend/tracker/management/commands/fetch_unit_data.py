@@ -33,25 +33,24 @@ class Command(BaseCommand):
             resp.raise_for_status()
             data = resp.json()
 
-        # Build lookup: apiName → {cost, traits} from every set entry.
-        # Later sets overwrite earlier ones for the same apiName, which is fine.
-        champion_lookup: dict[str, dict] = {}
+        # Build lookup from current set only
+        set_key = str(CURRENT_SET_NUMBER)
         sets = data.get("sets", {})
-        if not sets:
-            self.stderr.write("No 'sets' key found in CDragon response. Aborting.")
+        if set_key not in sets:
+            self.stderr.write(f"Set '{set_key}' not found in CDragon response. Aborting.")
             return
 
-        for set_key, set_entry in sets.items():
-            for champ in set_entry.get("champions", []):
-                api_name: str = champ.get("apiName", "")
-                if not api_name:
-                    continue
-                champion_lookup[api_name] = {
-                    "cost": champ.get("cost", 0),
-                    "traits": champ.get("traits", []),
-                }
+        champion_lookup: dict[str, dict] = {}
+        for champ in sets[set_key].get("champions", []):
+            api_name: str = champ.get("apiName", "")
+            if not api_name:
+                continue
+            champion_lookup[api_name] = {
+                "cost": champ.get("cost", 0),
+                "traits": champ.get("traits", []),
+            }
 
-        self.stdout.write(f"Found data for {len(champion_lookup)} champions.")
+        self.stdout.write(f"Found {len(champion_lookup)} Set {CURRENT_SET_NUMBER} champions.")
 
         # Create missing Units for the current set
         existing_ids = set(Unit.objects.values_list("character_id", flat=True))

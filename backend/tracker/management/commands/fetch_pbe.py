@@ -102,7 +102,7 @@ class Command(BaseCommand):
         else:
             players = all_players
 
-        fetch_since_ms = int(fetch_cutoff_utc.timestamp() * 1000)
+        fetch_since = int(fetch_cutoff_utc.timestamp())
 
         self.stdout.write(
             f"Processing {len(players)} players - matches on/after {fetch_cutoff_utc.isoformat()} UTC\n"
@@ -144,7 +144,7 @@ class Command(BaseCommand):
             puuid_to_player=puuid_to_player,
             server="PBE",
             get_routing=lambda _player: "americas",
-            get_match_ids_kwargs=lambda _player: {"start_time": fetch_since_ms},
+            get_match_ids_kwargs=lambda _player: {"start_time": fetch_since},
             filter_match=_filter_match,
             cooldown_seconds=cooldown_seconds,
         )
