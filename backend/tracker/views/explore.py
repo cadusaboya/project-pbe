@@ -293,9 +293,7 @@ class ExploreView(APIView):
             Unit.objects.values_list("character_id", "traits")
         )
 
-        qs = Participant.objects.filter(match__server=server)
-        if server == "LIVE":
-            qs = qs.filter(player__isnull=False)
+        qs = Participant.objects.filter(match__server=server, player__isnull=False)
         if game_version:
             qs = qs.filter(match__game_version=game_version)
         # Defer raw_json to avoid loading ~22KB per match in the JOIN;

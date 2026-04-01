@@ -162,13 +162,11 @@ class HiddenCompsView(APIView):
             top_flex = 5
 
         participants = (
-            Participant.objects.filter(match__server=server)
+            Participant.objects.filter(match__server=server, player__isnull=False)
             .select_related("match")
             .prefetch_related("unit_usages__unit")
             .order_by("id")
         )
-        if server == "LIVE":
-            participants = participants.filter(player__isnull=False)
         if game_version:
             participants = participants.filter(match__game_version=game_version)
 
@@ -389,9 +387,7 @@ class CompsView(APIView):
             raw_units = comp.units if isinstance(comp.units, list) else []
             comp_units_all |= {str(u).strip() for u in raw_units if str(u).strip()}
 
-        base_qs = Participant.objects.filter(match__server=server).order_by("id")
-        if server == "LIVE":
-            base_qs = base_qs.filter(player__isnull=False)
+        base_qs = Participant.objects.filter(match__server=server, player__isnull=False).order_by("id")
         if game_version:
             base_qs = base_qs.filter(match__game_version=game_version)
 
@@ -911,12 +907,10 @@ class SearchCompsView(APIView):
             .order_by("placement"),
             to_attr="_tracked_lobby",
         )
-        qs = Participant.objects.filter(match__server=server).select_related("match", "player").prefetch_related(
+        qs = Participant.objects.filter(match__server=server, player__isnull=False).select_related("match", "player").prefetch_related(
             Prefetch("unit_usages", queryset=UnitUsage.objects.select_related("unit")),
             tracked_lobby,
         )
-        if server == "LIVE":
-            qs = qs.filter(player__isnull=False)
         if game_version:
             qs = qs.filter(match__game_version=game_version)
 

@@ -55,9 +55,8 @@ class ItemStatsView(APIView):
         qs = UnitUsage.objects.filter(
             unit__character_id=unit_name,
             participant__match__server=server,
+            participant__player__isnull=False,
         ).select_related("participant")
-        if server == "LIVE":
-            qs = qs.filter(participant__player__isnull=False)
         if game_version:
             qs = qs.filter(participant__match__game_version=game_version)
 

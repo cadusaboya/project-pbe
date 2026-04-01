@@ -51,9 +51,7 @@ class StatsView(APIView):
             last_polled = player_qs.aggregate(latest=Max("last_polled_at"))["latest"]
             last_run = last_polled.isoformat() if last_polled else None
 
-        participant_qs = Participant.objects.filter(match__server=server)
-        if server == "LIVE":
-            participant_qs = participant_qs.filter(player__isnull=False)
+        participant_qs = Participant.objects.filter(match__server=server, player__isnull=False)
         if game_version:
             participant_qs = participant_qs.filter(match__game_version=game_version)
 
@@ -113,9 +111,8 @@ class UnitStatsView(ListAPIView):
         qs = UnitUsage.objects.filter(
             participant__match__game_version=game_version,
             participant__match__server=server,
+            participant__player__isnull=False,
         )
-        if server == "LIVE":
-            qs = qs.filter(participant__player__isnull=False)
         qs = (
             qs.values("unit__character_id", "unit__cost", "unit__traits")
             .annotate(
@@ -194,9 +191,11 @@ class UnitStarStatsView(APIView):
 
     def get(self, request, unit_name: str):
         server = request.query_params.get("server", "PBE").upper()
-        qs = UnitUsage.objects.filter(unit__character_id=unit_name, participant__match__server=server)
-        if server == "LIVE":
-            qs = qs.filter(participant__player__isnull=False)
+        qs = UnitUsage.objects.filter(
+            unit__character_id=unit_name,
+            participant__match__server=server,
+            participant__player__isnull=False,
+        )
 
         game_version = request.query_params.get("game_version")
         if game_version:
