@@ -6,8 +6,7 @@ Parses a raw TFT match JSON blob (from Riot API) and persists:
   - Participant      (one row per participant — all 8, tracked or not)
   - Unit / UnitUsage (one row per champion slot per participant)
 
-For untracked participants, a Player record is created on-the-fly using
-the riotIdGameName / riotIdTagLine fields present in the match JSON.
+Untracked participants are stored with player=NULL.
 """
 import datetime
 import logging
@@ -58,22 +57,9 @@ def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "
         if not puuid:
             continue
 
-        # Use existing tracked player or handle untracked participant.
+        # Use existing tracked player or store with player=NULL.
         player = puuid_to_player.get(puuid)
-        if player is None:
-            if server == "LIVE":
-                # Live: store participant with player=None (no new Player record).
-                player = None
-            else:
-                game_name: str = p_data.get("riotIdGameName") or puuid[:16]
-                tag_line: str = p_data.get("riotIdTagLine") or "unknown"
-                player, player_created = Player.objects.get_or_create(
-                    puuid=puuid,
-                    defaults={"game_name": game_name, "tag_line": tag_line},
-                )
-                if player_created:
-                    logger.info("New player created on-the-fly: %s#%s", game_name, tag_line)
-        else:
+        if player is not None:
             tracked_count += 1
 
         participant, _ = Participant.objects.get_or_create(
