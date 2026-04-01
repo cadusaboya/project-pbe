@@ -6,7 +6,7 @@ from django.core.management.base import BaseCommand
 
 class Command(BaseCommand):
     help = (
-        "Continuously fetch LIVE matches, refresh unit stats, wait, and repeat. "
+        "Continuously fetch PBE then LIVE matches, refresh unit stats, wait, and repeat. "
         "Default interval is 300 seconds."
     )
 
@@ -30,7 +30,7 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Starting fetch loop: LIVE only (interval={interval}s, "
+                f"Starting fetch loop: PBE + LIVE (interval={interval}s, "
                 f"max_cycles={max_cycles or 'infinite'})."
             )
         )
@@ -40,6 +40,15 @@ class Command(BaseCommand):
         try:
             while True:
                 cycle += 1
+
+                # --- PBE ---
+                try:
+                    self.stdout.write(self.style.HTTP_INFO(f"[cycle {cycle}] running fetch_pbe..."))
+                    call_command("fetch_pbe")
+                except Exception as exc:
+                    self.stderr.write(
+                        self.style.ERROR(f"[cycle {cycle}] fetch_pbe failed: {exc}")
+                    )
 
                 # --- LIVE ---
                 try:
