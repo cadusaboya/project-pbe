@@ -7,15 +7,15 @@ from django.core.management.base import BaseCommand
 from tracker.models import Match
 from tracker.services.aggregation import recompute_unit_stats
 
-DEFAULT_CUTOFF_DATE = "2026-02-21"
-DEFAULT_CUTOFF_TIME = "12:00"
+DEFAULT_CUTOFF_DATE = "2026-03-31"
+DEFAULT_CUTOFF_TIME = "00:00"
 DEFAULT_CUTOFF_TZ = "America/Cuiaba"
 
 
 class Command(BaseCommand):
     help = (
         "Delete matches with game start time earlier than a cutoff. "
-        "Default cutoff: 2026-02-21 12:00 in America/Cuiaba."
+        "Default cutoff: 2026-03-31 00:00 in America/Cuiaba."
     )
 
     def add_arguments(self, parser):

@@ -32,8 +32,7 @@ class WinningCompsView(ListAPIView):
     """
     GET /api/winning-comps/
 
-    PBE:  Returns the 1st-place composition for each stored match.
-    LIVE: Returns the best-placing tracked pro for each stored match.
+    Returns the best-placing tracked pro for each stored match.
 
     When ``player`` query param(s) are provided, returns ALL games for
     those players at any placement (not just wins).
@@ -78,13 +77,13 @@ class WinningCompsView(ListAPIView):
                 .prefetch_related("unit_usages__unit", tracked_lobby)
                 .order_by("-match__game_datetime")
             )
-        elif server == "LIVE":
+        else:
             # Best tracked pro per match: only participants with a linked player,
             # pick the one with the lowest (best) placement per match.
             best_per_match = (
                 Participant.objects.filter(
                     match=OuterRef("match"),
-                    match__server="LIVE",
+                    match__server=server,
                     player__isnull=False,
                 )
                 .order_by("placement")
@@ -93,16 +92,9 @@ class WinningCompsView(ListAPIView):
             qs = (
                 Participant.objects.filter(
                     pk__in=Subquery(best_per_match),
-                    match__server="LIVE",
+                    match__server=server,
                     player__isnull=False,
                 )
-                .select_related("match", "player")
-                .prefetch_related("unit_usages__unit", tracked_lobby)
-                .order_by("-match__game_datetime")
-            )
-        else:
-            qs = (
-                Participant.objects.filter(placement=1, match__server=server)
                 .select_related("match", "player")
                 .prefetch_related("unit_usages__unit", tracked_lobby)
                 .order_by("-match__game_datetime")
