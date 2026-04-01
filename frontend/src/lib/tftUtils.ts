@@ -30,8 +30,14 @@ export function formatUnit(name: string): string {
   return name.replace(/^TFT\d+_/, "");
 }
 
+// CDragon uses a different HUD filename for some transformed/spawned units.
+const UNIT_IMAGE_OVERRIDES: Record<string, string> = {
+  tft17_rhaast: `${CDRAGON_BASE}/pbe/game/assets/characters/tft17_rhaast/hud/tft17_kayn_slay_square.tft_set17.png`,
+};
+
 export function unitImageUrl(characterId: string): string {
   const lower = characterId.toLowerCase();
+  if (UNIT_IMAGE_OVERRIDES[lower]) return UNIT_IMAGE_OVERRIDES[lower];
   const setNum = lower.match(/^tft(\d+)_/)?.[1] ?? "17";
   return `${CDRAGON_BASE}/pbe/game/assets/characters/${lower}/hud/${lower}_square.tft_set${setNum}.png`;
 }

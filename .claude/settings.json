@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/tmp/test_set17_urls.js:*)",
+      "Bash(node /tmp/test_set17_urls.js:*)",
+      "Bash(/tmp/compare_paths.txt:*)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
+    ]
+  }
+}
