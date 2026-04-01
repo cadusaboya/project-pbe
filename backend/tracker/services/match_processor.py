@@ -13,6 +13,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Units to ignore entirely (spawned minions with no HUD image, etc.)
+SKIP_UNITS = {"tft17_bardfollower"}
+
 
 def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "Set 17 A", server: str = "PBE") -> bool:
     """
@@ -76,7 +79,7 @@ def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "
         unit_usages: list[UnitUsage] = []
         for unit_data in p_data.get("units", []):
             character_id: str = unit_data.get("character_id", "")
-            if not character_id:
+            if not character_id or character_id.lower() in SKIP_UNITS:
                 continue
 
             unit, _ = Unit.objects.get_or_create(character_id=character_id)
