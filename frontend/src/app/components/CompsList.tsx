@@ -338,7 +338,7 @@ export default function CompsList({
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [plannerMap, setPlannerMap] = useState<TeamPlannerMap>({});
-  const [plannerSetKey, setPlannerSetKey] = useState("TFTSet16");
+  const [plannerSetKey, setPlannerSetKey] = useState("TFTSet17");
 
   // Fetch CDragon team planner data once to build code mapping
   useEffect(() => {

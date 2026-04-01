@@ -150,7 +150,7 @@ function UnifiedSearch({
   const allTraits = useMemo(() => Object.keys(traitData).sort(), [traitData]);
   const allItems = useMemo(() => {
     const ids = Object.keys(itemAssets).filter(
-      (i) => (i.startsWith("TFT_Item_") || i.startsWith("TFT16_Item_") || i.startsWith("TFT16_TheDarkin")) && !i.includes("Augment")
+      (i) => (i.startsWith("TFT_Item_") || /^TFT\d+_Item_/.test(i) || /^TFT\d+_TheDarkin/.test(i)) && !i.includes("Augment")
     );
     // Deduplicate by display name — keep the canonical ID (no Corrupted/Tutorial/Assist/AcademyCopy)
     const VARIANT_MARKERS = ["Corrupted", "Tutorial", "Assist", "AcademyCopy", "Encounter", "ChoiceItem"];

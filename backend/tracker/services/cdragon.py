@@ -54,7 +54,7 @@ def parse_trait_data(data: dict, icon_base: str) -> tuple[dict, dict[str, str]]:
         breakpoints = [
             e["minUnits"]
             for e in (trait.get("effects") or [])
-            if e.get("minUnits", 0) > 0
+            if (e.get("minUnits") or 0) > 0
         ]
         if not breakpoints:
             continue
