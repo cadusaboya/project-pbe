@@ -1,8 +1,7 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
-
-const VALID_SERVERS = ["pbe", "live", "scrims"];
+import { VALID_SERVERS_SET, getServerFromPath } from "@/lib/constants";
 
 const SERVERS = [
   { value: "pbe", label: "PBE" },
@@ -15,11 +14,11 @@ export default function ServerSelector() {
 
   // Extract current server from path: /pbe/comps → "pbe"
   const first = pathname.split("/")[1]?.toLowerCase();
-  const current = VALID_SERVERS.includes(first ?? "") ? first! : "pbe";
+  const current = getServerFromPath(pathname);
 
   function handleChange(newServer: string) {
     // Replace the server segment in the path, drop query params (versions differ)
-    const rest = VALID_SERVERS.includes(first ?? "")
+    const rest = VALID_SERVERS_SET.has(first ?? "")
       ? pathname.slice(first!.length + 1) // strip /<server>
       : pathname; // on landing page or unknown path
     router.push(`/${newServer}${rest || "/comps"}`);

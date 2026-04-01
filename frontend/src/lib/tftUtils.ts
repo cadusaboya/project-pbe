@@ -32,7 +32,7 @@ export function formatUnit(name: string): string {
 
 export function unitImageUrl(characterId: string): string {
   const lower = characterId.toLowerCase();
-  const setNum = lower.match(/^tft(\d+)_/)?.[1] ?? "16";
+  const setNum = lower.match(/^tft(\d+)_/)?.[1] ?? "17";
   return `${CDRAGON_BASE}/pbe/game/assets/characters/${lower}/hud/${lower}_square.tft_set${setNum}.png`;
 }
 
@@ -58,7 +58,7 @@ export async function fetchTeamPlannerMap(): Promise<{ map: TeamPlannerMap; setK
     const na = parseInt(a.match(/\d+/)?.[0] ?? "0", 10);
     const nb = parseInt(b.match(/\d+/)?.[0] ?? "0", 10);
     return na - nb;
-  }).pop() ?? "TFTSet16";
+  }).pop() ?? "TFTSet17";
   const champions = data[setKey] ?? [];
   const map: TeamPlannerMap = {};
   for (const c of champions) {
@@ -71,7 +71,7 @@ export async function fetchTeamPlannerMap(): Promise<{ map: TeamPlannerMap; setK
 export function generateTeamPlannerCode(
   characterIds: string[],
   plannerMap: TeamPlannerMap,
-  setKey = "TFTSet16",
+  setKey = "TFTSet17",
 ): string {
   const slots: string[] = [];
   for (const id of characterIds) {

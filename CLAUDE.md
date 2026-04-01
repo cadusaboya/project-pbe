@@ -42,26 +42,40 @@ backend/
 │   └── wsgi.py
 └── tracker/                          # Main app
     ├── models.py                     # Player, Match, Participant, Unit, UnitUsage, AggregatedUnitStat, Comp
+    ├── constants.py                  # CURRENT_SET_NUMBER, CURRENT_SET_PREFIX, SET_TRAIT_PREFIX
     ├── serializers.py                # UnitStatSerializer, WinningUnitSerializer, WinningCompSerializer
-    ├── views.py                      # 18+ REST endpoints (APIView + ListAPIView)
-    ├── urls.py
+    ├── urls.py                       # Imports views from views/ package (unchanged API)
+    ├── views/                        # REST endpoints split by domain (was views.py)
+    │   ├── __init__.py               # Re-exports all view classes (urls.py imports unchanged)
+    │   ├── helpers.py                # cc(), SORT_MAP, unit_slot_weight(), slots_used()
+    │   ├── stats.py                  # DataVersionView, StatsView, VersionsView, UnitStatsView, UnitStarStatsView
+    │   ├── items.py                  # ItemAssetsView, ItemStatsView
+    │   ├── explore.py                # ExploreView, ExploreMatchesView, _run_explore_filter()
+    │   ├── comps.py                  # CompsView, HiddenCompsView, SearchCompsView, WinningCompsView
+    │   ├── players.py                # PlayerProfileView, PlayerListView, PlayerStatsView
+    │   └── cdragon.py                # TraitDataView, ChampionsView, MatchLobbyView
     ├── services/
     │   ├── riot_api.py               # Async Riot API client (semaphore + retry + region routing)
     │   ├── aggregation.py            # recompute_unit_stats(server=None)
-    │   └── match_processor.py        # process_match(data, puuid_map, version, server)
+    │   ├── match_processor.py        # process_match(data, puuid_map, version, server)
+    │   ├── cdragon.py                # CDragon trait/champion data fetching + in-memory/disk caching
+    │   ├── items.py                  # Item asset/name loading + canonical map (dedup by display name)
+    │   └── cache.py                  # VersionedCache class (version-based invalidation)
     └── management/commands/
-        ├── fetch_puuid.py            # PBE: resolve ~285 Riot IDs → PUUIDs (region="PBE")
-        ├── fetch_live_puuid.py       # LIVE: resolve ~45 Riot IDs → PUUIDs (region=NA1/KR/EUW1/etc.)
-        ├── fetch_pbe.py              # PBE: fetch recent matches (MIN_TRACKED=6, date cutoff)
-        ├── fetch_live.py             # LIVE: fetch recent matches (MIN_TRACKED=1, version filter)
+        ├── _player_utils.py          # Shared: STRIP_CHARS, strip_unicode(), parse_player_lines(), fetch_accounts_async()
+        ├── _fetch_utils.py           # Shared: fetch_match_ids_async(), fetch_single_match_async(), process_player_matches(), finish_fetch()
+        ├── fetch_puuid.py            # PBE: resolve ~285 Riot IDs → PUUIDs (uses _player_utils)
+        ├── fetch_live_puuid.py       # LIVE: resolve ~45 Riot IDs → PUUIDs (uses _player_utils)
+        ├── fetch_pbe.py              # PBE: fetch recent matches (uses _fetch_utils)
+        ├── fetch_live.py             # LIVE: fetch recent matches (uses _fetch_utils)
         ├── fetch_pbe_loop.py         # Daemon: continuous PBE fetching
         ├── fetch_item_data.py        # CDragon → item_assets.json + item_names.json
         ├── fetch_unit_data.py        # CDragon → Unit model (cost, traits)
         ├── update_unit_stats.py      # Manual recompute_unit_stats()
-        ├── upsert_comp.py            # Create/update Comp with constraints
+        ├── upsert_comp.py            # Create/update Comp with constraints (uses constants.py)
         ├── top_comps.py              # Comp analysis (full boards or N-highest-cost core)
         ├── top_compositions.py       # Exact K-unit combinations frequency
-        ├── suggest_comps.py          # Auto-discover comp archetypes
+        ├── suggest_comps.py          # Auto-discover comp archetypes (uses constants.py)
         ├── delete_comp.py            # Delete Comp(s) by name
         ├── delete_matches_before_cutoff.py  # Cleanup old matches (env-configurable cutoff)
         ├── fix_pbe_game_version.py   # Bulk-fix game_version by switchover datetime
@@ -73,22 +87,27 @@ frontend/
 ├── tailwind.config.ts                # TFT color theme
 ├── tsconfig.json
 └── src/
-    ├── middleware.ts                  # Redirects /comps → /pbe/comps, validates server param
+    ├── middleware.ts                  # Redirects /comps → /pbe/comps, validates server param (uses lib/constants)
     ├── lib/
     │   ├── backend.ts                # Backend URL builder (dev/prod)
     │   ├── api.ts                    # ISR cache-busting: getDataVersion(), fetchApi(), fetchJson()
-    │   └── tftUtils.ts              # unitImageUrl(), itemImageUrl(), formatUnit(), costBorderColor()
+    │   ├── tftUtils.ts               # unitImageUrl(), itemImageUrl(), formatUnit(), costBorderColor()
+    │   ├── constants.ts              # VALID_SERVERS, VALID_SERVERS_SET, STAR_LABELS, TRAIT_TIER_STYLES, getServerFromPath(), DEFAULT_GAME_VERSION
+    │   ├── formatters.ts             # compTier(), avpColor(), avpTextColor(), formatDate(), formatDateCompact(), displayPlayerName(), formatItemName(), formatTrait(), placementColor/Badge/Style(), winRateColor(), top4RateColor(), deltaColor()
+    │   └── types.ts                  # BoardUnit, LobbyParticipant, TraitInfo, TraitState, UnitStat, LobbyPlayer, PlayerInfo, computeTraits()
     └── app/
         ├── layout.tsx                # Root layout: header, ServerSelector, Nav, StatsBar, FreshnessGuard
-        ├── page.tsx                  # Landing page with quick stats
+        ├── page.tsx                  # Landing page with quick stats (imports from lib/formatters, lib/tftUtils)
         ├── globals.css               # Inter font, custom scrollbar, loading animation
         ├── api/freshness/route.ts    # Proxy to /api/data-version/ (force-dynamic, no-store)
         ├── components/
-        │   ├── Nav.tsx               # 7 nav links (comps, stats, items, search, feed, players, explore)
-        │   ├── ServerSelector.tsx    # PBE/Live toggle (swaps URL server segment)
+        │   ├── Nav.tsx               # 7 nav links (uses getServerFromPath from lib/constants)
+        │   ├── ServerSelector.tsx    # PBE/Live toggle (uses getServerFromPath, VALID_SERVERS_SET from lib/constants)
         │   ├── StatsBar.tsx          # Matches analyzed, participants, last fetch time
         │   ├── FreshnessGuard.tsx    # Polls data-version, auto-reloads on change (60s cooldown)
         │   ├── TftImage.tsx          # UnitImage + ItemImage with CDragon URLs and fallbacks
+        │   ├── TraitChips.tsx        # Shared trait visualization (used by WinningCompsList, SearchComps, ExploreMatches, PlayerProfile)
+        │   ├── UnitPicker.tsx        # Shared dropdown champion picker with keyboard nav (used by WinningCompsList, SearchComps)
         │   ├── StatsTable.tsx        # Sortable unit stats table with expandable star/item details
         │   ├── CompsList.tsx         # Comp cards with flex combos, tiers (S/A/B/C/D), explore button
         │   ├── WinningCompsList.tsx  # 1st-place matches with trait viz, expandable lobby
@@ -98,7 +117,7 @@ frontend/
         │   ├── PlayerProfile.tsx     # Player detail: stats, top units, last 20, match history
         │   └── PlayerStatsList.tsx   # Player rankings with sortable columns
         └── [server]/                 # Dynamic segment: "pbe" or "live"
-            ├── layout.tsx            # Validates server param (404 if invalid)
+            ├── layout.tsx            # Validates server param via VALID_SERVERS_SET (404 if invalid)
             ├── page.tsx              # Redirects to /{server}/comps
             ├── comps/page.tsx        # Curated compositions
             ├── comps/hidden/page.tsx # Auto-discovered compositions
@@ -117,9 +136,9 @@ frontend/
 |---|---|---|
 | Player | game_name, tag_line, puuid (unique), **region** (default="PBE"), last_seen_match_id, last_polled_at | unique_together: (game_name, tag_line, region) |
 | Match | match_id (PK), game_datetime, game_version, **server** (PBE/LIVE), raw_json, created_at | server field indexed |
-| Participant | FK Match (CASCADE) + FK Player (nullable, SET_NULL), puuid, placement, level, gold_left | unique_together: (match, puuid) |
+| Participant | FK Match (CASCADE) + FK Player (nullable, SET_NULL), puuid, placement, level, gold_left | unique_together: (match, puuid). Indexes: (match, player), (match, placement) |
 | Unit | character_id (unique), cost, traits (JSONField) | Immutable metadata from CDragon |
-| UnitUsage | FK Participant (CASCADE) + FK Unit (CASCADE), star_level, rarity, items (JSONField) | Bulk-created per match |
+| UnitUsage | FK Participant (CASCADE) + FK Unit (CASCADE), star_level, rarity, items (JSONField) | Bulk-created per match. Index: (participant, unit) |
 | AggregatedUnitStat | FK Unit (CASCADE), **server** (PBE/LIVE), games, total_placement, avg_placement, top4_rate, win_rate | unique_together: (unit, server) |
 | Comp | name, **server** (PBE/LIVE), units, target_level, excluded_units, excluded_unit_counts, required_traits, required_unit_counts, required_unit_star_levels, required_unit_item_counts, required_trait_breakpoints, excluded_traits, is_active | unique_together: (name, server) |
 
@@ -263,12 +282,47 @@ python manage.py convert_game_version              # rename version labels
 - Applied before all aggregation/filtering
 
 ### Caching strategy
-- **Backend in-memory**: trait/champion data (1h TTL), item assets (persistent), versions/players/comps/explore (version-based invalidation on match count)
-- **HTTP Cache-Control**: 30s (data-version) to 300s (most endpoints)
+- **Backend in-memory**: `VersionedCache` class (`services/cache.py`) provides version-based invalidation keyed on match count. Used by stats, comps, explore, players, and versions views.
+- **CDragon data**: trait/champion data cached in-memory (1h TTL) + disk cache in `_cdragon_cache/` (`services/cdragon.py`)
+- **Item data**: item assets/names loaded once from JSON files, canonical map cached (`services/items.py`)
+- **HTTP Cache-Control**: 30s (data-version) to 300s (most endpoints), via `cc()` helper (`views/helpers.py`)
 - **Frontend**: ISR with data-version cache busting, FreshnessGuard auto-reload
 
+### Backend views architecture
+The `views/` package splits endpoints by domain. `__init__.py` re-exports all view classes so `urls.py` imports are unchanged:
+- `helpers.py` — shared utilities: `cc()` (Cache-Control wrapper), `SORT_MAP`, `unit_slot_weight()`, `slots_used()`
+- `stats.py` — DataVersionView, StatsView, VersionsView, UnitStatsView, UnitStarStatsView
+- `items.py` — ItemAssetsView, ItemStatsView
+- `explore.py` — ExploreView, ExploreMatchesView + `_run_explore_filter()` helper
+- `comps.py` — CompsView, HiddenCompsView, SearchCompsView, WinningCompsView
+- `players.py` — PlayerProfileView, PlayerListView, PlayerStatsView (uses DB-level `annotate()` for aggregation)
+- `cdragon.py` — TraitDataView, ChampionsView, MatchLobbyView
+
+### Backend services
+- `services/cdragon.py` — CDragon trait/champion data fetching, parsing, in-memory + disk caching
+- `services/items.py` — Item asset/name loading from JSON, canonical map for deduplication
+- `services/cache.py` — `VersionedCache` class: `get(key, current_version)`, `set(key, value, current_version)`
+- `services/riot_api.py` — Async Riot API client (existing)
+- `services/aggregation.py` — `recompute_unit_stats()` (existing)
+- `services/match_processor.py` — `process_match()` (existing)
+
+### Management command shared utilities
+- `_player_utils.py` — Shared between `fetch_puuid` and `fetch_live_puuid`: Unicode stripping, player line parsing, async account resolution
+- `_fetch_utils.py` — Shared between `fetch_pbe` and `fetch_live`: async match ID/data fetching, `process_player_matches()` loop, `finish_fetch()` summary
+- `constants.py` (`tracker/constants.py`) — `CURRENT_SET_NUMBER=16`, `CURRENT_SET_PREFIX="TFT16_"`, `SET_TRAIT_PREFIX="Set16_"`. Used by upsert_comp, suggest_comps, fetch_live, and other commands.
+
+### Frontend shared libraries
+- `lib/constants.ts` — `VALID_SERVERS`, `VALID_SERVERS_SET`, `STAR_LABELS`, `TRAIT_TIER_STYLES`, `getServerFromPath()`, `ServerSlug` type, `DEFAULT_GAME_VERSION`
+- `lib/formatters.ts` — All formatting/color utilities: `compTier()`, `avpColor()`, `avpTextColor()`, `formatDate()`, `formatDateCompact()`, `displayPlayerName()`, `formatItemName()`, `formatTrait()`, `placementColor()`, `placementBadge()`, `placementStyle()`, `winRateColor()`, `top4RateColor()`, `deltaColor()`
+- `lib/types.ts` — Shared TypeScript types: `BoardUnit`, `LobbyParticipant`, `TraitInfo`, `TraitState`, `UnitStat`, `LobbyPlayer`, `PlayerInfo` + `computeTraits()` function
+
+### Frontend shared components
+- `TraitChips.tsx` — Trait visualization with breakpoint progress, supports `small` prop for compact mode. Used by WinningCompsList, SearchComps, ExploreMatches, PlayerProfile.
+- `UnitPicker.tsx` — Dropdown champion selector with keyboard navigation and search filtering. Used by WinningCompsList, SearchComps. Configurable `placeholder` prop.
+
 ### Trait visualization (frontend)
-- Traits computed from unit data using CDragon breakpoints
+- Traits computed from unit data using CDragon breakpoints via `computeTraits()` in `lib/types.ts`
+- Rendered by shared `TraitChips` component
 - Color-coded by tier: unique=red, bronze=amber, silver=slate, gold=yellow, chromatic=violet
 - Shows breakpoint progress (e.g., "3/4")
 

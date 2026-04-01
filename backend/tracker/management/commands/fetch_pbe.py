@@ -23,20 +23,25 @@ import logging
 import os
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-import httpx
 from django.core.management.base import BaseCommand
 
-from tracker.models import Match, Player
+from tracker.models import Player
 from tracker.services.aggregation import recompute_unit_stats
 from tracker.services.match_processor import process_match
-from tracker.services.riot_api import RiotAPIService
+from tracker.management.commands._fetch_utils import (
+    fetch_single_match_async,
+    finish_fetch,
+    process_player_matches,
+)
 
 logger = logging.getLogger(__name__)
 
-GAME_VERSION = "16.6 Final"
+GAME_VERSION = "Set 17 A"
 DEFAULT_FETCH_CUTOFF_DATE = "2026-02-23"
 DEFAULT_FETCH_CUTOFF_TIME = "00:00"
 DEFAULT_FETCH_CUTOFF_TZ = "America/Cuiaba"
+
+MIN_TRACKED_PLAYERS = 4
 
 
 class Command(BaseCommand):
@@ -106,108 +111,45 @@ class Command(BaseCommand):
             self.stdout.write(f"Per-player poll cooldown: {cooldown_seconds}s\n")
         self.stdout.write(f"Game version: {GAME_VERSION}\n")
 
-        total_stored = 0
-
-        for i, player in enumerate(players, 1):
-            label = f"[{i}/{len(players)}] {player}"
-            now_utc = datetime.datetime.now(datetime.timezone.utc)
-            if (
-                cooldown_seconds > 0
-                and player.last_polled_at
-                and (now_utc - player.last_polled_at).total_seconds() < cooldown_seconds
-            ):
-                self.stdout.write(f"  {label} - cooldown active, skipping API poll")
-                continue
-
-            match_ids = asyncio.run(
-                self._fetch_match_ids_for_player(api_key, player.puuid, fetch_since_ms)
+        def _filter_match(match_data, puuid_map):
+            """PBE match filter: date cutoff + min tracked players."""
+            game_ms = match_data.get("info", {}).get("game_datetime", 0)
+            game_start_utc = datetime.datetime.fromtimestamp(
+                game_ms / 1000, tz=datetime.timezone.utc
             )
+            if game_start_utc < fetch_cutoff_utc:
+                mid = match_data.get("metadata", {}).get("match_id", "?")
+                self.stdout.write(f"    {mid} - old ({game_start_utc.isoformat()}), stopping")
+                return {"store": False, "stop": True}
 
-            if not match_ids:
-                self.stdout.write(f"  {label} - no matches today, skipping")
-                player.last_polled_at = now_utc
-                player.save(update_fields=["last_polled_at"])
-                continue
+            participant_puuids = {
+                p.get("puuid") for p in match_data.get("info", {}).get("participants", [])
+            }
+            tracked_count = sum(1 for p in participant_puuids if p in puuid_map)
+            if tracked_count < MIN_TRACKED_PLAYERS:
+                mid = match_data.get("metadata", {}).get("match_id", "?")
+                self.stdout.write(f"    {mid} - skipped ({tracked_count}/8 tracked)")
+                return {"store": False, "stop": False}
 
-            if player.last_seen_match_id and player.last_seen_match_id in match_ids:
-                cut = match_ids.index(player.last_seen_match_id)
-                candidate_ids = match_ids[:cut]
-            else:
-                candidate_ids = match_ids
+            return {
+                "store": True,
+                "game_version": GAME_VERSION,
+                "game_start_utc": game_start_utc,
+            }
 
-            existing: set[str] = set(
-                Match.objects.filter(match_id__in=candidate_ids).values_list("match_id", flat=True)
-            )
-            new_ids = [mid for mid in candidate_ids if mid not in existing]
+        total_stored = process_player_matches(
+            command=self,
+            api_key=api_key,
+            players=players,
+            puuid_to_player=puuid_to_player,
+            server="PBE",
+            get_routing=lambda _player: "americas",
+            get_match_ids_kwargs=lambda _player: {"start_time": fetch_since_ms},
+            filter_match=_filter_match,
+            cooldown_seconds=cooldown_seconds,
+        )
 
-            if not candidate_ids:
-                self.stdout.write(f"  {label} - no new IDs since checkpoint")
-                player.last_seen_match_id = match_ids[0]
-                player.last_polled_at = now_utc
-                player.save(update_fields=["last_seen_match_id", "last_polled_at"])
-                continue
-
-            if not new_ids:
-                self.stdout.write(
-                    f"  {label} - {len(candidate_ids)} candidate match(es), all already stored"
-                )
-                player.last_seen_match_id = match_ids[0]
-                player.last_polled_at = now_utc
-                player.save(update_fields=["last_seen_match_id", "last_polled_at"])
-                continue
-
-            self.stdout.write(
-                f"  {label} - {len(candidate_ids)} candidate match(es), {len(new_ids)} to check"
-            )
-            had_fetch_fail = False
-
-            for mid in new_ids:
-                match_data = asyncio.run(self._fetch_single_match_async(api_key, mid))
-                if match_data is None:
-                    self.stdout.write(f"    {mid} - fetch failed, skipping")
-                    had_fetch_fail = True
-                    continue
-
-                game_ms = match_data.get("info", {}).get("game_datetime", 0)
-                game_start_utc = datetime.datetime.fromtimestamp(
-                    game_ms / 1000, tz=datetime.timezone.utc
-                )
-                if game_start_utc < fetch_cutoff_utc:
-                    self.stdout.write(f"    {mid} - old ({game_start_utc.isoformat()}), stopping")
-                    break
-
-                participant_puuids = {
-                    p.get("puuid") for p in match_data.get("info", {}).get("participants", [])
-                }
-                tracked_count = sum(1 for p in participant_puuids if p in puuid_to_player)
-                if tracked_count < 4:
-                    self.stdout.write(f"    {mid} - skipped ({tracked_count}/8 tracked)")
-                    continue
-
-                try:
-                    if process_match(match_data, puuid_to_player, game_version=GAME_VERSION, server="PBE"):
-                        total_stored += 1
-                        self.stdout.write(f"    {mid} - stored ({game_start_utc.date()}, {GAME_VERSION})")
-                    else:
-                        self.stdout.write(f"    {mid} - already existed")
-                except Exception as exc:
-                    logger.error("Error processing %s: %s", mid, exc, exc_info=True)
-
-            player.last_polled_at = now_utc
-            if not had_fetch_fail:
-                player.last_seen_match_id = match_ids[0]
-                player.save(update_fields=["last_polled_at", "last_seen_match_id"])
-            else:
-                player.save(update_fields=["last_polled_at"])
-
-        self.stdout.write(f"\nStored {total_stored} new match(es) in total.")
-
-        if total_stored:
-            self.stdout.write("Recomputing unit statistics...")
-            count = recompute_unit_stats(server="PBE")
-            self.stdout.write(self.style.SUCCESS(f"Done - updated stats for {count} unit(s)."))
-        else:
-            self.stdout.write(self.style.SUCCESS("Nothing new - stats unchanged."))
+        finish_fetch(self, total_stored, server="PBE")
 
     def _handle_single_match(
         self,
@@ -217,7 +159,7 @@ class Command(BaseCommand):
         fetch_cutoff_utc: datetime.datetime,
     ):
         self.stdout.write(f"Fetching specific match: {match_id}")
-        match_data = asyncio.run(self._fetch_single_match_async(api_key, match_id))
+        match_data = asyncio.run(fetch_single_match_async(api_key, match_id))
         if match_data is None:
             self.stderr.write(self.style.ERROR(f"{match_id} - fetch failed"))
             return
@@ -267,22 +209,3 @@ class Command(BaseCommand):
             return max(0, int(raw))
         except ValueError:
             return 0
-
-    async def _fetch_match_ids_for_player(
-        self,
-        api_key: str,
-        puuid: str,
-        start_time: int,
-    ) -> list[str]:
-        service = RiotAPIService(api_key)
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0), follow_redirects=True) as client:
-            return await service.get_match_ids(client, puuid, count=20, start_time=start_time)
-
-    async def _fetch_single_match_async(
-        self,
-        api_key: str,
-        match_id: str,
-    ):
-        service = RiotAPIService(api_key)
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0), follow_redirects=True) as client:
-            return await service.get_match(client, match_id)

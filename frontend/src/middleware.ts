@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-
-const VALID_SERVERS = new Set(["pbe", "live", "scrims"]);
+import { VALID_SERVERS_SET } from "@/lib/constants";
 
 const PAGE_SLUGS = new Set([
   "comps",
@@ -25,7 +24,7 @@ export function middleware(request: NextRequest) {
   const first = segments[0].toLowerCase();
 
   // Already has a valid server prefix — let it through
-  if (VALID_SERVERS.has(first)) {
+  if (VALID_SERVERS_SET.has(first)) {
     // Redirect /{server}/search → /{server}/games-feed
     if (segments.length >= 2 && segments[1].toLowerCase() === "search") {
       const url = request.nextUrl.clone();

@@ -4,15 +4,10 @@ import { useState, useMemo, Fragment, useEffect } from "react";
 import { backendUrl } from "@/lib/backend";
 import { UnitImage, ItemImage } from "./TftImage";
 import { formatUnit, costBorderColor } from "@/lib/tftUtils";
-
-export interface UnitStat {
-  unit_name: string;
-  cost: number;
-  games: number;
-  avg_placement: number;
-  top4_rate: number;
-  win_rate: number;
-}
+import { STAR_LABELS } from "@/lib/constants";
+import { placementColor, winRateColor, top4RateColor, formatItemName } from "@/lib/formatters";
+import type { UnitStat } from "@/lib/types";
+export type { UnitStat } from "@/lib/types";
 
 interface StarStat {
   star_level: number;
@@ -46,32 +41,6 @@ const COLUMNS: { key: SortKey; label: string; defaultDir: SortDir }[] = [
   { key: "win_rate", label: "Win %", defaultDir: "desc" },
 ];
 
-const STAR_LABELS: Record<number, string> = {
-  1: "★",
-  2: "★★",
-  3: "★★★",
-};
-
-function placementColor(placement: number): string {
-  if (placement <= 2) return "text-yellow-400 font-semibold";
-  if (placement <= 4) return "text-green-400";
-  if (placement <= 6) return "text-tft-text";
-  return "text-red-400";
-}
-
-function winRateColor(rate: number): string {
-  if (rate > 0.2) return "text-green-400 font-semibold";
-  if (rate >= 0.15) return "text-yellow-400 font-semibold";
-  if (rate <= 0.05) return "text-tft-muted";
-  return "text-red-400";
-}
-
-function top4RateColor(rate: number): string {
-  if (rate > 0.5) return "text-green-400 font-semibold";
-  if (rate < 0.3) return "text-tft-muted";
-  return "text-red-400";
-}
-
 function placementBarWidth(avp: number): number {
   // Map AVP 1-8 to bar width 100%-0%
   return Math.max(0, Math.min(100, ((8 - avp) / 7) * 100));
@@ -104,12 +73,6 @@ function starLabelColor(starLevel: number): string {
   return "text-gray-400";
 }
 
-let _itemNamesCache: Record<string, string> = {};
-
-function formatItemName(itemName: string): string {
-  if (_itemNamesCache[itemName]) return _itemNamesCache[itemName];
-  return itemName.replace(/^TFT\d*_Item_/, "").replace(/([A-Z])/g, " $1").trim();
-}
 
 function StarStatsTable({ stats }: { stats: StarStat[] }) {
   return (
@@ -153,7 +116,7 @@ function StarStatsTable({ stats }: { stats: StarStat[] }) {
   );
 }
 
-function ItemStatsTable({ stats, itemAssets }: { stats: ItemStat[]; itemAssets: Record<string, string> }) {
+function ItemStatsTable({ stats, itemAssets, itemNames }: { stats: ItemStat[]; itemAssets: Record<string, string>; itemNames: Record<string, string> }) {
   return (
     <div className="overflow-x-auto">
       <table className="text-xs sm:text-sm w-auto">
@@ -176,7 +139,7 @@ function ItemStatsTable({ stats, itemAssets }: { stats: ItemStat[]; itemAssets: 
                       itemAssets={itemAssets}
                       size={24}
                     />
-                    <span className="text-tft-text">{formatItemName(s.item_name)}</span>
+                    <span className="text-tft-text">{formatItemName(s.item_name, itemNames)}</span>
                   </div>
                 </td>
                 <td className="pr-3 sm:pr-8 py-1.5 text-right text-tft-muted tabular-nums">{s.games}</td>
@@ -215,6 +178,7 @@ export default function StatsTable({
   const [detailCache, setDetailCache] = useState<Record<string, UnitDetailStats>>({});
   const [loadingUnit, setLoadingUnit] = useState<string | null>(null);
   const [itemAssets, setItemAssets] = useState<Record<string, string>>({});
+  const [itemNames, setItemNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const url = new URL(backendUrl("/api/item-assets/"));
@@ -223,7 +187,7 @@ export default function StatsTable({
       .then((r) => (r.ok ? r.json() : { assets: {}, names: {} }))
       .then((data: { assets: Record<string, string>; names: Record<string, string> }) => {
         setItemAssets(data.assets ?? data);
-        if (data.names) _itemNamesCache = data.names;
+        if (data.names) setItemNames(data.names);
       })
       .catch(() => {});
   }, [server]);
@@ -490,7 +454,7 @@ export default function StatsTable({
                               {detail.item_stats.length > 0 && (
                                 <div>
                                   <p className="text-tft-muted text-xs mb-2 uppercase tracking-wider font-semibold">Top Items</p>
-                                  <ItemStatsTable stats={detail.item_stats} itemAssets={itemAssets} />
+                                  <ItemStatsTable stats={detail.item_stats} itemAssets={itemAssets} itemNames={itemNames} />
                                 </div>
                               )}
                             </div>

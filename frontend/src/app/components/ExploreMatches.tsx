@@ -2,19 +2,13 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { backendUrl } from "@/lib/backend";
-import { TraitInfo } from "./WinningCompsList";
 import { UnitImage, ItemImage } from "./TftImage";
 import { formatUnit } from "@/lib/tftUtils";
+import { formatDate, displayPlayerName, placementBadge, placementStyle } from "@/lib/formatters";
+import type { BoardUnit, LobbyParticipant, TraitInfo } from "@/lib/types";
+import TraitChips from "./TraitChips";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-
-interface MatchUnit {
-  character_id: string;
-  star_level: number;
-  cost: number;
-  traits: string[];
-  items: string[];
-}
 
 interface MatchResult {
   match_id: string;
@@ -23,91 +17,7 @@ interface MatchResult {
   placement: number;
   level: number;
   player: string;
-  units: MatchUnit[];
-}
-
-interface LobbyParticipant {
-  name: string;
-  placement: number;
-  level: number;
-  gold_left: number;
-  units: MatchUnit[];
-  augments: string[];
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-function formatDate(iso: string): string {
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (diff < 60) return "Just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)} minutes ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
-  return `${Math.floor(diff / 86400)} days ago`;
-}
-
-function displayPlayerName(name: string): string {
-  return name.split("#")[0].trim();
-}
-
-function placementBadge(p: number): string {
-  if (p === 1) return "bg-yellow-500/20 text-yellow-400 border-yellow-500/40";
-  if (p <= 4) return "bg-green-500/20 text-green-400 border-green-500/40";
-  return "bg-tft-surface text-tft-muted border-tft-border";
-}
-
-function placementStyle(p: number): string {
-  if (p === 1) return "text-yellow-400 font-bold";
-  if (p <= 4) return "text-green-400 font-semibold";
-  return "text-tft-muted";
-}
-
-// ── Trait computation ──────────────────────────────────────────────────────────
-
-interface TraitState {
-  name: string;
-  count: number;
-  tier: number;
-  breakpoints: number[];
-  icon: string;
-  isUnique: boolean;
-}
-
-const TRAIT_TIER_STYLES: Record<number, { chip: string; num: string; iconColor: string }> = {
-  0: { chip: "bg-red-950/40 border-red-700/60",       num: "text-red-500",    iconColor: "#ef4444" },
-  1: { chip: "bg-amber-950/40 border-amber-700/60",   num: "text-amber-600",  iconColor: "#d97706" },
-  2: { chip: "bg-slate-800/40 border-slate-400/60",   num: "text-slate-300",  iconColor: "#cbd5e1" },
-  3: { chip: "bg-yellow-950/40 border-yellow-600/60", num: "text-yellow-500", iconColor: "#eab308" },
-  4: { chip: "bg-violet-950/40 border-violet-500/60", num: "text-violet-400", iconColor: "#a78bfa" },
-};
-
-function computeTraits(
-  units: MatchUnit[],
-  traitData: Record<string, TraitInfo>
-): TraitState[] {
-  const counts: Record<string, number> = {};
-  for (const unit of units) {
-    for (const trait of unit.traits) {
-      counts[trait] = (counts[trait] ?? 0) + 1;
-    }
-  }
-  const result: TraitState[] = [];
-  for (const [name, count] of Object.entries(counts)) {
-    const info = traitData[name];
-    const breakpoints = info?.breakpoints ?? [];
-    const icon = info?.icon ?? "";
-    let tier = 0;
-    for (let i = 0; i < breakpoints.length; i++) {
-      if (count >= breakpoints[i]) tier = i + 1;
-    }
-    if (tier > 0) {
-      const isUnique = breakpoints.length === 1 && breakpoints[0] === 1;
-      result.push({ name, count, tier: isUnique ? 0 : tier, breakpoints, icon, isUnique });
-    }
-  }
-  return result.sort((a, b) => {
-    if (a.isUnique !== b.isUnique) return a.isUnique ? 1 : -1;
-    return b.tier - a.tier || b.count - a.count;
-  });
+  units: BoardUnit[];
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -126,7 +36,7 @@ function UnitChip({
   unit,
   itemAssets,
 }: {
-  unit: MatchUnit;
+  unit: BoardUnit;
   itemAssets: Record<string, string>;
 }) {
   const traitTitle = unit.traits.length
@@ -154,7 +64,7 @@ function UnitChipSmall({
   unit,
   itemAssets,
 }: {
-  unit: MatchUnit;
+  unit: BoardUnit;
   itemAssets: Record<string, string>;
 }) {
   return (
@@ -173,52 +83,6 @@ function UnitChipSmall({
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function TraitChips({
-  units,
-  traitData,
-}: {
-  units: MatchUnit[];
-  traitData: Record<string, TraitInfo>;
-}) {
-  const traits = computeTraits(units, traitData);
-  if (traits.length === 0) return null;
-  return (
-    <div className="flex flex-wrap gap-1">
-      {traits.map((t) => {
-        const style = TRAIT_TIER_STYLES[t.tier] ?? TRAIT_TIER_STYLES[1];
-        const activeBp = t.isUnique ? t.breakpoints[0] : t.breakpoints[t.tier - 1];
-        const nextBp = t.isUnique ? undefined : t.breakpoints[t.tier];
-        const suffix = nextBp != null ? `${t.count}/${nextBp}` : `${t.count}`;
-        return (
-          <span
-            key={t.name}
-            className={`inline-flex items-center gap-0.5 pl-0.5 pr-1.5 h-6 rounded border text-xs font-bold ${style.chip}`}
-            title={`${t.name} ${suffix} — breakpoints ${t.breakpoints.join("/")}`}
-          >
-            {t.icon && (
-              <span
-                className="w-4 h-4 shrink-0 inline-block"
-                style={{
-                  backgroundColor: style.iconColor,
-                  WebkitMaskImage: `url(${t.icon})`,
-                  maskImage: `url(${t.icon})`,
-                  WebkitMaskSize: "contain",
-                  maskSize: "contain",
-                  WebkitMaskRepeat: "no-repeat",
-                  maskRepeat: "no-repeat",
-                  WebkitMaskPosition: "center",
-                  maskPosition: "center",
-                }}
-              />
-            )}
-            <span className={style.num}>{activeBp}</span>
-          </span>
-        );
-      })}
     </div>
   );
 }

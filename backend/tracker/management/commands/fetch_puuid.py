@@ -13,11 +13,10 @@ import asyncio
 import logging
 import os
 
-import httpx
 from django.core.management.base import BaseCommand
 
 from tracker.models import Player
-from tracker.services.riot_api import RiotAPIService
+from tracker.management.commands._player_utils import parse_player_lines, fetch_accounts_async
 
 logger = logging.getLogger(__name__)
 
@@ -285,37 +284,9 @@ Lin1421#pbe
 TFTPANDAA#2025
 """
 
-_STRIP_CHARS = "\u2066\u2069\u200b\u200c\u200d\ufeff"
-
-
-def _parse_player(raw: str) -> tuple[str, str]:
-    cleaned = raw.strip()
-    for ch in _STRIP_CHARS:
-        cleaned = cleaned.replace(ch, "")
-    cleaned = cleaned.strip()
-    if "#" in cleaned:
-        game_name, tag_line = cleaned.split("#", 1)
-        return game_name.strip(), tag_line.strip()
-    return cleaned, "pbe"
-
-
 def build_player_list() -> list[tuple[str, str]]:
     """Parse raw list, strip blank lines, and deduplicate (case-insensitive)."""
-    seen: set[tuple[str, str]] = set()
-    result: list[tuple[str, str]] = []
-    for line in _RAW_PLAYER_LIST.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        game_name, tag_line = _parse_player(line)
-        if not game_name:
-            continue
-        key = (game_name.lower(), tag_line.lower())
-        if key in seen:
-            continue
-        seen.add(key)
-        result.append((game_name, tag_line))
-    return result
+    return parse_player_lines(_RAW_PLAYER_LIST, default_tag="pbe")
 
 
 # ---------------------------------------------------------------------------
@@ -349,7 +320,7 @@ class Command(BaseCommand):
             f"  {len(existing)} already in DB, fetching {len(need_fetch)} from API…"
         )
 
-        accounts = asyncio.run(self._fetch_accounts_async(api_key, need_fetch))
+        accounts = asyncio.run(fetch_accounts_async(api_key, need_fetch))
 
         saved = skipped = 0
         for (game_name, tag_line), data in zip(need_fetch, accounts):
@@ -371,13 +342,3 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(f"Done — {saved} saved, {skipped} could not be resolved.")
         )
-
-    async def _fetch_accounts_async(
-        self,
-        api_key: str,
-        need_fetch: list[tuple[str, str]],
-    ) -> list:
-        service = RiotAPIService(api_key)
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0), follow_redirects=True) as client:
-            tasks = [service.get_account(client, gn, tl) for gn, tl in need_fetch]
-            return await asyncio.gather(*tasks)

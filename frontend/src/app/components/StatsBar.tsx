@@ -3,14 +3,13 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { backendUrl } from "@/lib/backend";
+import { getServerFromPath } from "@/lib/constants";
 
 interface GlobalStats {
   matches_analyzed: number;
   participants_recorded: number;
   last_fetch_at: string | null;
 }
-
-const VALID_SERVERS = ["pbe", "live", "scrims"];
 const CACHE_TTL = 300_000; // 5 minutes
 
 function getCachedStats(server: string): GlobalStats | null {
@@ -58,8 +57,7 @@ function formatRelativeUtc(iso: string): string {
 
 export default function StatsBar() {
   const pathname = usePathname();
-  const first = pathname.split("/")[1]?.toLowerCase();
-  const server = VALID_SERVERS.includes(first ?? "") ? first!.toUpperCase() : "PBE";
+  const server = getServerFromPath(pathname).toUpperCase();
   const [stats, setStats] = useState<GlobalStats | null>(null);
   const [, tick] = useState(0);
 

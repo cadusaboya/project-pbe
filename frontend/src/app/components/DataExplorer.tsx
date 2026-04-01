@@ -3,9 +3,11 @@
 import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { backendUrl } from "@/lib/backend";
-import { UnitStat } from "./StatsTable";
 import { UnitImage, ItemImage } from "./TftImage";
 import { formatUnit, costBorderColor } from "@/lib/tftUtils";
+import { formatItemName, placementColor, deltaColor, winRateColor } from "@/lib/formatters";
+import { TRAIT_TIER_STYLES } from "@/lib/constants";
+import type { UnitStat } from "@/lib/types";
 
 const ExploreMatches = lazy(() => import("./ExploreMatches"));
 
@@ -104,34 +106,6 @@ type TraitData = Record<string, { breakpoints: number[]; icon: string }>;
 
 let _itemNamesCache: Record<string, string> = {};
 
-function formatItemName(name: string): string {
-  if (_itemNamesCache[name]) return _itemNamesCache[name];
-  return name.replace(/^TFT\d*_Item_/, "").replace(/([A-Z])/g, " $1").trim();
-}
-
-function placementColor(v: number) {
-  if (v <= 2) return "text-yellow-400 font-semibold";
-  if (v <= 4) return "text-green-400";
-  if (v <= 6) return "text-tft-text";
-  return "text-red-400";
-}
-
-function deltaColor(d: number) {
-  if (d < -0.5) return "text-green-400 font-bold";
-  if (d < 0) return "text-green-400";
-  if (d === 0) return "text-tft-muted";
-  if (d <= 0.5) return "text-red-400";
-  return "text-red-400 font-bold";
-}
-
-const TRAIT_TIER_STYLES: Record<number, { chip: string; num: string; iconColor: string }> = {
-  0: { chip: "bg-red-950/40 border-red-700/60",       num: "text-red-500",    iconColor: "#ef4444" },
-  1: { chip: "bg-amber-950/40 border-amber-700/60",   num: "text-amber-600",  iconColor: "#d97706" },
-  2: { chip: "bg-slate-800/40 border-slate-400/60",   num: "text-slate-300",  iconColor: "#cbd5e1" },
-  3: { chip: "bg-yellow-950/40 border-yellow-600/60", num: "text-yellow-500", iconColor: "#eab308" },
-  4: { chip: "bg-violet-950/40 border-violet-500/60", num: "text-violet-400", iconColor: "#a78bfa" },
-};
-
 function uid() {
   return Math.random().toString(36).slice(2);
 }
@@ -182,7 +156,7 @@ function UnifiedSearch({
     const VARIANT_MARKERS = ["Corrupted", "Tutorial", "Assist", "AcademyCopy", "Encounter", "ChoiceItem"];
     const seen = new Map<string, string>(); // displayName -> bestId
     for (const id of ids) {
-      const display = formatItemName(id);
+      const display = formatItemName(id, _itemNamesCache);
       const existing = seen.get(display);
       if (!existing) { seen.set(display, id); continue; }
       const isVariant = VARIANT_MARKERS.some((m) => id.includes(m));
@@ -237,7 +211,7 @@ function UnifiedSearch({
       ]);
 
     const matchingItems = allItems.filter(
-      (i) => formatItemName(i).toLowerCase().includes(q) || i.toLowerCase().includes(q)
+      (i) => formatItemName(i, _itemNamesCache).toLowerCase().includes(q) || i.toLowerCase().includes(q)
     ).slice(0, 6);
 
     const itemResults: SearchResultItem[] = matchingItems.flatMap((i) => [
@@ -375,7 +349,7 @@ function UnifiedSearch({
                         className={item.excluded ? "grayscale opacity-50" : ""}
                       />
                       <span className={`text-sm font-medium ${item.excluded ? "text-red-400" : "text-tft-text"}`}>
-                        {item.excluded ? `Exclude ${formatItemName(item.item)}` : formatItemName(item.item)}
+                        {item.excluded ? `Exclude ${formatItemName(item.item, _itemNamesCache)}` : formatItemName(item.item, _itemNamesCache)}
                       </span>
                       {!item.excluded && (
                         <span className="text-tft-muted text-xs ml-auto">Item</span>
@@ -600,7 +574,7 @@ function ItemFilterChip({
       />
       <div className="flex flex-col gap-1">
         <span className="text-tft-text text-sm font-semibold leading-tight">
-          {formatItemName(filter.item)}
+          {formatItemName(filter.item, _itemNamesCache)}
         </span>
         {filter.excluded ? (
           <span className="text-red-400 text-[10px]">Excluded</span>
@@ -1023,12 +997,6 @@ export default function DataExplorer({
     return "text-red-400";
   }
 
-  function winRateColor(v: number) {
-    if (v >= 0.2) return "text-yellow-400 font-semibold";
-    if (v >= 0.12) return "text-green-400";
-    if (v >= 0.08) return "text-tft-text";
-    return "text-red-400";
-  }
 
   const requiredUnits = useMemo(
     () =>
@@ -1468,7 +1436,7 @@ export default function DataExplorer({
                                 itemAssets={itemAssets}
                                 size={24}
                               />
-                              <span className="text-tft-text">{formatItemName(row.item_name)}</span>
+                              <span className="text-tft-text">{formatItemName(row.item_name, _itemNamesCache)}</span>
                             </div>
                           </td>
                           <td className="px-4 py-2.5 text-right text-tft-muted tabular-nums">

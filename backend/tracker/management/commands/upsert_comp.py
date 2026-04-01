@@ -2,6 +2,7 @@ import re
 
 from django.core.management.base import BaseCommand, CommandError
 
+from tracker.constants import CURRENT_SET_PREFIX, SET_TRAIT_PREFIX
 from tracker.models import Comp, Unit
 
 
@@ -31,8 +32,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--prefix",
             type=str,
-            default="TFT16_",
-            help="Prefix used for short names (default: TFT16_).",
+            default=CURRENT_SET_PREFIX,
+            help=f"Prefix used for short names (default: {CURRENT_SET_PREFIX}).",
         )
         parser.add_argument(
             "--inactive",
@@ -128,7 +129,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         name = options["name"].strip()
         units_raw = options["units"].strip()
-        prefix = options["prefix"].strip() or "TFT16_"
+        prefix = options["prefix"].strip() or CURRENT_SET_PREFIX
         is_active = not options["inactive"]
         target_level = max(1, min(int(options["level"]), 10))
         exclude_raw = (options.get("exclude") or "").strip()
@@ -394,8 +395,8 @@ class Command(BaseCommand):
             return t
 
         # Convert Set16_ prefix to TFT16_ for convenience.
-        if t.lower().startswith("set16_"):
-            return "TFT16_" + t[6:]
+        if t.lower().startswith(SET_TRAIT_PREFIX.lower()):
+            return CURRENT_SET_PREFIX + t[len(SET_TRAIT_PREFIX):]
 
         if t.upper().startswith("TFT"):
             return t

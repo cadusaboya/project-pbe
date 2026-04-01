@@ -50,6 +50,7 @@ class Participant(models.Model):
         unique_together = [("match", "puuid")]
         indexes = [
             models.Index(fields=["match", "player"], name="idx_participant_match_player"),
+            models.Index(fields=["match", "placement"], name="idx_part_match_place"),
         ]
 
     def __str__(self):
@@ -73,6 +74,11 @@ class UnitUsage(models.Model):
     star_level = models.IntegerField(default=1, db_index=True)
     rarity = models.IntegerField(default=0)
     items = models.JSONField(default=list)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["participant", "unit"], name="idx_unitusage_participant_unit"),
+        ]
 
     def __str__(self):
         return f"{self.unit.character_id} ({self.star_level}★)"

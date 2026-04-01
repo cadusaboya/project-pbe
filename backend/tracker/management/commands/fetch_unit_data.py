@@ -5,7 +5,7 @@ Downloads TFT champion data from Community Dragon (PBE) and updates
 each Unit in the database with its shop cost and trait list.
 
 Source: https://raw.communitydragon.org/pbe/cdragon/tft/en_us.json
-Structure used: data["sets"]["16"]["champions"] → [{apiName, cost, traits}]
+Structure used: data["sets"]["17"]["champions"] → [{apiName, cost, traits}]
 
 Usage:
     python manage.py fetch_unit_data

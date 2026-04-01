@@ -3,10 +3,14 @@
 import { useState } from "react";
 import { UnitImage, ItemImage } from "./TftImage";
 import { formatUnit, costBorderColor } from "@/lib/tftUtils";
+import { formatItemName, formatDateCompact, displayPlayerName, placementStyle } from "@/lib/formatters";
+import type { BoardUnit, LobbyParticipant, TraitInfo } from "@/lib/types";
+export type { TraitInfo } from "@/lib/types";
+import TraitChips from "./TraitChips";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-interface PlayerInfo {
+interface ProfileInfo {
   game_name: string;
   tag_line: string;
 }
@@ -26,39 +30,17 @@ interface TopUnit {
   win_rate: number;
 }
 
-interface MatchUnit {
-  character_id: string;
-  star_level: number;
-  cost: number;
-  traits: string[];
-  items: string[];
-}
-
 interface MatchEntry {
   match_id: string;
   game_datetime: string;
   game_version: string;
   placement: number;
   level: number;
-  units: MatchUnit[];
-}
-
-interface LobbyParticipant {
-  name: string;
-  placement: number;
-  level: number;
-  gold_left: number;
-  units: MatchUnit[];
-  augments: string[];
-}
-
-export interface TraitInfo {
-  breakpoints: number[];
-  icon: string;
+  units: BoardUnit[];
 }
 
 export interface PlayerProfileData {
-  player: PlayerInfo;
+  player: ProfileInfo;
   total_games: number;
   avg_placement: number;
   top4_rate: number;
@@ -66,29 +48,6 @@ export interface PlayerProfileData {
   last_20: Last20Entry[];
   top_units: TopUnit[];
   match_history: MatchEntry[];
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatItem(id: string, itemNames?: Record<string, string>): string {
-  if (itemNames?.[id]) return itemNames[id];
-  return id
-    .replace(/^TFT\d+_Item_/, "")
-    .replace(/^TFT_Item_/, "")
-    .replace(/([A-Z])/g, " $1")
-    .trim();
-}
-
-function formatDate(iso: string): string {
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (diff < 60) return "Just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-}
-
-function displayPlayerName(name: string): string {
-  return name.split("#")[0].trim();
 }
 
 // ── Cost colors ──────────────────────────────────────────────────────────────
@@ -102,118 +61,11 @@ const COST_BG: Record<number, string> = {
   7: "bg-yellow-400/10 border-yellow-400/40 text-yellow-300",
 };
 
-function placementStyle(p: number): string {
-  if (p === 1) return "text-yellow-400 font-bold";
-  if (p <= 4) return "text-green-400 font-semibold";
-  return "text-tft-muted";
-}
-
 function placementBg(p: number): string {
   if (p === 1) return "bg-yellow-400/20 border-yellow-400/50";
   if (p <= 4) return "bg-green-500/15 border-green-500/40";
   if (p <= 6) return "bg-tft-surface border-tft-border";
   return "bg-red-500/10 border-red-500/30";
-}
-
-// ── Trait helpers ─────────────────────────────────────────────────────────────
-
-interface TraitState {
-  name: string;
-  count: number;
-  tier: number;
-  breakpoints: number[];
-  icon: string;
-  isUnique: boolean;
-}
-
-interface TierStyle {
-  chip: string;
-  num: string;
-  iconColor: string;
-}
-
-const TRAIT_TIER_STYLES: Record<number, TierStyle> = {
-  0: { chip: "bg-red-950/40 border-red-700/60", num: "text-red-500", iconColor: "#ef4444" },
-  1: { chip: "bg-amber-950/40 border-amber-700/60", num: "text-amber-600", iconColor: "#d97706" },
-  2: { chip: "bg-slate-800/40 border-slate-400/60", num: "text-slate-300", iconColor: "#cbd5e1" },
-  3: { chip: "bg-yellow-950/40 border-yellow-600/60", num: "text-yellow-500", iconColor: "#eab308" },
-  4: { chip: "bg-violet-950/40 border-violet-500/60", num: "text-violet-400", iconColor: "#a78bfa" },
-};
-
-function computeTraits(
-  units: MatchUnit[],
-  traitData: Record<string, TraitInfo>
-): TraitState[] {
-  const counts: Record<string, number> = {};
-  for (const unit of units) {
-    for (const trait of unit.traits) {
-      counts[trait] = (counts[trait] ?? 0) + 1;
-    }
-  }
-  const result: TraitState[] = [];
-  for (const [name, count] of Object.entries(counts)) {
-    const info = traitData[name];
-    const breakpoints = info?.breakpoints ?? [];
-    const icon = info?.icon ?? "";
-    let tier = 0;
-    for (let i = 0; i < breakpoints.length; i++) {
-      if (count >= breakpoints[i]) tier = i + 1;
-    }
-    if (tier > 0) {
-      const isUnique = breakpoints.length === 1 && breakpoints[0] === 1;
-      result.push({ name, count, tier: isUnique ? 0 : tier, breakpoints, icon, isUnique });
-    }
-  }
-  return result.sort((a, b) => {
-    if (a.isUnique !== b.isUnique) return a.isUnique ? 1 : -1;
-    return b.tier - a.tier || b.count - a.count;
-  });
-}
-
-function TraitChips({
-  units,
-  traitData,
-}: {
-  units: MatchUnit[];
-  traitData: Record<string, TraitInfo>;
-}) {
-  const traits = computeTraits(units, traitData);
-  if (traits.length === 0) return null;
-  return (
-    <div className="flex flex-wrap gap-1">
-      {traits.map((t) => {
-        const style = TRAIT_TIER_STYLES[t.tier] ?? TRAIT_TIER_STYLES[1];
-        const activeBp = t.isUnique ? t.breakpoints[0] : t.breakpoints[t.tier - 1];
-        const nextBp = t.isUnique ? undefined : t.breakpoints[t.tier];
-        const suffix = nextBp != null ? `${t.count}/${nextBp}` : `${t.count}`;
-        return (
-          <span
-            key={t.name}
-            className={`inline-flex items-center gap-0.5 pl-0.5 pr-1.5 h-5 rounded border text-[10px] font-bold ${style.chip}`}
-            title={`${t.name} ${suffix} — breakpoints ${t.breakpoints.join("/")}`}
-          >
-            {t.icon && (
-              <span
-                className="w-3.5 h-3.5 shrink-0 inline-block"
-                style={{
-                  backgroundColor: style.iconColor,
-                  WebkitMaskImage: `url(${t.icon})`,
-                  maskImage: `url(${t.icon})`,
-                  WebkitMaskSize: "contain",
-                  maskSize: "contain",
-                  WebkitMaskRepeat: "no-repeat",
-                  maskRepeat: "no-repeat",
-                  WebkitMaskPosition: "center",
-                  maskPosition: "center",
-                }}
-              />
-            )}
-            <span className={style.num}>{activeBp}</span>
-          </span>
-        );
-      })}
-    </div>
-  );
 }
 
 // ── Star level ───────────────────────────────────────────────────────────────
@@ -236,7 +88,7 @@ function UnitChip({
   itemNames,
   size = "normal",
 }: {
-  unit: MatchUnit;
+  unit: BoardUnit;
   itemAssets: Record<string, string>;
   itemNames?: Record<string, string>;
   size?: "normal" | "small";
@@ -301,7 +153,7 @@ function Last20Chart({ games }: { games: Last20Entry[] }) {
             <div
               key={i}
               className={`w-7 h-7 rounded border flex items-center justify-center text-xs font-bold ${placementColors(g.placement)}`}
-              title={`#${g.placement} — ${formatDate(g.game_datetime)}`}
+              title={`#${g.placement} — ${formatDateCompact(g.game_datetime)}`}
             >
               {g.placement}
             </div>
@@ -373,7 +225,7 @@ function MatchRow({
 
           {/* Center: traits + units */}
           <div className="flex flex-col gap-2.5 flex-1 min-w-0">
-            <TraitChips units={match.units} traitData={traitData} />
+            <TraitChips units={match.units} traitData={traitData} small />
             <div className="flex flex-wrap gap-1">
               {match.units
                 .slice()
@@ -386,7 +238,7 @@ function MatchRow({
 
           {/* Right meta */}
           <div className="flex flex-col items-end shrink-0 gap-0.5">
-            <span className="text-tft-muted text-xs">{formatDate(match.game_datetime)}</span>
+            <span className="text-tft-muted text-xs">{formatDateCompact(match.game_datetime)}</span>
             <span className="text-tft-muted text-[10px]">Lv{match.level}</span>
           </div>
 
@@ -421,7 +273,7 @@ function MatchRow({
                       {displayPlayerName(participant.name)}
                     </a>
                     <div className="flex flex-col gap-2.5 flex-1 min-w-0">
-                      <TraitChips units={participant.units} traitData={traitData} />
+                      <TraitChips units={participant.units} traitData={traitData} small />
                       <div className="flex flex-wrap gap-1">
                         {participant.units
                           .slice()

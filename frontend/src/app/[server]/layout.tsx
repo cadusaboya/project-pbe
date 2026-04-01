@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
-
-const VALID_SERVERS = new Set(["pbe", "live", "scrims"]);
+import { VALID_SERVERS_SET } from "@/lib/constants";
 
 export default async function ServerLayout({
   children,
@@ -11,7 +10,7 @@ export default async function ServerLayout({
 }) {
   const { server } = await params;
 
-  if (!VALID_SERVERS.has(server.toLowerCase())) {
+  if (!VALID_SERVERS_SET.has(server.toLowerCase())) {
     notFound();
   }
 

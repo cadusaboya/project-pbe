@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UnitImage } from "./TftImage";
+import { avpColor } from "@/lib/formatters";
 
 interface TopUnit {
   character_id: string;
@@ -18,12 +19,6 @@ export interface PlayerStat {
   top4_rate: number;
   win_rate: number;
   top_units: TopUnit[];
-}
-
-function avpTextColor(avp: number): string {
-  if (avp <= 3.5) return "text-green-400";
-  if (avp <= 4.5) return "text-yellow-400";
-  return "text-red-400";
 }
 
 type SortKey = "games" | "avg_placement" | "win_rate" | "top4_rate";
@@ -136,7 +131,7 @@ export default function PlayerStatsList({ data, server }: { data: PlayerStat[]; 
                   </span>
                 </td>
                 <td className="px-2 sm:px-4 py-2 sm:py-2.5 text-center text-tft-muted">{p.games}</td>
-                <td className={`px-2 sm:px-4 py-2 sm:py-2.5 text-center font-semibold ${avpTextColor(p.avg_placement)}`}>
+                <td className={`px-2 sm:px-4 py-2 sm:py-2.5 text-center font-semibold ${avpColor(p.avg_placement)}`}>
                   {p.avg_placement.toFixed(2)}
                 </td>
                 <td className="px-2 sm:px-4 py-2 sm:py-2.5 text-center text-tft-muted">

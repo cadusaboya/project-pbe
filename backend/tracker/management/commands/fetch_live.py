@@ -27,13 +27,18 @@ import logging
 import os
 import re
 
-import httpx
 from django.core.management.base import BaseCommand
 
-from tracker.models import Match, Player
+from tracker.constants import CURRENT_SET_NUMBER
+from tracker.models import Player
 from tracker.services.aggregation import recompute_unit_stats
 from tracker.services.match_processor import process_match
-from tracker.services.riot_api import PLATFORM_TO_ROUTING, RiotAPIService
+from tracker.services.riot_api import PLATFORM_TO_ROUTING
+from tracker.management.commands._fetch_utils import (
+    fetch_single_match_async,
+    finish_fetch,
+    process_player_matches,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +55,7 @@ _VERSION_RE = re.compile(r"Version (\d+\.\d+)")
 
 
 def _version_tuple(v: str) -> tuple[int, int]:
-    """Parse '16.5' → (16, 5) for comparison."""
+    """Parse '16.5' -> (16, 5) for comparison."""
     parts = v.split(".")
     return int(parts[0]), int(parts[1]) if len(parts) > 1 else 0
 
@@ -141,119 +146,58 @@ class Command(BaseCommand):
 
         self.stdout.write(f"Processing {len(players)} Live players\n")
 
-        total_stored = 0
+        def _filter_match(match_data, puuid_map):
+            """LIVE match filter: Double Up, set core, tracked count, version."""
+            mid = match_data.get("metadata", {}).get("match_id", "?")
 
-        for i, player in enumerate(players, 1):
-            label = f"[{i}/{len(players)}] {player} ({player.region})"
+            # Skip Double Up games (pairs mode)
+            game_type = match_data.get("info", {}).get("tft_game_type", "")
+            if game_type == "pairs":
+                self.stdout.write(f"    {mid} - Double Up, skipping")
+                return {"store": False, "stop": False}
 
-            match_ids = asyncio.run(
-                self._fetch_match_ids_for_player(api_key, player.puuid, player.region)
+            # Skip Revival / non-Set16 games
+            set_core = match_data.get("info", {}).get("tft_set_core_name", "")
+            if not set_core.startswith(f"TFTSet{CURRENT_SET_NUMBER}"):
+                self.stdout.write(f"    {mid} - {set_core or 'unknown set'}, skipping")
+                return {"store": False, "stop": False}
+
+            game_ms = match_data.get("info", {}).get("game_datetime", 0)
+            game_start_utc = datetime.datetime.fromtimestamp(
+                game_ms / 1000, tz=datetime.timezone.utc
             )
 
-            now_utc = datetime.datetime.now(datetime.timezone.utc)
+            participant_puuids = {
+                p.get("puuid") for p in match_data.get("info", {}).get("participants", [])
+            }
+            tracked_count = sum(1 for p in participant_puuids if p in puuid_map)
+            if tracked_count < MIN_TRACKED_PLAYERS:
+                self.stdout.write(f"    {mid} - skipped ({tracked_count}/8 tracked)")
+                return {"store": False, "stop": False}
 
-            if not match_ids:
-                self.stdout.write(f"  {label} - no matches, skipping")
-                player.last_polled_at = now_utc
-                player.save(update_fields=["last_polled_at"])
-                continue
+            version = _extract_game_version(match_data)
+            if _version_tuple(version) < _version_tuple(MIN_GAME_VERSION):
+                self.stdout.write(f"    {mid} - old patch {version}, skipping")
+                return {"store": False, "stop": False}
 
-            if player.last_seen_match_id and player.last_seen_match_id in match_ids:
-                cut = match_ids.index(player.last_seen_match_id)
-                candidate_ids = match_ids[:cut]
-            else:
-                candidate_ids = match_ids
+            return {
+                "store": True,
+                "game_version": version,
+                "game_start_utc": game_start_utc,
+            }
 
-            existing: set[str] = set(
-                Match.objects.filter(match_id__in=candidate_ids).values_list("match_id", flat=True)
-            )
-            new_ids = [mid for mid in candidate_ids if mid not in existing]
+        total_stored = process_player_matches(
+            command=self,
+            api_key=api_key,
+            players=players,
+            puuid_to_player=puuid_to_player,
+            server="LIVE",
+            get_routing=lambda player: PLATFORM_TO_ROUTING.get(player.region, "americas"),
+            get_match_ids_kwargs=lambda _player: {},
+            filter_match=_filter_match,
+        )
 
-            if not candidate_ids:
-                self.stdout.write(f"  {label} - no new IDs since checkpoint")
-                player.last_seen_match_id = match_ids[0]
-                player.last_polled_at = now_utc
-                player.save(update_fields=["last_seen_match_id", "last_polled_at"])
-                continue
-
-            if not new_ids:
-                self.stdout.write(
-                    f"  {label} - {len(candidate_ids)} candidate match(es), all already stored"
-                )
-                player.last_seen_match_id = match_ids[0]
-                player.last_polled_at = now_utc
-                player.save(update_fields=["last_seen_match_id", "last_polled_at"])
-                continue
-
-            self.stdout.write(
-                f"  {label} - {len(candidate_ids)} candidate match(es), {len(new_ids)} to check"
-            )
-            had_fetch_fail = False
-
-            # Use the correct routing for this player's region
-            routing = PLATFORM_TO_ROUTING.get(player.region, "americas")
-
-            for mid in new_ids:
-                match_data = asyncio.run(self._fetch_single_match_async(api_key, mid, routing))
-                if match_data is None:
-                    self.stdout.write(f"    {mid} - fetch failed, skipping")
-                    had_fetch_fail = True
-                    continue
-
-                # Skip Double Up games (pairs mode)
-                game_type = match_data.get("info", {}).get("tft_game_type", "")
-                if game_type == "pairs":
-                    self.stdout.write(f"    {mid} - Double Up, skipping")
-                    continue
-
-                # Skip Revival / non-Set16 games
-                set_core = match_data.get("info", {}).get("tft_set_core_name", "")
-                if not set_core.startswith("TFTSet16"):
-                    self.stdout.write(f"    {mid} - {set_core or 'unknown set'}, skipping")
-                    continue
-
-                game_ms = match_data.get("info", {}).get("game_datetime", 0)
-                game_start_utc = datetime.datetime.fromtimestamp(
-                    game_ms / 1000, tz=datetime.timezone.utc
-                )
-
-                participant_puuids = {
-                    p.get("puuid") for p in match_data.get("info", {}).get("participants", [])
-                }
-                tracked_count = sum(1 for p in participant_puuids if p in puuid_to_player)
-                if tracked_count < MIN_TRACKED_PLAYERS:
-                    self.stdout.write(f"    {mid} - skipped ({tracked_count}/8 tracked)")
-                    continue
-
-                version = _extract_game_version(match_data)
-                if _version_tuple(version) < _version_tuple(MIN_GAME_VERSION):
-                    self.stdout.write(f"    {mid} - old patch {version}, skipping")
-                    continue
-
-                try:
-                    if process_match(match_data, puuid_to_player, game_version=version, server="LIVE"):
-                        total_stored += 1
-                        self.stdout.write(f"    {mid} - stored ({game_start_utc.date()}, {version})")
-                    else:
-                        self.stdout.write(f"    {mid} - already existed")
-                except Exception as exc:
-                    logger.error("Error processing %s: %s", mid, exc, exc_info=True)
-
-            player.last_polled_at = now_utc
-            if not had_fetch_fail:
-                player.last_seen_match_id = match_ids[0]
-                player.save(update_fields=["last_seen_match_id", "last_polled_at"])
-            else:
-                player.save(update_fields=["last_polled_at"])
-
-        self.stdout.write(f"\nStored {total_stored} new match(es) in total.")
-
-        if total_stored:
-            self.stdout.write("Recomputing Live unit statistics...")
-            count = recompute_unit_stats(server="LIVE")
-            self.stdout.write(self.style.SUCCESS(f"Done - updated stats for {count} unit(s)."))
-        else:
-            self.stdout.write(self.style.SUCCESS("Nothing new - stats unchanged."))
+        finish_fetch(self, total_stored, server="LIVE")
 
     def _handle_single_match(self, api_key, match_id, puuid_to_player):
         self.stdout.write(f"Fetching specific match: {match_id}")
@@ -261,7 +205,7 @@ class Command(BaseCommand):
         prefix = match_id.split("_")[0] if "_" in match_id else "NA1"
         routing = PLATFORM_TO_ROUTING.get(prefix, "americas")
 
-        match_data = asyncio.run(self._fetch_single_match_async(api_key, match_id, routing))
+        match_data = asyncio.run(fetch_single_match_async(api_key, match_id, routing))
         if match_data is None:
             self.stderr.write(self.style.ERROR(f"{match_id} - fetch failed"))
             return
@@ -270,7 +214,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f"{match_id} - Double Up, skipping"))
             return
         set_core = match_data.get("info", {}).get("tft_set_core_name", "")
-        if not set_core.startswith("TFTSet16"):
+        if not set_core.startswith(f"TFTSet{CURRENT_SET_NUMBER}"):
             self.stdout.write(self.style.WARNING(f"{match_id} - {set_core or 'unknown set'}, skipping"))
             return
 
@@ -290,23 +234,3 @@ class Command(BaseCommand):
         except Exception as exc:
             logger.error("Error processing %s: %s", match_id, exc, exc_info=True)
             self.stderr.write(self.style.ERROR(str(exc)))
-
-    async def _fetch_match_ids_for_player(
-        self,
-        api_key: str,
-        puuid: str,
-        region: str,
-    ) -> list[str]:
-        service = RiotAPIService.for_platform(api_key, region)
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0), follow_redirects=True) as client:
-            return await service.get_match_ids(client, puuid, count=20)
-
-    async def _fetch_single_match_async(
-        self,
-        api_key: str,
-        match_id: str,
-        routing: str = "americas",
-    ):
-        service = RiotAPIService(api_key, routing=routing)
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0), follow_redirects=True) as client:
-            return await service.get_match(client, match_id)

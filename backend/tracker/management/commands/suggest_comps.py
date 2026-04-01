@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from itertools import combinations
 
 from django.core.management.base import BaseCommand
 
+from tracker.constants import CURRENT_SET_PREFIX
 from tracker.models import Participant
 
 
@@ -16,7 +18,10 @@ class Board:
 
 
 def _format_unit(unit_id: str) -> str:
-    return unit_id.replace("TFT16_", "").replace("TFT15_", "").replace("TFT14_", "")
+    if unit_id.startswith(CURRENT_SET_PREFIX):
+        return unit_id[len(CURRENT_SET_PREFIX):]
+    # Fallback: strip any TFT set prefix
+    return re.sub(r"^TFT\d*_", "", unit_id)
 
 
 class Command(BaseCommand):
@@ -110,8 +115,8 @@ class Command(BaseCommand):
             flex_units = ", ".join(_format_unit(u) for u in row["flex"])
             self.stdout.write(
                 f"\n{idx}. LVL Base: {row['level']}  |  Occurrences: {row['occurrences']}  |  AVP: {row['avg_placement']:.2f}\n"
-                f"   Unidades que sempre estao ({len(row['core'])}): {always_units}\n"
-                f"   Unidades flex ({row['level']} - {len(row['core'])} = {row['flex_slots']}): {flex_units if flex_units else '-'}"
+                f"   Core units (always present) ({len(row['core'])}): {always_units}\n"
+                f"   Flex units ({row['level']} - {len(row['core'])} = {row['flex_slots']}): {flex_units if flex_units else '-'}"
             )
 
     def _parse_levels(self, raw: str) -> list[int]:

@@ -15,11 +15,10 @@ import asyncio
 import logging
 import os
 
-import httpx
 from django.core.management.base import BaseCommand
 
 from tracker.models import Player
-from tracker.services.riot_api import RiotAPIService
+from tracker.management.commands._player_utils import parse_player_lines, fetch_accounts_async
 
 logger = logging.getLogger(__name__)
 
@@ -137,44 +136,14 @@ Bural#EUW:EUW
 Garkes#EUW:EUW
 """
 
-_STRIP_CHARS = "\u2066\u2069\u200b\u200c\u200d\ufeff"
-
-
-def _parse_player(raw: str) -> tuple[str, str, str]:
-    """Parse 'GameName#TagLine:REGION' → (game_name, tag_line, region)."""
-    cleaned = raw.strip()
-    for ch in _STRIP_CHARS:
-        cleaned = cleaned.replace(ch, "")
-    cleaned = cleaned.strip()
-
-    region = "NA1"  # default region
-    if ":" in cleaned:
-        cleaned, region = cleaned.rsplit(":", 1)
-        region = region.strip().upper()
-
-    if "#" in cleaned:
-        game_name, tag_line = cleaned.split("#", 1)
-        return game_name.strip(), tag_line.strip(), region
-    return cleaned, "NA1", region
-
-
 def build_player_list() -> list[tuple[str, str, str]]:
     """Parse raw list, strip blank lines, and deduplicate (case-insensitive)."""
-    seen: set[tuple[str, str, str]] = set()
-    result: list[tuple[str, str, str]] = []
-    for line in _RAW_PLAYER_LIST.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        game_name, tag_line, region = _parse_player(line)
-        if not game_name:
-            continue
-        key = (game_name.lower(), tag_line.lower(), region)
-        if key in seen:
-            continue
-        seen.add(key)
-        result.append((game_name, tag_line, region))
-    return result
+    return parse_player_lines(
+        _RAW_PLAYER_LIST,
+        default_tag="NA1",
+        parse_region=True,
+        default_region="NA1",
+    )
 
 
 class Command(BaseCommand):
@@ -211,7 +180,8 @@ class Command(BaseCommand):
             f"  {len(existing)} already in DB, fetching {len(need_fetch)} from API…"
         )
 
-        accounts = asyncio.run(self._fetch_accounts_async(api_key, need_fetch))
+        # Account API always uses americas routing
+        accounts = asyncio.run(fetch_accounts_async(api_key, need_fetch, routing="americas"))
 
         saved = skipped = 0
         for (game_name, tag_line, region), data in zip(need_fetch, accounts):
@@ -234,14 +204,3 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(f"Done — {saved} saved, {skipped} could not be resolved.")
         )
-
-    async def _fetch_accounts_async(
-        self,
-        api_key: str,
-        need_fetch: list[tuple[str, str, str]],
-    ) -> list:
-        # Account API always uses americas routing
-        service = RiotAPIService(api_key, routing="americas")
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0), follow_redirects=True) as client:
-            tasks = [service.get_account(client, gn, tl) for gn, tl, _ in need_fetch]
-            return await asyncio.gather(*tasks)

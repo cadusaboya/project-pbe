@@ -5,6 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { backendUrl } from "@/lib/backend";
 import { UnitImage, ItemImage } from "./TftImage";
 import { formatUnit } from "@/lib/tftUtils";
+import { formatDate, displayPlayerName } from "@/lib/formatters";
+import type { BoardUnit, LobbyParticipant, TraitInfo } from "@/lib/types";
+export type { TraitInfo } from "@/lib/types";
+import TraitChips from "./TraitChips";
+import UnitPicker from "./UnitPicker";
 
 // ── Types ───────────────────────────────────────────────────────────────────────
 
@@ -19,14 +24,6 @@ export interface PlayerInfo {
   region: string;
 }
 
-export interface WinningUnit {
-  character_id: string;
-  star_level: number;
-  cost: number;
-  traits: string[];
-  items: string[];
-}
-
 export interface LobbyPlayer {
   name: string;
   placement: number;
@@ -38,7 +35,7 @@ export interface WinningComp {
   game_version: string;
   winner: string;
   placement: number;
-  units: WinningUnit[];
+  units: BoardUnit[];
   lobby_players?: LobbyPlayer[];
 }
 
@@ -49,242 +46,10 @@ interface DisplayComp {
   player: string;
   placement: number;
   level?: number;
-  units: WinningUnit[];
+  units: BoardUnit[];
   lobby_players?: LobbyPlayer[];
 }
 
-interface LobbyParticipant {
-  name: string;
-  placement: number;
-  level: number;
-  gold_left: number;
-  units: WinningUnit[];
-  augments: string[];
-}
-
-// ── Helpers ─────────────────────────────────────────────────────────────────────
-
-function formatDate(iso: string): string {
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (diff < 60) return "Just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)} minutes ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
-  return `${Math.floor(diff / 86400)} days ago`;
-}
-
-function displayPlayerName(name: string): string {
-  return name.split("#")[0].trim();
-}
-
-// ── Trait helpers ─────────────────────────────────────────────────────────────
-
-export interface TraitInfo {
-  breakpoints: number[];
-  icon: string;
-}
-
-interface TraitState {
-  name: string;
-  count: number;
-  /** 0=unique, 1=bronze, 2=silver, 3=gold, 4=chromatic */
-  tier: number;
-  breakpoints: number[];
-  icon: string;
-  isUnique: boolean;
-}
-
-interface TierStyle {
-  chip: string;
-  num: string;
-  iconColor: string;
-}
-
-const TRAIT_TIER_STYLES: Record<number, TierStyle> = {
-  0: { chip: "bg-red-950/40 border-red-700/60",       num: "text-red-500",    iconColor: "#ef4444" },
-  1: { chip: "bg-amber-950/40 border-amber-700/60",   num: "text-amber-600",  iconColor: "#d97706" },
-  2: { chip: "bg-slate-800/40 border-slate-400/60",   num: "text-slate-300",  iconColor: "#cbd5e1" },
-  3: { chip: "bg-yellow-950/40 border-yellow-600/60", num: "text-yellow-500", iconColor: "#eab308" },
-  4: { chip: "bg-violet-950/40 border-violet-500/60", num: "text-violet-400", iconColor: "#a78bfa" },
-};
-
-function computeTraits(
-  units: WinningUnit[],
-  traitData: Record<string, TraitInfo>
-): TraitState[] {
-  const counts: Record<string, number> = {};
-  for (const unit of units) {
-    for (const trait of unit.traits) {
-      counts[trait] = (counts[trait] ?? 0) + 1;
-    }
-  }
-  const result: TraitState[] = [];
-  for (const [name, count] of Object.entries(counts)) {
-    const info = traitData[name];
-    const breakpoints = info?.breakpoints ?? [];
-    const icon = info?.icon ?? "";
-    let tier = 0;
-    for (let i = 0; i < breakpoints.length; i++) {
-      if (count >= breakpoints[i]) tier = i + 1;
-    }
-    if (tier > 0) {
-      const isUnique = breakpoints.length === 1 && breakpoints[0] === 1;
-      result.push({ name, count, tier: isUnique ? 0 : tier, breakpoints, icon, isUnique });
-    }
-  }
-  return result.sort((a, b) => {
-    if (a.isUnique !== b.isUnique) return a.isUnique ? 1 : -1;
-    return b.tier - a.tier || b.count - a.count;
-  });
-}
-
-function TraitChips({
-  units,
-  traitData,
-  small = false,
-}: {
-  units: WinningUnit[];
-  traitData: Record<string, TraitInfo>;
-  small?: boolean;
-}) {
-  const traits = computeTraits(units, traitData);
-  if (traits.length === 0) return null;
-  return (
-    <div className={`flex flex-wrap ${small ? "gap-0.5" : "gap-1"}`}>
-      {traits.map((t) => {
-        const style = TRAIT_TIER_STYLES[t.tier] ?? TRAIT_TIER_STYLES[1];
-        const activeBp = t.isUnique ? t.breakpoints[0] : t.breakpoints[t.tier - 1];
-        const nextBp = t.isUnique ? undefined : t.breakpoints[t.tier];
-        const suffix = nextBp != null ? `${t.count}/${nextBp}` : `${t.count}`;
-        return (
-          <span
-            key={t.name}
-            className={`inline-flex items-center rounded border font-bold ${
-              small
-                ? "gap-0 pl-0.5 pr-1 h-5 text-[10px]"
-                : "gap-0 pl-0.5 pr-1 h-5 text-[10px]"
-            } ${style.chip}`}
-            title={`${t.name} ${suffix} — breakpoints ${t.breakpoints.join("/")}`}
-          >
-            {t.icon && (
-              <span
-                className={`${small ? "w-3.5 h-3.5" : "w-3.5 h-3.5"} shrink-0 inline-block`}
-                style={{
-                  backgroundColor: style.iconColor,
-                  WebkitMaskImage: `url(${t.icon})`,
-                  maskImage: `url(${t.icon})`,
-                  WebkitMaskSize: "contain",
-                  maskSize: "contain",
-                  WebkitMaskRepeat: "no-repeat",
-                  maskRepeat: "no-repeat",
-                  WebkitMaskPosition: "center",
-                  maskPosition: "center",
-                }}
-              />
-            )}
-            <span className={style.num}>{activeBp}</span>
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── UnitPicker ──────────────────────────────────────────────────────────────────
-
-function UnitPicker({
-  units,
-  onSelect,
-}: {
-  units: UnitStatBasic[];
-  onSelect: (unitName: string) => void;
-}) {
-  const [search, setSearch] = useState("");
-  const [open, setOpen] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(0);
-  const ref = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const list = q
-      ? units.filter(
-          (u) =>
-            u.unit_name.toLowerCase().includes(q) ||
-            formatUnit(u.unit_name).toLowerCase().includes(q)
-        )
-      : units;
-    return list.slice(0, 20);
-  }, [units, search]);
-
-  useEffect(() => { setHighlightedIndex(0); }, [filtered]);
-  useEffect(() => {
-    const item = listRef.current?.children[highlightedIndex] as HTMLElement | undefined;
-    item?.scrollIntoView({ block: "nearest" });
-  }, [highlightedIndex]);
-
-  function pick(unitName: string) {
-    onSelect(unitName);
-    setSearch("");
-    setOpen(false);
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "ArrowDown") { e.preventDefault(); setHighlightedIndex((i) => Math.min(i + 1, filtered.length - 1)); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); setHighlightedIndex((i) => Math.max(i - 1, 0)); }
-    else if (e.key === "Enter") { e.preventDefault(); if (filtered[highlightedIndex]) pick(filtered[highlightedIndex].unit_name); }
-    else if (e.key === "Escape") { setOpen(false); }
-  }
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => { setOpen(true); setTimeout(() => inputRef.current?.focus(), 0); }}
-        className="flex items-center gap-2 bg-tft-surface border border-tft-border rounded-md px-3 py-2 text-sm hover:border-tft-accent transition-colors min-w-[140px] sm:min-w-[180px] text-left"
-      >
-        <span className="text-tft-muted">+ Filter by unit...</span>
-      </button>
-      {open && (
-        <div className="absolute z-30 top-full left-0 mt-1 w-52 sm:w-56 bg-tft-surface border border-tft-border rounded-md shadow-xl overflow-hidden">
-          <div className="p-2 border-b border-tft-border">
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder="Search unit..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="w-full bg-tft-bg border border-tft-border text-tft-text placeholder-tft-muted rounded px-2 py-1 text-sm focus:outline-none focus:border-tft-accent"
-            />
-          </div>
-          <div ref={listRef} className="max-h-56 overflow-y-auto">
-            {filtered.map((u, i) => (
-              <button
-                key={u.unit_name}
-                onClick={() => pick(u.unit_name)}
-                className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${i === highlightedIndex ? "bg-tft-hover" : "hover:bg-tft-hover"}`}
-              >
-                <UnitImage characterId={u.unit_name} cost={u.cost} size={20} borderWidth={1} className="rounded" />
-                <span className="text-tft-text text-sm">{formatUnit(u.unit_name)}</span>
-              </button>
-            ))}
-            {filtered.length === 0 && (
-              <p className="px-3 py-3 text-tft-muted text-sm text-center">No units found.</p>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── PlayerPicker ─────────────────────────────────────────────────────────────────
 
@@ -401,7 +166,7 @@ function UnitChip({
   itemAssets,
   highlighted,
 }: {
-  unit: WinningUnit;
+  unit: BoardUnit;
   itemAssets: Record<string, string>;
   highlighted?: boolean;
 }) {
@@ -443,7 +208,7 @@ function UnitChipSmall({
   unit,
   itemAssets,
 }: {
-  unit: WinningUnit;
+  unit: BoardUnit;
   itemAssets: Record<string, string>;
 }) {
   return (
@@ -503,7 +268,7 @@ function CompCard({
     .slice()
     .sort((a, b) => b.cost - a.cost || b.star_level - a.star_level);
 
-  function isHighlighted(unit: WinningUnit): boolean {
+  function isHighlighted(unit: BoardUnit): boolean {
     if (!highlightedUnits || highlightedUnits.length === 0) return false;
     return highlightedUnits.some((q) =>
       unit.character_id.toLowerCase().includes(q.toLowerCase())
@@ -870,7 +635,7 @@ export default function WinningCompsList({
           <PlayerPicker players={allPlayers} selectedPlayers={selectedPlayers} onSelect={addPlayer} />
         )}
         {allUnits.length > 0 && (
-          <UnitPicker units={allUnits} onSelect={addUnit} />
+          <UnitPicker units={allUnits} onSelect={addUnit} placeholder="+ Filter by unit..." />
         )}
         <span className="text-tft-muted text-xs sm:text-sm ml-auto">
           {(searchLoading || playerSearchLoading) ? "Searching..." : `${displayData.length} results`}

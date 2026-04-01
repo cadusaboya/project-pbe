@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-const VALID_SERVERS = ["pbe", "live", "scrims"];
+import { getServerFromPath } from "@/lib/constants";
 
 const navItems = [
   {
@@ -62,11 +61,6 @@ const navItems = [
     ),
   },
 ];
-
-function getServerFromPath(pathname: string): string {
-  const first = pathname.split("/")[1]?.toLowerCase();
-  return VALID_SERVERS.includes(first ?? "") ? first! : "pbe";
-}
 
 export default function Nav() {
   const pathname = usePathname();

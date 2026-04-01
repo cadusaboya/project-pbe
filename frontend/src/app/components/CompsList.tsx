@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { UnitImage } from "./TftImage";
 import { formatUnit, fetchTeamPlannerMap, generateTeamPlannerCode, type TeamPlannerMap } from "@/lib/tftUtils";
+import { formatTrait, avpTextColor, compTier } from "@/lib/formatters";
 
 interface CompUnit {
   character_id: string;
@@ -53,28 +54,6 @@ export interface CompStat {
 }
 
 type TraitData = Record<string, { breakpoints: number[]; icon: string }>;
-
-function formatTrait(name: string): string {
-  return name.replace(/^TFT\d+_/, "").replace(/^Set\d+_/, "");
-}
-
-function avpTextColor(avp: number): string {
-  if (avp <= 3.2) return "text-emerald-400";
-  if (avp <= 3.7) return "text-teal-400";
-  if (avp <= 4.0) return "text-green-300";
-  if (avp <= 4.4) return "text-amber-300/90";
-  if (avp <= 4.8) return "text-orange-400/80";
-  return "text-rose-400/80";
-}
-
-function compTier(avp: number): { label: string; color: string; bg: string } {
-  if (avp < 3.7) return { label: "S", color: "text-red-400", bg: "bg-red-500/20 border-red-500/40" };
-  if (avp < 4.0) return { label: "A", color: "text-orange-400", bg: "bg-orange-500/20 border-orange-500/40" };
-  if (avp < 4.4) return { label: "B", color: "text-yellow-400", bg: "bg-yellow-500/20 border-yellow-500/40" };
-  if (avp < 4.8) return { label: "C", color: "text-lime-400", bg: "bg-lime-500/20 border-lime-500/40" };
-  return { label: "D", color: "text-slate-400", bg: "bg-slate-500/15 border-slate-500/30" };
-}
-
 
 function UnitChip({ unit, size = 48 }: { unit: CompUnit; size?: number }) {
   return (

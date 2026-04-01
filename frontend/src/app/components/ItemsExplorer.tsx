@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { backendUrl } from "@/lib/backend";
-import { UnitStat } from "./StatsTable";
 import { UnitImage, ItemImage } from "./TftImage";
 import { formatUnit, costBorderColor } from "@/lib/tftUtils";
+import { formatItemName, placementColor, deltaColor } from "@/lib/formatters";
+import type { UnitStat } from "@/lib/types";
 
 interface ItemStat {
   item_name: string;
@@ -28,26 +29,6 @@ const MAX_SELECTED_ITEMS = 2;
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 let _itemNamesCache: Record<string, string> = {};
-
-function formatItemName(itemName: string): string {
-  if (_itemNamesCache[itemName]) return _itemNamesCache[itemName];
-  return itemName.replace(/^TFT\d*_Item_/, "").replace(/([A-Z])/g, " $1").trim();
-}
-
-function placementColor(placement: number): string {
-  if (placement <= 2) return "text-yellow-400 font-semibold";
-  if (placement <= 4) return "text-green-400";
-  if (placement <= 6) return "text-tft-text";
-  return "text-red-400";
-}
-
-function deltaColor(delta: number): string {
-  if (delta < -0.5) return "text-green-400 font-bold";
-  if (delta < 0) return "text-green-400";
-  if (delta === 0) return "text-tft-muted";
-  if (delta <= 0.5) return "text-red-400";
-  return "text-red-400 font-bold";
-}
 
 // ── Champion selector ────────────────────────────────────────────────────────
 
@@ -220,7 +201,7 @@ function ItemChip({
         size={20}
       />
       <span className="text-tft-text text-sm font-medium">
-        {formatItemName(itemName)}
+        {formatItemName(itemName, _itemNamesCache)}
       </span>
       <button
         onClick={onRemove}
@@ -371,7 +352,7 @@ export default function ItemsExplorer({
     }
     return (
       <>
-        With {selectedItems.map(formatItemName).join(" + ")}:{" "}
+        With {selectedItems.map((n) => formatItemName(n, _itemNamesCache)).join(" + ")}:{" "}
         <span className={`font-semibold ${placementColor(itemData.base_avg_placement)}`}>
           {itemData.base_avg_placement.toFixed(2)}
         </span>{" "}
@@ -522,7 +503,7 @@ export default function ItemsExplorer({
                             size={28}
                           />
                           <span className="text-tft-text">
-                            {formatItemName(item.item_name)}
+                            {formatItemName(item.item_name, _itemNamesCache)}
                           </span>
                         </div>
                       </td>
@@ -565,7 +546,7 @@ export default function ItemsExplorer({
                 <>
                   {" "}with{" "}
                   <span className="text-tft-text">
-                    {selectedItems.map(formatItemName).join(" + ")}
+                    {selectedItems.map((n) => formatItemName(n, _itemNamesCache)).join(" + ")}
                   </span>
                 </>
               )}

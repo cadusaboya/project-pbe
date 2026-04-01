@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { fetchJson } from "@/lib/api";
 import PageSkeleton from "./components/PageSkeleton";
+import { COST_COLORS, unitImageUrl, formatUnit } from "@/lib/tftUtils";
+import { avpColor, compTier } from "@/lib/formatters";
 
 interface TopUnit {
   unit_name: string;
@@ -47,40 +49,6 @@ async function fetchTopComps(server?: string): Promise<TopComp[]> {
   } catch {
     return [];
   }
-}
-
-const COST_COLORS: Record<number, string> = {
-  1: "border-gray-500",
-  2: "border-green-600",
-  3: "border-blue-500",
-  4: "border-purple-500",
-  5: "border-yellow-400",
-  7: "border-yellow-400",
-};
-
-function unitImageUrl(characterId: string): string {
-  const lower = characterId.toLowerCase();
-  const setNum = lower.match(/^tft(\d+)_/)?.[1] ?? "16";
-  return `https://raw.communitydragon.org/pbe/game/assets/characters/${lower}/hud/${lower}_square.tft_set${setNum}.png`;
-}
-
-function formatUnit(name: string): string {
-  return name.replace(/^TFT\d+_/, "");
-}
-
-function avpColor(avp: number): string {
-  if (avp <= 3.5) return "text-emerald-400";
-  if (avp <= 4.0) return "text-teal-400";
-  if (avp <= 4.5) return "text-amber-300";
-  return "text-rose-400";
-}
-
-function compTier(avp: number): { label: string; color: string; bg: string } {
-  if (avp < 3.7) return { label: "S", color: "text-red-400", bg: "bg-red-500/20 border border-red-500/40" };
-  if (avp < 4.0) return { label: "A", color: "text-orange-400", bg: "bg-orange-500/20 border border-orange-500/40" };
-  if (avp < 4.4) return { label: "B", color: "text-yellow-400", bg: "bg-yellow-500/20 border border-yellow-500/40" };
-  if (avp < 4.8) return { label: "C", color: "text-lime-400", bg: "bg-lime-500/20 border border-lime-500/40" };
-  return { label: "D", color: "text-slate-400", bg: "bg-slate-500/15 border border-slate-500/30" };
 }
 
 function IconGrid() {
