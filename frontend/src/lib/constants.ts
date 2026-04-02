@@ -1,7 +1,7 @@
 // Shared constants used across the frontend
 
 /** Default game-version filter applied when no explicit version is in the URL. */
-export const DEFAULT_GAME_VERSION = "Set 17 A";
+export const DEFAULT_GAME_VERSION = "17 B";
 
 export const VALID_SERVERS = ["pbe", "live", "scrims"] as const;
 export type ServerSlug = (typeof VALID_SERVERS)[number];

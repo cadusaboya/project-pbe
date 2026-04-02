@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 SKIP_UNITS = {"tft17_bardfollower"}
 
 
-def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "Set 17 A", server: str = "PBE") -> bool:
+def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "17 B", server: str = "PBE") -> bool:
     """
     Store a match and the unit data for every participant (all 8 slots).
 
