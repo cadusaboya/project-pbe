@@ -13,6 +13,7 @@ import { VALID_TIERS_SET, getServerFromPath, DEFAULT_PBE_QUEUE, DEFAULT_PBE_TIER
  */
 
 const OPTIONS = [
+  { queue: "project_pbe", tier: "", label: "All" },
   { queue: "project_pbe", tier: "tier1", label: "T1" },
   { queue: "project_pbe", tier: "tier2", label: "T2" },
   { queue: "project_pbe", tier: "open", label: "Open" },

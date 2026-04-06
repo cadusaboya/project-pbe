@@ -56,5 +56,5 @@ export const QUEUE_LABELS: Record<string, string> = {
 
 /** Default queue for PBE pages */
 export const DEFAULT_PBE_QUEUE: QueueSlug = "project_pbe";
-/** Default tier for PBE pages */
-export const DEFAULT_PBE_TIER: TierSlug = "tier1";
+/** Default tier for PBE pages (empty = all tiers) */
+export const DEFAULT_PBE_TIER = "";

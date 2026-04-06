@@ -32,24 +32,30 @@ export default function TierFilter() {
   const selected = new Set(
     rawTier.split(",").filter((t) => VALID_TIERS_SET.has(t))
   );
-  if (selected.size === 0) selected.add(DEFAULT_PBE_TIER);
+  // Empty selection means all tiers
+  const allSelected = selected.size === 0 || selected.size === VALID_TIERS.length;
 
   function apply(next: Set<string>) {
     const params = new URLSearchParams(searchParams.toString());
-    if (next.size === 0) next.add(DEFAULT_PBE_TIER);
-    params.set("tier", [...next].join(","));
+    // If all or none selected, remove tier param (= all tiers)
+    if (next.size === 0 || next.size === VALID_TIERS.length) {
+      params.delete("tier");
+    } else {
+      params.set("tier", [...next].join(","));
+    }
     params.set("queue", DEFAULT_PBE_QUEUE);
     router.push(`${pathname}?${params.toString()}`);
   }
 
   function toggle(tier: string) {
-    const next = new Set(selected);
-    if (next.has(tier)) {
-      next.delete(tier);
+    // If all are selected, clicking one means "only deselect that one"
+    const base = allSelected ? new Set(VALID_TIERS as readonly string[]) : new Set(selected);
+    if (base.has(tier)) {
+      base.delete(tier);
     } else {
-      next.add(tier);
+      base.add(tier);
     }
-    apply(next);
+    apply(base);
   }
 
   // Close on click outside
@@ -63,12 +69,11 @@ export default function TierFilter() {
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, [open]);
 
-  const label =
-    selected.size === VALID_TIERS.length
-      ? "All Tiers"
-      : [...selected]
-          .map((t) => TIER_LABELS[t] ?? t)
-          .join(", ");
+  const label = allSelected
+    ? "All Tiers"
+    : [...selected]
+        .map((t) => TIER_LABELS[t] ?? t)
+        .join(", ");
 
   return (
     <div className="relative" ref={ref}>
@@ -97,7 +102,7 @@ export default function TierFilter() {
             >
               <input
                 type="checkbox"
-                checked={selected.has(tier)}
+                checked={allSelected || selected.has(tier)}
                 onChange={() => toggle(tier)}
                 className="accent-tft-gold w-3.5 h-3.5"
               />
