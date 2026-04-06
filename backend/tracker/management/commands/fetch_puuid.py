@@ -159,7 +159,6 @@ Safo20#pbe
 Sacred Norris312#PBE7
 Guillosko#PBE
 Chunington#7553
-Far3well#PBE
 TrybleH#PBE
 Agginpbe#mie
 Sixyuan#Flash
@@ -254,7 +253,7 @@ Kirigiri PBE
 Pengpeng3#pbe
 micky1#1778
 抖音丶Ace#123
-kminsu10191  (luxfan#2948)
+luxfan#2948
 Nuryy7#PBE
 Fifi PBE #Mkhue
 Ac1231#1231
@@ -374,7 +373,7 @@ xuv#nvx
 wxuzyyds#PBE
 everytimeicu#19096
 TEHGEO#5086
-zellatino0000 (Elmumu#000)
+Elmumu#000
 jjames#skrr
 eustia#0002
 SamFisher#RAY
@@ -464,7 +463,6 @@ DataTFTyishan#1313
 Powfu NB#pbe
 noita#pbe1
 RNGUZI#123
-HWG#10000
 Boing D Winnie #Pooh
 AdaLee#PBE
 Pancachee#PBE
@@ -477,7 +475,7 @@ DCC#PBE2
 Slooper#PBE
 oCMCoqaq#qaq
 GiayCoDong#1309
-jihaning@pbe
+jihaning#pbe
 jack#KC70
 SatoruGojo#13619
 Vinimex#pbe
@@ -584,7 +582,7 @@ Xuân Hinh#PBE
 TipfyPBE#1234
 wenye#817
 lawl#bld
-Ameng777＃5408
+Ameng777#5408
 kr luck bb#real
 Yamato2826#PBE
 Lumperich#PBE
@@ -600,7 +598,7 @@ bn ie#0127
 odyceuz#tft1
 CFC Ecstasy
 Kezman#PBE
-G1nkgo@1898
+G1nkgo#1898
 qweqweqwe#122
 yanlimeiyouguang#pbe
 yomsi2110#4172
@@ -613,7 +611,7 @@ Kez0s#PBE
 Jesus Loves You#KOREA
 tddPBE#0111
 Panpann#PBE
-#DataTFT245674
+DataTFT245674
 KR dlwlrma 25
 Failo Potato #PBE
 Ingrid Lassing#PBE
@@ -627,7 +625,7 @@ Gidget PBE#1008
 kokelol#pbe
 sakuraho#123
 AKI#00006
-xesycy@#PBE
+xesycy#PBE
 egg#4889
 Rafael Araújo #PBE
 AMATOR1234#5524
@@ -769,7 +767,7 @@ AitneipasPBE#CL23
 hyun min#wise
 ViolaDWY#0828
 VN h1ha#mhieu
-EmterorPBE＃2129
+EmterorPBE#2129
 halloweens#loona
 PainGetsReal #PBE
 Qianyuan#wow
@@ -811,7 +809,7 @@ qingnian#66666
 BlucksPBE#TFT
  VN #PBE
 JerunduxaDD#9740
-xiaobaizii＃PBE
+xiaobaizii#PBE
 Alrath#PBE
 BALOTELLI777 PBE#pbe
 T1 2viett#8386
@@ -921,17 +919,17 @@ pbe monster 99#bbtea
 bbonyo#pbe
 PBE Gardorr
 Em Naa#2004
-⁦ẨN PBE⁩#⁦1411⁩
+⁦ẨN PBE⁩#1411
 KaoruP#PBE
 크래프트#1111
 Eldhelm #123
-⁦L9 dishwasher⁩#⁦PBE⁩
+L9 dishwasher#PBE
 DeLaFill3#7259
 jinx#444
 beedog#0927
 konst1pe#PBE2
 chocotomatoPBE#239
-⁦SmilingBoi⁩#⁦PBE⁩
+SmilingBoi#PBE
 KIENPBE25#PBE
 Huydeptraiqua1#1001
 PBE Dawnte#PBE
@@ -946,12 +944,12 @@ Petikk#pbe
 msh#PBE2
 SHiRoxK0909#0909
 Armasmalas#pbe12
-⁦TFT ekko⁩#⁦PBE⁩
+TFT ekko#PBE
 SXY Théoden#SXY
 itzGator#PBE
 Teterre#PBE
 Mujjiwaraaa#PBE
-⁦XDDDDDDDDDXDDX⁩#⁦XDDDD⁩
+XDDDDDDDDDXDDX#XDDDD
 m1zuh4#2911
 BurtleyTFT#PBE
 Lukwer TFT#Kata
@@ -997,7 +995,7 @@ Twitchyoz#8787
 kha nhu cute#PBE
 asphy#0396
 Phantom#pbe00
-⁦TWTV Baltazar001⁩#⁦PBE⁩
+TWTV Baltazar001#PBE
 Larryyy#pbe
 HermitMxPBE#PBE
 thanhcuibappp#1611
@@ -1053,7 +1051,7 @@ FF p4c3s#Flip
 Splyyyn
 partaegeon
 SevenEnd7#PBE
-⁦xiaoxi⁩#⁦129⁩
+xiaoxi#129
 TalelGPT#PBEE
 ccasely#PBE
 比菲多喝水#1111
@@ -1077,7 +1075,7 @@ PerryGRR#PE1
 chanhiuu#1709
 thang6223
 Lmilio pbe #wpp
-⁦Testaffe⁩#⁦PBE⁩
+Testaffe#PBE
 July PBE#6796
 NinePhiro#TFT
 SweatLabor
@@ -1085,7 +1083,7 @@ mingafloja#2678
 Đăng Hoàng#iuem
 Iamsogooddw qd#kkkk
 GnarlyBurno#89732
-kotosin04pve
+kotosin04pbe
 无
 menheraboy#kor
 think2wice#4367
@@ -1093,7 +1091,7 @@ absoloot#clean
 kaiPBE#PBEEE
 gold bog#21532
 Binoculous#PBE
-⁦clockboy⁩#⁦9859⁩
+clockboy#9859
 Wassly#3326
 AmebenzPBE
 姜海喵喵粼#0722
@@ -1101,7 +1099,7 @@ Skot1k#TFT
 FBG Beckem#PBE
 godpbe9091
 eldistanzxd#xdd
-zuishuaicuncao#️⃣pbe
+zuishuaicuncao#pbe
 ZT koi#torii
 excellent name#PBE
 lawww#pbe
@@ -1129,13 +1127,13 @@ polo mp#PBEE
 CochsakenPBE#PBEEE
 9872341105424982#PBE
 Domper#PBE
-⁦V3rm0uth⁩#⁦10086⁩
+V3rm0uth#10086
 ballom#PBE
 easonbqc
 thuphuongK37#PBE
 5M1m3o9s8b#PBE
 drsteelhammereuw#pbe
-prexis22222 (bongdal2#pbe)
+bongdal2#pbe
 Woodentable#1234
 Fobia #kekw
 SXY BossManele#SXY
@@ -1168,7 +1166,7 @@ b1dasu#PBE
 PRO5EKKOPBE#L2P
 FelixMatos#PBE12
 gochujang#pbe
-⁦hive king⁩#⁦tvtw⁩
+hive king#tvtw
 PBEeeroy#jkins
 Popow#1912
 ChopZen#Mind
@@ -1180,7 +1178,7 @@ Duckkk#Tom
 saiyaman11
 treloPBE
 aokijiPBE#PBE
-KoiKhatSai⁩#⁦84864⁩
+KoiKhatSai#84864
 ZoomSlay#PBE
 tedd1ursa
 noju#pbe
@@ -1189,7 +1187,7 @@ k1rqi#pbe
 fsn#pbe
 Thalesbluu#1108
 Ramyeo#BomBA
-⁦JABATO PBE⁩#⁦JABAT⁩
+JABATO PBE#JABAT
 ヤミラミ#NEMUI
 onenightstudy#sech
 Smietana#KRWL
@@ -1212,16 +1210,16 @@ YE4H #TFT
 CrushingMemes2#PBE
 WilliamSeedXXX#PBE
 ewik#ttv
-⁦NaiePBE⁩#⁦9999⁩
+NaiePBE#9999
 Dorindan
 habui#lbien
-⁦reitnorf PBE⁩#⁦0000⁩
+reitnorf PBE#0000
 datingwithMing#Meow
 Saul PBE#TR182
 MasterYi941219#1219
 ChessGuy1
 owww#pbe
-⁦Chú Bảy⁩#⁦BibiE⁩
+Chú Bảy#BibiE
 Bao1#Bao1z
 LilP90Vert#6954
 Om Hum
@@ -1290,7 +1288,7 @@ Dyah3#1234
 bibikalol#PBE
 Fabulotus#PBE
 FikesTwo#PBE
-⁦CobaTFT⁩#⁦2105⁩
+CobaTFT#2105
 Sl4sh3r#PBE
 100giantworms
 smfc#PBE
@@ -1315,13 +1313,12 @@ oqqy#132
 slakemoth
 BIGZOUHATER#94539
 StephAeri#aespa
-#666
 Pablito #X020
 Jiten#PBE
 PeacefullyPBE#4904
 Ducnew234#1234
 Kong Trần #Win
-⁦Edjoe⁩#⁦PBE⁩
+Edjoe#PBE
 WildPBE#3697
 HackCute2PBE#0103
 CueRvooo #lolo
@@ -1331,7 +1328,7 @@ PiKachu0706#1230
 shuaigedan#pbe
 esok#PBE
 hiepdzpbe#11111
-chanzigaoshou@pbe
+chanzigaoshou#pbe
 ryoumajima#5186
 Toof#PBE
 Byungkuk#PBE
@@ -1348,7 +1345,7 @@ LayzixCHALL
 Sebv#pbe
 phanthiquynhmai #ukj
 LuvLetter #onPBE
-⁦PuiPuiMolcar⁩#⁦4911⁩
+PuiPuiMolcar#4911
 SmothOperatorTFT#PBE
 MelonPBE#4545
 shkd#1508
@@ -1383,9 +1380,9 @@ thainguyen97nt
 askeladpbe#pbe
 TFT Dolly#TFT
 nanapypbe#1223
-⁦Áirfork1PBE1299⁩#⁦1463⁩
+Áirfork1PBE1299#1463
 Path of Gaming X#PBE
-⁦Alsomepbe⁩#⁦5616⁩
+Alsomepbe#5616
 Nammm#6105
 Mainjobeta#PBE
 DekZo#lily
@@ -1411,14 +1408,14 @@ Ventair#4515
 mellomood#pbe
 B612#zzz
 Chuongpro#7777
-⁦nofunallowdpbe⁩#⁦2313⁩
+nofunallowdpbe#2313
 Tiger000000000#PBE
 대깨황금황소
 LUNA Erza#PBE01
 Trung Vladimir#PBE
 mendakoPBE#0101
 Kaehu1#PBE
-⁦Ucantmilkthose⁩#⁦PBE⁩
+Ucantmilkthose#PBE
 ckdoesitoften#0302
 mayuri24pbe
 jofish#pbe
@@ -1435,8 +1432,8 @@ SamiSamuel#PBE
 CoffeeJellyPBE#PBE
 c6 ganyu#pbe
 Bananabill#PBE
-⁦RoXaS⁩#⁦0801⁩
-⁦busydevpbe⁩#17072
+RoXaS#0801
+busydevpbe#17072
 Zouilllllesque#4340
 Jumeirah#PBE
 MrTy1#zzz
@@ -1511,9 +1508,19 @@ def _build_tier_map() -> dict[tuple[str, str], str]:
     return tier_map
 
 
-def build_player_list() -> list[tuple[str, str]]:
-    """Parse all tier lists, deduplicate (case-insensitive)."""
-    all_raw = "\n".join([_TIER1_PLAYERS, _TIER2_PLAYERS, _OPEN_PLAYERS])
+_TIER_RAW = {
+    "tier1": _TIER1_PLAYERS,
+    "tier2": _TIER2_PLAYERS,
+    "open": _OPEN_PLAYERS,
+}
+
+
+def build_player_list(tier: str | None = None) -> list[tuple[str, str]]:
+    """Parse tier lists, deduplicate (case-insensitive). Optionally filter by tier."""
+    if tier:
+        raw = _TIER_RAW.get(tier, "")
+        return parse_player_lines(raw, default_tag="pbe")
+    all_raw = "\n".join(_TIER_RAW.values())
     return parse_player_lines(all_raw, default_tag="pbe")
 
 
@@ -1525,13 +1532,24 @@ def build_player_list() -> list[tuple[str, str]]:
 class Command(BaseCommand):
     help = "Resolve Riot IDs → PUUIDs and store them in the Player table (run once)."
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--tier",
+            choices=["tier1", "tier2", "open"],
+            default=None,
+            help="Only process players from a specific tier (tier1, tier2, or open).",
+        )
+
     def handle(self, *args, **options):
         api_key = os.environ.get("RIOT_API_KEY", "").strip()
         if not api_key:
             self.stderr.write(self.style.ERROR("RIOT_API_KEY is not set."))
             return
 
-        player_list = build_player_list()
+        tier_filter = options["tier"]
+        player_list = build_player_list(tier=tier_filter)
+        if tier_filter:
+            self.stdout.write(f"Filtering by tier: {tier_filter}")
         tier_map = _build_tier_map()
         self.stdout.write(f"Player list: {len(player_list)} unique entries.")
         self.stdout.write(

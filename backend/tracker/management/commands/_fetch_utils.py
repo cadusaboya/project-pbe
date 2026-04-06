@@ -91,6 +91,17 @@ def resolve_project_pbe_players(
     if match_category != "PROJECT_PBE":
         return
 
+    # Update tier for tracked players whose tier doesn't match the match tier
+    for puuid in participant_puuids:
+        player = puuid_to_player.get(puuid)
+        if player and player.tier != match_tier:
+            old_tier = player.tier
+            player.tier = match_tier
+            player.save(update_fields=["tier"])
+            command.stdout.write(
+                f"      updated {player.game_name}#{player.tag_line} tier: {old_tier} → {match_tier}"
+            )
+
     # Find puuids not in our tracked player map
     unknown_puuids = [p for p in participant_puuids if p not in puuid_to_player]
     if not unknown_puuids:
