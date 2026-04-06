@@ -8,8 +8,8 @@ from tracker.models import Match
 from tracker.services.aggregation import recompute_unit_stats
 
 DEFAULT_CUTOFF_DATE = "2026-04-06"
-DEFAULT_CUTOFF_TIME = "00:00"
-DEFAULT_CUTOFF_TZ = "America/Cuiaba"
+DEFAULT_CUTOFF_TIME = "05:00"
+DEFAULT_CUTOFF_TZ = "America/Porto_Velho"
 
 
 class Command(BaseCommand):
