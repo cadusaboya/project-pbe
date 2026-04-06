@@ -32,6 +32,7 @@ async function fetchTopUnits(server?: string): Promise<TopUnit[]> {
   try {
     const params = new URLSearchParams({ sort: "avg_placement", min_games: "20" });
     if (server) params.set("server", server);
+    if (!server || server.toUpperCase() === "PBE") params.set("queue", "project_pbe");
     const data = await fetchJson<TopUnit[]>(`/api/unit-stats/?${params}`);
     return data.slice(0, 5);
   } catch {
@@ -43,6 +44,7 @@ async function fetchTopComps(server?: string): Promise<TopComp[]> {
   try {
     const params = new URLSearchParams({ top_flex: "1" });
     if (server) params.set("server", server);
+    if (!server || server.toUpperCase() === "PBE") params.set("queue", "project_pbe");
     const json = await fetchJson<{ comps?: TopComp[] } | TopComp[]>(`/api/comps/?${params}`);
     const data: TopComp[] = Array.isArray(json) ? json : json.comps ?? [];
     return data.filter((c) => c.comps > 0).sort((a, b) => a.avg_placement - b.avg_placement).slice(0, 5);
@@ -357,14 +359,14 @@ export default async function Home({
           <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold">
             <span className="text-tft-text">Tracking the </span>
             <span className="bg-gradient-to-r from-tft-gold to-yellow-300 bg-clip-text text-transparent">
-              Live Server
+              Live Servers
             </span>
           </h2>
 
           <p className="max-w-2xl mx-auto text-tft-muted text-sm sm:text-lg leading-relaxed">
-            TFT Pro Radar is now tracking
+            TFT Pro Radar tracks
             <span className="text-tft-text font-semibold"> how the best players play</span> on
-            the live server with full depth and speed, covering every ranked game
+            the live servers with full depth and speed, covering every ranked game
             from pro player lobbies across all regions.
           </p>
 
@@ -381,14 +383,6 @@ export default async function Home({
             ))}
           </div>
 
-          <div className="pt-2">
-            <Link
-              href="/live/games-feed"
-              className="inline-flex px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg bg-gradient-to-r from-tft-gold to-yellow-500 text-tft-bg font-bold text-base sm:text-lg hover:brightness-110 transition-all shadow-lg shadow-tft-gold/20"
-            >
-              Track Live Games Now
-            </Link>
-          </div>
         </div>
       </section>
 
