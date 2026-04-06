@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 
 from ..models import UnitUsage
 from ..services.items import get_item_canonical_map, load_item_assets, load_item_names
-from .helpers import cc, get_tier, pbe_participant_filter
+from .helpers import cc, get_tier, pbe_participant_filter, tier_q
 
 
 class ItemAssetsView(APIView):
@@ -62,7 +62,7 @@ class ItemStatsView(APIView):
             qs = qs.filter(participant__player__isnull=False)
             tier = get_tier(request)
             if tier:
-                qs = qs.filter(participant__player__tier=tier)
+                qs = qs.filter(tier_q(tier, "participant__player__tier"))
         if game_version:
             qs = qs.filter(participant__match__game_version=game_version)
 

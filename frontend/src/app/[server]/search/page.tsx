@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import SearchComps from "../../components/SearchComps";
 import PageSkeleton from "../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
+import { DEFAULT_PBE_TIER, DEFAULT_PBE_QUEUE } from "@/lib/constants";
 import { UnitStat } from "../../components/StatsTable";
 import { TraitInfo } from "../../components/WinningCompsList";
 
@@ -62,7 +63,10 @@ export default async function SearchPage({
 }) {
   const { server: serverSlug } = await params;
   const server = serverSlug.toUpperCase();
-  const { tier, queue } = await searchParams;
+  const { tier: rawTier, queue: rawQueue } = await searchParams;
+  const isPbe = server === "PBE";
+  const tier = rawTier ?? (isPbe ? DEFAULT_PBE_TIER : undefined);
+  const queue = rawQueue ?? (isPbe ? DEFAULT_PBE_QUEUE : undefined);
 
   return (
     <div className="space-y-6">

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import PlayerProfile, { PlayerProfileData, TraitInfo } from "../../../components/PlayerProfile";
 import PageSkeleton from "../../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
+import { DEFAULT_PBE_TIER, DEFAULT_PBE_QUEUE } from "@/lib/constants";
 import Link from "next/link";
 
 async function fetchPlayerProfile(name: string, server?: string, tier?: string, queue?: string): Promise<PlayerProfileData> {
@@ -86,7 +87,10 @@ export default async function PlayerPage({
 }) {
   const { server: serverSlug, name } = await params;
   const server = serverSlug.toUpperCase();
-  const { tier, queue } = await searchParams;
+  const { tier: rawTier, queue: rawQueue } = await searchParams;
+  const isPbe = server === "PBE";
+  const tier = rawTier ?? (isPbe ? DEFAULT_PBE_TIER : undefined);
+  const queue = rawQueue ?? (isPbe ? DEFAULT_PBE_QUEUE : undefined);
   const decodedName = decodeURIComponent(name);
 
   return (

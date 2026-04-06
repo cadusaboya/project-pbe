@@ -1,9 +1,11 @@
 import { Suspense } from "react";
 import StatsTable, { UnitStat } from "../../components/StatsTable";
 import VersionFilter from "../../components/VersionFilter";
+import TierFilter from "../../components/TierFilter";
 import PageSkeleton from "../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
 import { getDefaultVersion } from "@/lib/api";
+import { DEFAULT_PBE_TIER, DEFAULT_PBE_QUEUE } from "@/lib/constants";
 
 async function fetchStats(gameVersion?: string, server?: string, tier?: string, queue?: string): Promise<UnitStat[]> {
   const params = new URLSearchParams();
@@ -54,6 +56,7 @@ async function StatsContent({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <VersionFilter versions={versions} selectedVersion={gameVersion} />
+        <Suspense fallback={null}><TierFilter /></Suspense>
       </div>
 
       {error ? (
@@ -93,7 +96,10 @@ export default async function Home({
 }) {
   const { server: serverSlug } = await params;
   const server = serverSlug.toUpperCase();
-  const { game_version: gameVersion, tier, queue } = await searchParams;
+  const { game_version: gameVersion, tier: rawTier, queue: rawQueue } = await searchParams;
+  const isPbe = server === "PBE";
+  const tier = rawTier ?? (isPbe ? DEFAULT_PBE_TIER : undefined);
+  const queue = rawQueue ?? (isPbe ? DEFAULT_PBE_QUEUE : undefined);
 
   return (
     <div className="space-y-6">

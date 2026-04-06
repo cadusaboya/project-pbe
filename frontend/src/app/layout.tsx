@@ -9,7 +9,6 @@ import StatsBar from "./components/StatsBar";
 import FreshnessGuard from "./components/FreshnessGuard";
 import Nav from "./components/Nav";
 import ServerSelector from "./components/ServerSelector";
-import TierSelector from "./components/TierSelector";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -87,12 +86,9 @@ export default async function RootLayout({
                   TFT Pro Radar
                 </span>
               </Link>
-              <Suspense fallback={null}>
+              {/* <Suspense fallback={null}>
                 <ServerSelector />
-              </Suspense>
-              <Suspense fallback={null}>
-                <TierSelector />
-              </Suspense>
+              </Suspense> */}
               <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
                 <a
                   href="https://x.com/TFTProRadar"

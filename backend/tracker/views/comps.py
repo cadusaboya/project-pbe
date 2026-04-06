@@ -18,7 +18,7 @@ from ..services.cdragon import (
     TRAIT_CACHE,
     ensure_trait_cache,
 )
-from .helpers import cc, get_queue, get_tier, pbe_participant_filter, slots_used, unit_slot_weight
+from .helpers import cc, get_queue, get_tier, pbe_participant_filter, slots_used, tier_q, unit_slot_weight
 
 # ── Per-module caches ─────────────────────────────────────────────────────────
 
@@ -67,7 +67,7 @@ class WinningCompsView(ListAPIView):
             base_filter = pbe_participant_filter(self.request)
         else:
             tier = get_tier(self.request)
-            base_filter = Q(player__tier=tier) if tier else Q()
+            base_filter = tier_q(tier, "player__tier") if tier else Q()
             base_filter &= Q(player__isnull=False)
 
         if player_names:
@@ -178,7 +178,7 @@ class HiddenCompsView(APIView):
             participants = participants.filter(player__isnull=False)
             tier = get_tier(request)
             if tier:
-                participants = participants.filter(player__tier=tier)
+                participants = participants.filter(tier_q(tier, "player__tier"))
         if game_version:
             participants = participants.filter(match__game_version=game_version)
 
@@ -387,7 +387,8 @@ class CompsView(APIView):
         comp_count = Comp.objects.filter(server=server).count()
         match_count = Match.objects.filter(server=server).count()
         data_version = (match_count, comp_count)
-        cache_key = (server, game_version, limit, top_flex, queue, tier)
+        tier_key = tuple(tier) if isinstance(tier, list) else tier
+        cache_key = (server, game_version, limit, top_flex, queue, tier_key)
         if data_version == _COMPS_CACHE_VERSION.get(server, -1) and cache_key in _COMPS_CACHE:
             return cc(Response(_COMPS_CACHE[cache_key]), 300)
 
@@ -408,7 +409,7 @@ class CompsView(APIView):
         else:
             base_qs = base_qs.filter(player__isnull=False)
             if tier:
-                base_qs = base_qs.filter(player__tier=tier)
+                base_qs = base_qs.filter(tier_q(tier, "player__tier"))
         if game_version:
             base_qs = base_qs.filter(match__game_version=game_version)
 
@@ -938,7 +939,7 @@ class SearchCompsView(APIView):
             qs = qs.filter(player__isnull=False)
             tier = get_tier(request)
             if tier:
-                qs = qs.filter(player__tier=tier)
+                qs = qs.filter(tier_q(tier, "player__tier"))
         if game_version:
             qs = qs.filter(match__game_version=game_version)
 

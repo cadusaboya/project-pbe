@@ -110,7 +110,8 @@ def _run_explore_filter(request):
 
     global _explore_base_cache, _explore_cache_version
     match_count = Match.objects.filter(server=server).count()
-    cache_key = (server, game_version or "", queue or "", tier or "")
+    tier_key = ",".join(tier) if isinstance(tier, list) else (tier or "")
+    cache_key = (server, game_version or "", queue or "", tier_key)
     if match_count != _explore_cache_version.get(server, -1):
         stale_keys = [k for k in _explore_base_cache if k[0] == server]
         for k in stale_keys:
@@ -288,8 +289,10 @@ class ExploreView(APIView):
     """
 
     @staticmethod
-    def _build_participant_data(game_version: str | None, server: str = "PBE", queue: str | None = None, tier: str | None = None) -> list[dict]:
+    def _build_participant_data(game_version: str | None, server: str = "PBE", queue: str | None = None, tier: str | list[str] | None = None) -> list[dict]:
         """Build pre-processed participant dicts (cacheable, filter-independent)."""
+        from .helpers import tier_q
+
         cmap = get_item_canonical_map()
         unit_traits_map: dict[str, list] = dict(
             Unit.objects.values_list("character_id", "traits")
@@ -299,13 +302,13 @@ class ExploreView(APIView):
         if server == "PBE" and queue == "project_pbe":
             qs = qs.filter(match__match_category="PROJECT_PBE", counts_for_stats=True)
             if tier:
-                qs = qs.filter(match__match_tier=tier)
+                qs = qs.filter(tier_q(tier, "match__match_tier"))
         elif server == "PBE" and queue == "pro_random":
             qs = qs.filter(match__match_category="PRO_RANDOM", counts_for_stats=True)
         else:
             qs = qs.filter(player__isnull=False)
             if tier:
-                qs = qs.filter(player__tier=tier)
+                qs = qs.filter(tier_q(tier, "player__tier"))
         if game_version:
             qs = qs.filter(match__game_version=game_version)
         # Defer raw_json to avoid loading ~22KB per match in the JOIN;

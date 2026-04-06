@@ -6,6 +6,7 @@ import { backendUrl } from "@/lib/backend";
 import { UnitImage, ItemImage } from "./TftImage";
 import { formatUnit } from "@/lib/tftUtils";
 import { formatDate, displayPlayerName } from "@/lib/formatters";
+import TierFilter from "./TierFilter";
 import type { BoardUnit, LobbyParticipant, TraitInfo } from "@/lib/types";
 export type { TraitInfo } from "@/lib/types";
 import TraitChips from "./TraitChips";
@@ -639,6 +640,7 @@ export default function WinningCompsList({
             ))}
           </select>
         )}
+        <TierFilter />
         {allPlayers.length > 0 && (
           <PlayerPicker players={allPlayers} selectedPlayers={selectedPlayers} onSelect={addPlayer} />
         )}

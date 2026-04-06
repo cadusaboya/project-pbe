@@ -63,6 +63,13 @@ def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "
         game_datetime_ms / 1000.0, tz=datetime.timezone.utc
     )
 
+    # Skip PBE matches before April 6, 2025
+    if server == "PBE":
+        pbe_cutoff = datetime.datetime(2025, 4, 6, tzinfo=datetime.timezone.utc)
+        if game_datetime < pbe_cutoff:
+            logger.info("Skipping PBE match %s — before April 6 cutoff (game_datetime=%s).", match_id, game_datetime)
+            return False
+
     # Classify PBE matches before creating
     participants_data: list[dict] = match_data.get("info", {}).get("participants", [])
     participant_puuids = [p.get("puuid", "") for p in participants_data if p.get("puuid")]

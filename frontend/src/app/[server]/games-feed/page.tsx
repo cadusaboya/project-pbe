@@ -3,6 +3,7 @@ import WinningCompsList, { TraitInfo, WinningComp, UnitStatBasic, PlayerInfo } f
 import PageSkeleton from "../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
 import { getDefaultVersion } from "@/lib/api";
+import { DEFAULT_PBE_TIER, DEFAULT_PBE_QUEUE } from "@/lib/constants";
 
 async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
   try {
@@ -141,7 +142,10 @@ export default async function GamesFeedPage({
 }) {
   const { server: serverSlug } = await params;
   const server = serverSlug.toUpperCase();
-  const { game_version: gameVersion, tier, queue } = await searchParams;
+  const { game_version: gameVersion, tier: rawTier, queue: rawQueue } = await searchParams;
+  const isPbe = server === "PBE";
+  const tier = rawTier ?? (isPbe ? DEFAULT_PBE_TIER : undefined);
+  const queue = rawQueue ?? (isPbe ? DEFAULT_PBE_QUEUE : undefined);
 
   return (
     <div className="space-y-6">

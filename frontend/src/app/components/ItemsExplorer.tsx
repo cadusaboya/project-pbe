@@ -7,6 +7,7 @@ import { UnitImage, ItemImage } from "./TftImage";
 import { formatUnit, costBorderColor } from "@/lib/tftUtils";
 import { formatItemName, placementColor, deltaColor } from "@/lib/formatters";
 import type { UnitStat } from "@/lib/types";
+import TierFilter from "./TierFilter";
 
 interface ItemStat {
   item_name: string;
@@ -398,6 +399,7 @@ export default function ItemsExplorer({
             ))}
           </select>
         )}
+        <TierFilter />
         <input
           type="number"
           placeholder="Min games"

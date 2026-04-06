@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 
 from ..models import Participant, Player, UnitUsage
 from ..services.cache import VersionedCache
-from .helpers import cc, get_queue, get_tier, pbe_participant_filter
+from .helpers import cc, get_queue, get_tier, pbe_participant_filter, tier_q
 
 # ── Per-module caches ─────────────────────────────────────────────────────────
 
@@ -61,7 +61,7 @@ class PlayerProfileView(APIView):
             participations = participations.filter(match__match_category="PROJECT_PBE")
             tier = get_tier(request)
             if tier:
-                participations = participations.filter(match__match_tier=tier)
+                participations = participations.filter(tier_q(tier, "match__match_tier"))
         elif server == "PBE" and queue == "pro_random":
             participations = participations.filter(match__match_category="PRO_RANDOM")
         if game_version:
@@ -176,9 +176,9 @@ class PlayerListView(APIView):
         else:
             players = Player.objects.filter(puuid__isnull=False).exclude(puuid="").exclude(region="PBE").exclude(region="SCRIMS")
         if tier:
-            players = players.filter(tier=tier)
+            players = players.filter(tier_q(tier, "tier"))
         player_count = players.count()
-        cache_key = (server, queue, tier)
+        cache_key = (server, queue, tier if isinstance(tier, str) else tuple(tier) if tier else None)
         cached = _players_cache.get(cache_key, player_count)
         if cached is not None:
             return cc(Response(cached), 300)
@@ -225,7 +225,7 @@ class PlayerStatsView(APIView):
         else:
             players = Player.objects.filter(puuid__isnull=False).exclude(puuid="").exclude(region="PBE").exclude(region="SCRIMS")
         if tier:
-            players = players.filter(tier=tier)
+            players = players.filter(tier_q(tier, "tier"))
         if search:
             players = players.filter(game_name__icontains=search)
 

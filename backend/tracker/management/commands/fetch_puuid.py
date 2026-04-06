@@ -1579,11 +1579,21 @@ class Command(BaseCommand):
                 skipped += 1
                 continue
             tier = tier_map.get((game_name.lower(), tag_line.lower()))
-            Player.objects.update_or_create(
-                game_name=game_name,
-                tag_line=tag_line,
-                defaults={"puuid": puuid, "tier": tier},
-            )
+            # Handle renamed players: if puuid already exists under a different name,
+            # update that record instead of creating a duplicate.
+            existing_player = Player.objects.filter(puuid=puuid).first()
+            if existing_player:
+                existing_player.game_name = game_name
+                existing_player.tag_line = tag_line
+                if tier is not None:
+                    existing_player.tier = tier
+                existing_player.save(update_fields=["game_name", "tag_line", "tier"])
+            else:
+                Player.objects.update_or_create(
+                    game_name=game_name,
+                    tag_line=tag_line,
+                    defaults={"puuid": puuid, "tier": tier},
+                )
             saved += 1
 
         self.stdout.write(

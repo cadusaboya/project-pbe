@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { fetchJson } from "@/lib/api";
 import { getDefaultVersion } from "@/lib/api";
+import { DEFAULT_PBE_TIER, DEFAULT_PBE_QUEUE } from "@/lib/constants";
 import DataExplorer from "../../components/DataExplorer";
 import PageSkeleton from "../../components/PageSkeleton";
 import { UnitStat } from "../../components/StatsTable";
@@ -156,8 +157,9 @@ export default async function ExplorePage({
   const server = serverSlug.toUpperCase();
   const rawParams = await searchParams;
   const gameVersion = rawParams.game_version ?? await getDefaultVersion(server);
-  const tier = rawParams.tier;
-  const queue = rawParams.queue;
+  const isPbe = server === "PBE";
+  const tier = rawParams.tier ?? (isPbe ? DEFAULT_PBE_TIER : undefined);
+  const queue = rawParams.queue ?? (isPbe ? DEFAULT_PBE_QUEUE : undefined);
   const initialConditions = buildInitialConditions(rawParams);
 
   return (

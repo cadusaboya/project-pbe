@@ -13,7 +13,7 @@ from ..models import AggregatedUnitStat, Match, Participant, Player, UnitUsage
 from ..serializers import UnitStatSerializer
 from ..services.cache import VersionedCache
 from ..services.items import get_item_canonical_map
-from .helpers import SORT_MAP, cc, get_queue, get_tier, pbe_participant_filter
+from .helpers import SORT_MAP, cc, get_queue, get_tier, pbe_participant_filter, tier_q
 
 # ── Per-module caches ─────────────────────────────────────────────────────────
 
@@ -43,7 +43,7 @@ class StatsView(APIView):
         if server == "PBE" and queue == "project_pbe":
             match_qs = match_qs.filter(match_category="PROJECT_PBE")
             if tier:
-                match_qs = match_qs.filter(match_tier=tier)
+                match_qs = match_qs.filter(tier_q(tier, "match_tier"))
         elif server == "PBE" and queue == "pro_random":
             match_qs = match_qs.filter(match_category="PRO_RANDOM")
 
@@ -53,7 +53,7 @@ class StatsView(APIView):
         elif server == "PBE":
             player_qs = Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid="")
             if tier:
-                player_qs = player_qs.filter(tier=tier)
+                player_qs = player_qs.filter(tier_q(tier, "tier"))
             players_count = player_qs.count()
             last_polled = player_qs.aggregate(latest=Max("last_polled_at"))["latest"]
             last_run = last_polled.isoformat() if last_polled else None
@@ -139,7 +139,7 @@ class UnitStatsView(ListAPIView):
             qs = qs.filter(participant__player__isnull=False)
             tier = get_tier(request)
             if tier:
-                qs = qs.filter(participant__player__tier=tier)
+                qs = qs.filter(tier_q(tier, "participant__player__tier"))
         qs = (
             qs.values("unit__character_id", "unit__cost", "unit__traits")
             .annotate(
@@ -196,7 +196,7 @@ class UnitStatsView(ListAPIView):
             if queue == "project_pbe":
                 qs = qs.filter(match_category="PROJECT_PBE")
                 if tier:
-                    qs = qs.filter(match_tier=tier)
+                    qs = qs.filter(tier_q(tier, "match_tier"))
             elif queue == "pro_random":
                 qs = qs.filter(match_category="PRO_RANDOM", match_tier__isnull=True)
             else:
@@ -242,7 +242,7 @@ class UnitStarStatsView(APIView):
             qs = qs.filter(participant__player__isnull=False)
             tier = get_tier(request)
             if tier:
-                qs = qs.filter(participant__player__tier=tier)
+                qs = qs.filter(tier_q(tier, "participant__player__tier"))
 
         game_version = request.query_params.get("game_version")
         if game_version:

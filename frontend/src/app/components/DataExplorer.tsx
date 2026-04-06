@@ -8,6 +8,7 @@ import { formatUnit, costBorderColor } from "@/lib/tftUtils";
 import { formatItemName, placementColor, deltaColor, winRateColor } from "@/lib/formatters";
 import { TRAIT_TIER_STYLES } from "@/lib/constants";
 import type { UnitStat } from "@/lib/types";
+import TierFilter from "./TierFilter";
 
 const ExploreMatches = lazy(() => import("./ExploreMatches"));
 
@@ -1127,6 +1128,12 @@ export default function DataExplorer({
                 </select>
               </div>
             )}
+
+            {/* Tier filter */}
+            <div className="space-y-1.5">
+              <label className="text-tft-muted text-xs font-medium">Tier</label>
+              <TierFilter />
+            </div>
 
             {/* Min frequency */}
             <div className="space-y-1.5">

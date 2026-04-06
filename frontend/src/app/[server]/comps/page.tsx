@@ -1,9 +1,11 @@
 import { Suspense } from "react";
 import CompsList, { CompStat } from "../../components/CompsList";
 import VersionFilter from "../../components/VersionFilter";
+import TierFilter from "../../components/TierFilter";
 import PageSkeleton from "../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
 import { getDefaultVersion } from "@/lib/api";
+import { DEFAULT_PBE_TIER, DEFAULT_PBE_QUEUE } from "@/lib/constants";
 
 interface CompsResponse {
   total_games: number;
@@ -80,6 +82,7 @@ async function CompsContent({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <VersionFilter versions={versions} selectedVersion={gameVersion} />
+        <Suspense fallback={null}><TierFilter /></Suspense>
       </div>
 
       {error ? (
@@ -117,7 +120,10 @@ export default async function CompsPage({
 }) {
   const { server: serverSlug } = await params;
   const server = serverSlug.toUpperCase();
-  const { game_version: gameVersion, tier, queue } = await searchParams;
+  const { game_version: gameVersion, tier: rawTier, queue: rawQueue } = await searchParams;
+  const isPbe = server === "PBE";
+  const tier = rawTier ?? (isPbe ? DEFAULT_PBE_TIER : undefined);
+  const queue = rawQueue ?? (isPbe ? DEFAULT_PBE_QUEUE : undefined);
 
   return (
     <div className="space-y-6">

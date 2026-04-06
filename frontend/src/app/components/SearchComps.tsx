@@ -7,6 +7,7 @@ import { formatUnit } from "@/lib/tftUtils";
 import { formatItemName, formatDate, displayPlayerName, placementBadge, placementStyle } from "@/lib/formatters";
 import type { BoardUnit, LobbyParticipant, TraitInfo, UnitStat } from "@/lib/types";
 import TraitChips from "./TraitChips";
+import TierFilter from "./TierFilter";
 import UnitPicker from "./UnitPicker";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -314,7 +315,10 @@ export default function SearchComps({
     <div className="space-y-6">
       {/* Unit selector */}
       <div className="bg-tft-surface border border-tft-border rounded-xl p-4 space-y-3">
-        <p className="text-tft-text text-sm font-semibold">Add required unit</p>
+        <div className="flex flex-wrap gap-2 items-center">
+          <p className="text-tft-text text-sm font-semibold">Add required unit</p>
+          <TierFilter />
+        </div>
         <div className="flex flex-wrap gap-2 items-center">
           <UnitPicker units={units} onSelect={addUnit} />
         </div>
