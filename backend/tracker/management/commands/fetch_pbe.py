@@ -37,7 +37,7 @@ from tracker.management.commands._fetch_utils import (
 
 logger = logging.getLogger(__name__)
 
-GAME_VERSION = "17 B"
+GAME_VERSION = "17 C - 06/04"
 DEFAULT_FETCH_CUTOFF_DATE = "2026-04-06"
 DEFAULT_FETCH_CUTOFF_TIME = "05:00"
 DEFAULT_FETCH_CUTOFF_TZ = "America/Porto_Velho"
