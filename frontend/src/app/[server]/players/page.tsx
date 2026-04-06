@@ -5,10 +5,11 @@ import PageSkeleton from "../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
 import { getDefaultVersion } from "@/lib/api";
 
-async function fetchPlayerStats(server?: string, gameVersion?: string): Promise<PlayerStat[]> {
+async function fetchPlayerStats(server?: string, gameVersion?: string, tier?: string): Promise<PlayerStat[]> {
   const params = new URLSearchParams();
   if (server) params.set("server", server);
   if (gameVersion) params.set("game_version", gameVersion);
+  if (tier) params.set("tier", tier);
   const qs = params.toString();
   return fetchJson<PlayerStat[]>(`/api/player-stats/${qs ? `?${qs}` : ""}`);
 }
@@ -27,9 +28,11 @@ async function fetchVersions(server?: string): Promise<string[]> {
 async function PlayersContent({
   server,
   gameVersion,
+  tier,
 }: {
   server: string;
   gameVersion: string;
+  tier?: string;
 }) {
   let data: PlayerStat[] = [];
   let versions: string[] = [];
@@ -37,7 +40,7 @@ async function PlayersContent({
 
   try {
     [data, versions] = await Promise.all([
-      fetchPlayerStats(server, gameVersion),
+      fetchPlayerStats(server, gameVersion, tier),
       fetchVersions(server),
     ]);
   } catch (e) {
@@ -73,11 +76,11 @@ export default async function PlayersPage({
   searchParams,
 }: {
   params: Promise<{ server: string }>;
-  searchParams: Promise<{ game_version?: string }>;
+  searchParams: Promise<{ game_version?: string; tier?: string }>;
 }) {
   const { server: serverSlug } = await params;
   const server = serverSlug.toUpperCase();
-  const { game_version: gameVersion } = await searchParams;
+  const { game_version: gameVersion, tier } = await searchParams;
 
   return (
     <div className="space-y-6">
@@ -89,7 +92,7 @@ export default async function PlayersPage({
       </div>
 
       <Suspense fallback={<PageSkeleton variant="table" />}>
-        <PlayersContent server={server} gameVersion={gameVersion ?? await getDefaultVersion(server)} />
+        <PlayersContent server={server} gameVersion={gameVersion ?? await getDefaultVersion(server)} tier={tier} />
       </Suspense>
     </div>
   );

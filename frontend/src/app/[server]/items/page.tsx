@@ -5,10 +5,11 @@ import ItemsExplorer from "../../components/ItemsExplorer";
 import PageSkeleton from "../../components/PageSkeleton";
 import { UnitStat } from "../../components/StatsTable";
 
-async function fetchUnits(server?: string): Promise<UnitStat[]> {
+async function fetchUnits(server?: string, tier?: string): Promise<UnitStat[]> {
   try {
     const params = new URLSearchParams({ sort: "games" });
     if (server) params.set("server", server);
+    if (tier) params.set("tier", tier);
     return await fetchJson<UnitStat[]>(`/api/unit-stats/?${params}`);
   } catch {
     return [];
@@ -29,11 +30,13 @@ async function fetchVersions(server?: string): Promise<string[]> {
 async function ItemsContent({
   server,
   gameVersion,
+  tier,
 }: {
   server: string;
   gameVersion: string;
+  tier?: string;
 }) {
-  const [units, versions] = await Promise.all([fetchUnits(server), fetchVersions(server)]);
+  const [units, versions] = await Promise.all([fetchUnits(server, tier), fetchVersions(server)]);
 
   return (
     <ItemsExplorer
@@ -41,6 +44,7 @@ async function ItemsContent({
       versions={versions}
       selectedVersion={gameVersion}
       server={server}
+      tier={tier}
     />
   );
 }
@@ -50,15 +54,15 @@ export default async function ItemsPage({
   searchParams,
 }: {
   params: Promise<{ server: string }>;
-  searchParams: Promise<{ game_version?: string }>;
+  searchParams: Promise<{ game_version?: string; tier?: string }>;
 }) {
   const { server: serverSlug } = await params;
   const server = serverSlug.toUpperCase();
-  const { game_version: gameVersion } = await searchParams;
+  const { game_version: gameVersion, tier } = await searchParams;
 
   return (
     <Suspense fallback={<PageSkeleton variant="explorer" />}>
-      <ItemsContent server={server} gameVersion={gameVersion ?? await getDefaultVersion(server)} />
+      <ItemsContent server={server} gameVersion={gameVersion ?? await getDefaultVersion(server)} tier={tier} />
     </Suspense>
   );
 }

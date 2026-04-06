@@ -11,10 +11,11 @@ interface CompsResponse {
   comps: CompStat[];
 }
 
-async function fetchCompStats(gameVersion?: string, server?: string): Promise<CompsResponse> {
+async function fetchCompStats(gameVersion?: string, server?: string, tier?: string): Promise<CompsResponse> {
   const params = new URLSearchParams();
   if (gameVersion) params.set("game_version", gameVersion);
   if (server) params.set("server", server);
+  if (tier) params.set("tier", tier);
   const qs = params.toString();
   return fetchJson<CompsResponse>(`/api/comps/${qs ? `?${qs}` : ""}`);
 }
@@ -45,10 +46,12 @@ async function CompsContent({
   server,
   serverSlug,
   gameVersion,
+  tier,
 }: {
   server: string;
   serverSlug: string;
   gameVersion: string;
+  tier?: string;
 }) {
   let data: CompStat[] = [];
   let totalComps = 0;
@@ -58,7 +61,7 @@ async function CompsContent({
 
   try {
     const [compsRes, v, t] = await Promise.all([
-      fetchCompStats(gameVersion, server),
+      fetchCompStats(gameVersion, server, tier),
       fetchVersions(server),
       fetchTraits(server),
     ]);
@@ -107,11 +110,11 @@ export default async function CompsPage({
   searchParams,
 }: {
   params: Promise<{ server: string }>;
-  searchParams: Promise<{ game_version?: string }>;
+  searchParams: Promise<{ game_version?: string; tier?: string }>;
 }) {
   const { server: serverSlug } = await params;
   const server = serverSlug.toUpperCase();
-  const { game_version: gameVersion } = await searchParams;
+  const { game_version: gameVersion, tier } = await searchParams;
 
   return (
     <div className="space-y-6">
@@ -123,7 +126,7 @@ export default async function CompsPage({
       </div>
 
       <Suspense fallback={<PageSkeleton variant="cards" />}>
-        <CompsContent server={server} serverSlug={serverSlug} gameVersion={gameVersion ?? await getDefaultVersion(server)} />
+        <CompsContent server={server} serverSlug={serverSlug} gameVersion={gameVersion ?? await getDefaultVersion(server)} tier={tier} />
       </Suspense>
     </div>
   );

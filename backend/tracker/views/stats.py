@@ -13,7 +13,7 @@ from ..models import AggregatedUnitStat, Match, Participant, Player, UnitUsage
 from ..serializers import UnitStatSerializer
 from ..services.cache import VersionedCache
 from ..services.items import get_item_canonical_map
-from .helpers import SORT_MAP, cc
+from .helpers import SORT_MAP, cc, get_tier
 
 # ── Per-module caches ─────────────────────────────────────────────────────────
 
@@ -33,6 +33,7 @@ class StatsView(APIView):
     def get(self, request):
         server = request.query_params.get("server", "PBE").upper()
         game_version = request.query_params.get("game_version")
+        tier = get_tier(request)
         match_qs = Match.objects.filter(server=server)
         if game_version:
             match_qs = match_qs.filter(game_version=game_version)
@@ -42,16 +43,22 @@ class StatsView(APIView):
             last_run = None
         elif server == "PBE":
             player_qs = Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid="")
+            if tier:
+                player_qs = player_qs.filter(tier=tier)
             players_count = player_qs.count()
             last_polled = player_qs.aggregate(latest=Max("last_polled_at"))["latest"]
             last_run = last_polled.isoformat() if last_polled else None
         else:
             player_qs = Player.objects.filter(puuid__isnull=False).exclude(puuid="").exclude(region="PBE")
+            if tier:
+                player_qs = player_qs.filter(tier=tier)
             players_count = player_qs.count()
             last_polled = player_qs.aggregate(latest=Max("last_polled_at"))["latest"]
             last_run = last_polled.isoformat() if last_polled else None
 
         participant_qs = Participant.objects.filter(match__server=server, player__isnull=False)
+        if tier:
+            participant_qs = participant_qs.filter(player__tier=tier)
         if game_version:
             participant_qs = participant_qs.filter(match__game_version=game_version)
 
@@ -104,6 +111,7 @@ class UnitStatsView(ListAPIView):
 
     def _stats_for_version(self, request, game_version: str):
         server = request.query_params.get("server", "PBE").upper()
+        tier = get_tier(request)
         min_games = request.query_params.get("min_games")
         search = request.query_params.get("search")
         sort_key = request.query_params.get("sort", "avg_placement")
@@ -113,6 +121,8 @@ class UnitStatsView(ListAPIView):
             participant__match__server=server,
             participant__player__isnull=False,
         )
+        if tier:
+            qs = qs.filter(participant__player__tier=tier)
         qs = (
             qs.values("unit__character_id", "unit__cost", "unit__traits")
             .annotate(
@@ -191,11 +201,14 @@ class UnitStarStatsView(APIView):
 
     def get(self, request, unit_name: str):
         server = request.query_params.get("server", "PBE").upper()
+        tier = get_tier(request)
         qs = UnitUsage.objects.filter(
             unit__character_id=unit_name,
             participant__match__server=server,
             participant__player__isnull=False,
         )
+        if tier:
+            qs = qs.filter(participant__player__tier=tier)
 
         game_version = request.query_params.get("game_version")
         if game_version:

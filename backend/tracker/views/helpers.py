@@ -5,6 +5,15 @@ Shared utilities for tracker view modules.
 from rest_framework.response import Response
 
 
+VALID_TIERS = {"tier1", "tier2", "open"}
+
+
+def get_tier(request) -> str | None:
+    """Extract and validate tier query param. Returns None if not set or invalid."""
+    tier = request.query_params.get("tier", "").strip().lower()
+    return tier if tier in VALID_TIERS else None
+
+
 def cc(response: Response, max_age: int) -> Response:
     """Set Cache-Control header on a DRF Response."""
     response["Cache-Control"] = f"public, max-age={max_age}"

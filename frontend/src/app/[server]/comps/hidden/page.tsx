@@ -10,12 +10,14 @@ async function fetchHiddenCompStats(
   coreSizes?: string,
   minOccurrences?: string,
   server?: string,
+  tier?: string,
 ): Promise<CompStat[]> {
   const params = new URLSearchParams({ limit: "20" });
   if (gameVersion) params.set("game_version", gameVersion);
   if (coreSizes) params.set("core_sizes", coreSizes);
   if (minOccurrences) params.set("min_occurrences", minOccurrences);
   if (server) params.set("server", server);
+  if (tier) params.set("tier", tier);
   return fetchJson<CompStat[]>(`/api/comps/hidden/?${params}`);
 }
 
@@ -47,12 +49,14 @@ async function HiddenCompsContent({
   gameVersion,
   coreSizes,
   minOccurrences,
+  tier,
 }: {
   server: string;
   serverSlug: string;
   gameVersion: string;
   coreSizes: string;
   minOccurrences: string;
+  tier?: string;
 }) {
   let data: CompStat[] = [];
   let versions: string[] = [];
@@ -61,7 +65,7 @@ async function HiddenCompsContent({
 
   try {
     [data, versions, traitData] = await Promise.all([
-      fetchHiddenCompStats(gameVersion, coreSizes, minOccurrences, server),
+      fetchHiddenCompStats(gameVersion, coreSizes, minOccurrences, server, tier),
       fetchVersions(server),
       fetchTraits(server),
     ]);
@@ -103,7 +107,7 @@ export default async function HiddenCompsPage({
   searchParams,
 }: {
   params: Promise<{ server: string }>;
-  searchParams: Promise<{ game_version?: string; core_sizes?: string; min_occurrences?: string }>;
+  searchParams: Promise<{ game_version?: string; core_sizes?: string; min_occurrences?: string; tier?: string }>;
 }) {
   const { server: serverSlug } = await params;
   const server = serverSlug.toUpperCase();
@@ -111,6 +115,7 @@ export default async function HiddenCompsPage({
     game_version: gameVersion,
     core_sizes: coreSizes = "4,5,6",
     min_occurrences: minOccurrences = "100",
+    tier,
   } = await searchParams;
 
   return (
@@ -129,6 +134,7 @@ export default async function HiddenCompsPage({
           gameVersion={gameVersion ?? await getDefaultVersion(server)}
           coreSizes={coreSizes}
           minOccurrences={minOccurrences}
+          tier={tier}
         />
       </Suspense>
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { backendUrl } from "@/lib/backend";
 import { getServerFromPath } from "@/lib/constants";
@@ -57,7 +57,9 @@ function formatRelativeUtc(iso: string): string {
 
 export default function StatsBar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const server = getServerFromPath(pathname).toUpperCase();
+  const tier = searchParams.get("tier") ?? "";
   const [stats, setStats] = useState<GlobalStats | null>(null);
   const [, tick] = useState(0);
 
@@ -65,7 +67,8 @@ export default function StatsBar() {
     let cancelled = false;
 
     // Use cached data if fresh enough — skip network call entirely
-    const cached = getCachedStats(server);
+    const cacheKey = tier ? `${server}_${tier}` : server;
+    const cached = getCachedStats(cacheKey);
     if (cached) {
       setStats(cached);
       return;
@@ -75,17 +78,18 @@ export default function StatsBar() {
     // No polling — FreshnessGuard reloads the page when new data arrives.
     const url = new URL(backendUrl("/api/stats/"));
     url.searchParams.set("server", server);
+    if (tier) url.searchParams.set("tier", tier);
     fetch(url.toString(), { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (cancelled || !d) return;
         setStats(d);
-        setCachedStats(server, d);
+        setCachedStats(cacheKey, d);
       })
       .catch(() => { if (!cancelled) setStats(null); });
 
     return () => { cancelled = true; };
-  }, [server]);
+  }, [server, tier]);
 
   // Re-render every 60s so the relative time stays fresh
   useEffect(() => {

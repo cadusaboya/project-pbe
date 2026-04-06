@@ -164,10 +164,12 @@ export default function StatsTable({
   data,
   selectedVersion,
   server,
+  tier,
 }: {
   data: UnitStat[];
   selectedVersion: string;
   server: string;
+  tier?: string;
 }) {
   const [sortKey, setSortKey] = useState<SortKey>("avg_placement");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -217,6 +219,7 @@ export default function StatsTable({
       const url = new URL(backendUrl(`/api/unit-stats/${encodeURIComponent(unitName)}/star-stats/`));
       if (selectedVersion) url.searchParams.set("game_version", selectedVersion);
       url.searchParams.set("server", server);
+      if (tier) url.searchParams.set("tier", tier);
       const res = await fetch(url.toString());
       if (res.ok) {
         const data: UnitDetailStats = await res.json();

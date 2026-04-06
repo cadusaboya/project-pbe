@@ -18,7 +18,7 @@ from ..services.cdragon import (
     TRAIT_CACHE,
     ensure_trait_cache,
 )
-from .helpers import cc, slots_used, unit_slot_weight
+from .helpers import cc, get_tier, slots_used, unit_slot_weight
 
 # ── Per-module caches ─────────────────────────────────────────────────────────
 
@@ -47,6 +47,7 @@ class WinningCompsView(ListAPIView):
 
     def get_queryset(self):
         server = self.request.query_params.get("server", "PBE").upper()
+        tier = get_tier(self.request)
         try:
             limit = int(self.request.query_params.get("limit", 50))
         except ValueError:
@@ -63,6 +64,8 @@ class WinningCompsView(ListAPIView):
             to_attr="_tracked_lobby",
         )
 
+        tier_filter = Q(player__tier=tier) if tier else Q()
+
         if player_names:
             q = Q()
             for name in player_names:
@@ -70,6 +73,7 @@ class WinningCompsView(ListAPIView):
             qs = (
                 Participant.objects.filter(
                     q,
+                    tier_filter,
                     match__server=server,
                     player__isnull=False,
                 )
@@ -78,10 +82,9 @@ class WinningCompsView(ListAPIView):
                 .order_by("-match__game_datetime")
             )
         else:
-            # Best tracked pro per match: only participants with a linked player,
-            # pick the one with the lowest (best) placement per match.
             best_per_match = (
                 Participant.objects.filter(
+                    tier_filter,
                     match=OuterRef("match"),
                     match__server=server,
                     player__isnull=False,
@@ -161,12 +164,15 @@ class HiddenCompsView(APIView):
         except ValueError:
             top_flex = 5
 
+        tier = get_tier(request)
         participants = (
             Participant.objects.filter(match__server=server, player__isnull=False)
             .select_related("match")
             .prefetch_related("unit_usages__unit")
             .order_by("id")
         )
+        if tier:
+            participants = participants.filter(player__tier=tier)
         if game_version:
             participants = participants.filter(match__game_version=game_version)
 
@@ -368,11 +374,13 @@ class CompsView(APIView):
         except ValueError:
             top_flex = 5
 
+        tier = get_tier(request)
+
         global _COMPS_CACHE, _COMPS_CACHE_VERSION
         comp_count = Comp.objects.filter(server=server).count()
         match_count = Match.objects.filter(server=server).count()
         data_version = (match_count, comp_count)
-        cache_key = (server, game_version, limit, top_flex)
+        cache_key = (server, game_version, limit, top_flex, tier)
         if data_version == _COMPS_CACHE_VERSION.get(server, -1) and cache_key in _COMPS_CACHE:
             return cc(Response(_COMPS_CACHE[cache_key]), 300)
 
@@ -388,6 +396,8 @@ class CompsView(APIView):
             comp_units_all |= {str(u).strip() for u in raw_units if str(u).strip()}
 
         base_qs = Participant.objects.filter(match__server=server, player__isnull=False).order_by("id")
+        if tier:
+            base_qs = base_qs.filter(player__tier=tier)
         if game_version:
             base_qs = base_qs.filter(match__game_version=game_version)
 
@@ -892,6 +902,7 @@ class SearchCompsView(APIView):
 
     def get(self, request):
         server = request.query_params.get("server", "PBE").upper()
+        tier = get_tier(request)
         units = [u.strip() for u in request.query_params.getlist("unit") if u.strip()]
         game_version = request.query_params.get("game_version")
         try:
@@ -911,6 +922,8 @@ class SearchCompsView(APIView):
             Prefetch("unit_usages", queryset=UnitUsage.objects.select_related("unit")),
             tracked_lobby,
         )
+        if tier:
+            qs = qs.filter(player__tier=tier)
         if game_version:
             qs = qs.filter(match__game_version=game_version)
 

@@ -19,7 +19,7 @@ from ..services.cdragon import (
     ensure_trait_cache,
 )
 from ..services.items import get_item_canonical_map
-from .helpers import cc
+from .helpers import cc, get_tier
 
 # ── Per-module caches ─────────────────────────────────────────────────────────
 
@@ -38,6 +38,7 @@ def _run_explore_filter(request):
     """
     server = request.query_params.get("server", "PBE").upper()
     game_version = request.query_params.get("game_version")
+    tier = get_tier(request)
     include_trait_stats = request.query_params.get("include_trait_stats") == "1"
     require_units = set(request.query_params.getlist("require_unit"))
     ban_units = set(request.query_params.getlist("ban_unit"))
@@ -120,6 +121,9 @@ def _run_explore_filter(request):
     else:
         participants = ExploreView._build_participant_data(game_version, server)
         _explore_base_cache[cache_key] = participants
+
+    if tier:
+        participants = [p for p in participants if p.get("player_tier") == tier]
 
     _server_api_name_map = TRAIT_API_NAME_MAP.get(server, {})
 
@@ -347,6 +351,7 @@ class ExploreView(APIView):
                 "game_datetime": p.match.game_datetime,
                 "game_version": p.match.game_version,
                 "player_str": str(p.player) if p.player else (p.puuid[:12] if p.puuid else "Unknown"),
+                "player_tier": p.player.tier if p.player else None,
                 "placement": p.placement,
                 "level": p.level,
                 "unit_set": set(unit_map.keys()),

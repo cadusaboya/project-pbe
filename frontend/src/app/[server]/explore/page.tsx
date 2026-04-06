@@ -5,10 +5,11 @@ import DataExplorer from "../../components/DataExplorer";
 import PageSkeleton from "../../components/PageSkeleton";
 import { UnitStat } from "../../components/StatsTable";
 
-async function fetchUnits(server?: string): Promise<UnitStat[]> {
+async function fetchUnits(server?: string, tier?: string): Promise<UnitStat[]> {
   try {
     const params = new URLSearchParams({ sort: "games" });
     if (server) params.set("server", server);
+    if (tier) params.set("tier", tier);
     return await fetchJson<UnitStat[]>(`/api/unit-stats/?${params}`);
   } catch {
     return [];
@@ -39,6 +40,7 @@ async function fetchTraits(server?: string): Promise<Record<string, { breakpoint
 
 type RawParams = {
   game_version?: string;
+  tier?: string;
   require_unit?: string | string[];
   ban_unit?: string | string[];
   player_level?: string | string[];
@@ -115,13 +117,15 @@ async function ExploreContent({
   server,
   gameVersion,
   initialConditions,
+  tier,
 }: {
   server: string;
   gameVersion: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initialConditions: any[];
+  tier?: string;
 }) {
-  const [units, versions, traitData] = await Promise.all([fetchUnits(server), fetchVersions(server), fetchTraits(server)]);
+  const [units, versions, traitData] = await Promise.all([fetchUnits(server, tier), fetchVersions(server), fetchTraits(server)]);
 
   return (
     <DataExplorer
@@ -131,6 +135,7 @@ async function ExploreContent({
       initialConditions={initialConditions}
       traitData={traitData}
       server={server}
+      tier={tier}
     />
   );
 }
@@ -146,6 +151,7 @@ export default async function ExplorePage({
   const server = serverSlug.toUpperCase();
   const rawParams = await searchParams;
   const gameVersion = rawParams.game_version ?? await getDefaultVersion(server);
+  const tier = rawParams.tier;
   const initialConditions = buildInitialConditions(rawParams);
 
   return (
@@ -154,6 +160,7 @@ export default async function ExplorePage({
         server={server}
         gameVersion={gameVersion}
         initialConditions={initialConditions}
+        tier={tier}
       />
     </Suspense>
   );

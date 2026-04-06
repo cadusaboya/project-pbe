@@ -5,10 +5,11 @@ import PageSkeleton from "../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
 import { getDefaultVersion } from "@/lib/api";
 
-async function fetchStats(gameVersion?: string, server?: string): Promise<UnitStat[]> {
+async function fetchStats(gameVersion?: string, server?: string, tier?: string): Promise<UnitStat[]> {
   const params = new URLSearchParams();
   if (gameVersion) params.set("game_version", gameVersion);
   if (server) params.set("server", server);
+  if (tier) params.set("tier", tier);
   const qs = params.toString();
   return fetchJson<UnitStat[]>(`/api/unit-stats/${qs ? `?${qs}` : ""}`);
 }
@@ -27,9 +28,11 @@ async function fetchVersions(server?: string): Promise<string[]> {
 async function StatsContent({
   server,
   gameVersion,
+  tier,
 }: {
   server: string;
   gameVersion: string;
+  tier?: string;
 }) {
   let data: UnitStat[] = [];
   let versions: string[] = [];
@@ -37,7 +40,7 @@ async function StatsContent({
 
   try {
     [data, versions] = await Promise.all([
-      fetchStats(gameVersion, server),
+      fetchStats(gameVersion, server, tier),
       fetchVersions(server),
     ]);
   } catch (e) {
@@ -70,6 +73,7 @@ async function StatsContent({
           data={data}
           selectedVersion={gameVersion}
           server={server}
+          tier={tier}
         />
       )}
     </div>
@@ -81,11 +85,11 @@ export default async function Home({
   searchParams,
 }: {
   params: Promise<{ server: string }>;
-  searchParams: Promise<{ game_version?: string }>;
+  searchParams: Promise<{ game_version?: string; tier?: string }>;
 }) {
   const { server: serverSlug } = await params;
   const server = serverSlug.toUpperCase();
-  const { game_version: gameVersion } = await searchParams;
+  const { game_version: gameVersion, tier } = await searchParams;
 
   return (
     <div className="space-y-6">
@@ -97,7 +101,7 @@ export default async function Home({
       </div>
 
       <Suspense fallback={<PageSkeleton variant="table" />}>
-        <StatsContent server={server} gameVersion={gameVersion ?? await getDefaultVersion(server)} />
+        <StatsContent server={server} gameVersion={gameVersion ?? await getDefaultVersion(server)} tier={tier} />
       </Suspense>
     </div>
   );

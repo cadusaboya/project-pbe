@@ -21,19 +21,20 @@ async function fetchItemData(): Promise<{ assets: Record<string, string>; names:
   }
 }
 
-async function fetchUnits(server?: string): Promise<UnitStat[]> {
+async function fetchUnits(server?: string, tier?: string): Promise<UnitStat[]> {
   try {
     const params = new URLSearchParams({ sort: "games" });
     if (server) params.set("server", server);
+    if (tier) params.set("tier", tier);
     return await fetchJson<UnitStat[]>(`/api/unit-stats/?${params}`);
   } catch {
     return [];
   }
 }
 
-async function SearchContent({ server }: { server: string }) {
+async function SearchContent({ server, tier }: { server: string; tier?: string }) {
   const [units, itemData, traitData] = await Promise.all([
-    fetchUnits(server),
+    fetchUnits(server, tier),
     fetchItemData(),
     fetchTraitBreakpoints(),
   ]);
@@ -45,17 +46,21 @@ async function SearchContent({ server }: { server: string }) {
       itemNames={itemData.names}
       traitData={traitData}
       server={server}
+      tier={tier}
     />
   );
 }
 
 export default async function SearchPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ server: string }>;
+  searchParams: Promise<{ game_version?: string; tier?: string }>;
 }) {
   const { server: serverSlug } = await params;
   const server = serverSlug.toUpperCase();
+  const { tier } = await searchParams;
 
   return (
     <div className="space-y-6">
@@ -66,7 +71,7 @@ export default async function SearchPage({
         </p>
       </div>
       <Suspense fallback={<PageSkeleton variant="explorer" />}>
-        <SearchContent server={server} />
+        <SearchContent server={server} tier={tier} />
       </Suspense>
     </div>
   );

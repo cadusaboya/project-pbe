@@ -252,11 +252,13 @@ export default function ItemsExplorer({
   versions,
   selectedVersion: initialVersion,
   server,
+  tier,
 }: {
   units: UnitStat[];
   versions: string[];
   selectedVersion: string;
   server: string;
+  tier?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -293,13 +295,14 @@ export default function ItemsExplorer({
     if (minGames) params.set("min_games", minGames);
     selectedItems.forEach((item) => params.append("selected_item", item));
     params.set("server", server);
+    if (tier) params.set("tier", tier);
 
     fetch(backendUrl(`/api/item-stats/?${params.toString()}`))
       .then((r) => (r.ok ? r.json() : null))
       .then(setItemData)
       .catch(() => setItemData(null))
       .finally(() => setLoading(false));
-  }, [selectedUnit, selectedVersion, minGames, selectedItems, server]);
+  }, [selectedUnit, selectedVersion, minGames, selectedItems, server, tier]);
 
   function handleVersionChange(v: string) {
     setSelectedVersion(v);

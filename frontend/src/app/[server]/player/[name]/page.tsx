@@ -4,9 +4,10 @@ import PageSkeleton from "../../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
 import Link from "next/link";
 
-async function fetchPlayerProfile(name: string, server?: string): Promise<PlayerProfileData> {
+async function fetchPlayerProfile(name: string, server?: string, tier?: string): Promise<PlayerProfileData> {
   const params = new URLSearchParams();
   if (server) params.set("server", server);
+  if (tier) params.set("tier", tier);
   const qs = params.toString();
   return fetchJson<PlayerProfileData>(`/api/player/${encodeURIComponent(name)}/profile/${qs ? `?${qs}` : ""}`);
 }
@@ -30,9 +31,11 @@ async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
 async function ProfileContent({
   decodedName,
   server,
+  tier,
 }: {
   decodedName: string;
   server: string;
+  tier?: string;
 }) {
   let profile: PlayerProfileData | null = null;
   let itemAssets: Record<string, string> = {};
@@ -43,7 +46,7 @@ async function ProfileContent({
   try {
     let itemData: { assets: Record<string, string>; names: Record<string, string> };
     [profile, itemData, traitData] = await Promise.all([
-      fetchPlayerProfile(decodedName, server),
+      fetchPlayerProfile(decodedName, server, tier),
       fetchItemData(),
       fetchTraitBreakpoints(),
     ]);
@@ -73,11 +76,14 @@ async function ProfileContent({
 
 export default async function PlayerPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ server: string; name: string }>;
+  searchParams: Promise<{ game_version?: string; tier?: string }>;
 }) {
   const { server: serverSlug, name } = await params;
   const server = serverSlug.toUpperCase();
+  const { tier } = await searchParams;
   const decodedName = decodeURIComponent(name);
 
   return (
@@ -91,7 +97,7 @@ export default async function PlayerPage({
       </Link>
 
       <Suspense fallback={<PageSkeleton variant="profile" />}>
-        <ProfileContent decodedName={decodedName} server={server} />
+        <ProfileContent decodedName={decodedName} server={server} tier={tier} />
       </Suspense>
     </div>
   );

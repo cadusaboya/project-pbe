@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 
 from ..models import Participant, Player, UnitUsage
 from ..services.cache import VersionedCache
-from .helpers import cc
+from .helpers import cc, get_tier
 
 # ── Per-module caches ─────────────────────────────────────────────────────────
 
@@ -63,7 +63,7 @@ class PlayerProfileView(APIView):
         total_games = len(participations)
         if total_games == 0:
             return Response({
-                "player": {"game_name": player.game_name, "tag_line": player.tag_line},
+                "player": {"game_name": player.game_name, "tag_line": player.tag_line, "tier": player.tier},
                 "total_games": 0,
                 "avg_placement": 0,
                 "top4_rate": 0,
@@ -138,7 +138,7 @@ class PlayerProfileView(APIView):
             })
 
         return Response({
-            "player": {"game_name": player.game_name, "tag_line": player.tag_line},
+            "player": {"game_name": player.game_name, "tag_line": player.tag_line, "tier": player.tier},
             "total_games": total_games,
             "avg_placement": round(total_placement / total_games, 2),
             "top4_rate": round(top4_count / total_games, 3),
@@ -158,14 +158,18 @@ class PlayerListView(APIView):
 
     def get(self, request):
         server = request.query_params.get("server", "PBE").upper()
+        tier = get_tier(request)
         if server == "SCRIMS":
             players = Player.objects.filter(region="SCRIMS")
         elif server == "PBE":
             players = Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid="")
         else:
             players = Player.objects.filter(puuid__isnull=False).exclude(puuid="").exclude(region="PBE").exclude(region="SCRIMS")
+        if tier:
+            players = players.filter(tier=tier)
         player_count = players.count()
-        cached = _players_cache.get((server,), player_count)
+        cache_key = (server, tier)
+        cached = _players_cache.get(cache_key, player_count)
         if cached is not None:
             return cc(Response(cached), 300)
         result = []
@@ -174,9 +178,10 @@ class PlayerListView(APIView):
                 "game_name": p.game_name,
                 "tag_line": p.tag_line,
                 "region": p.region,
+                "tier": p.tier,
             })
         result.sort(key=lambda x: x["game_name"].lower())
-        _players_cache.set((server,), result, player_count)
+        _players_cache.set(cache_key, result, player_count)
         return cc(Response(result), 300)
 
 
@@ -196,6 +201,7 @@ class PlayerStatsView(APIView):
 
     def get(self, request):
         server = request.query_params.get("server", "PBE").upper()
+        tier = get_tier(request)
         sort_key = request.query_params.get("sort", "avg_placement")
         search = request.query_params.get("search", "").strip()
         min_games = int(request.query_params.get("min_games", 0) or 0)
@@ -207,6 +213,8 @@ class PlayerStatsView(APIView):
             players = Player.objects.filter(puuid__isnull=False, region="PBE").exclude(puuid="")
         else:
             players = Player.objects.filter(puuid__isnull=False).exclude(puuid="").exclude(region="PBE").exclude(region="SCRIMS")
+        if tier:
+            players = players.filter(tier=tier)
         if search:
             players = players.filter(game_name__icontains=search)
 
@@ -262,6 +270,7 @@ class PlayerStatsView(APIView):
             result.append({
                 "game_name": player.game_name,
                 "tag_line": player.tag_line,
+                "tier": player.tier,
                 "games": total_games,
                 "avg_placement": round(total_placement / total_games, 2),
                 "top4_rate": round(player.top4_count / total_games, 3),

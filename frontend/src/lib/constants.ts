@@ -34,3 +34,13 @@ export function getServerFromPath(pathname: string): string {
   const first = pathname.split("/")[1]?.toLowerCase();
   return VALID_SERVERS.includes(first as ServerSlug) ? first! : "pbe";
 }
+
+export const VALID_TIERS = ["tier1", "tier2", "open"] as const;
+export type TierSlug = (typeof VALID_TIERS)[number];
+export const VALID_TIERS_SET = new Set<string>(VALID_TIERS);
+
+export const TIER_LABELS: Record<string, string> = {
+  tier1: "Tier 1",
+  tier2: "Tier 2",
+  open: "Open",
+};

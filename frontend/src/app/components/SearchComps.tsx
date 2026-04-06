@@ -248,12 +248,14 @@ export default function SearchComps({
   itemNames,
   traitData,
   server,
+  tier,
 }: {
   units: UnitStat[];
   itemAssets: Record<string, string>;
   itemNames?: Record<string, string>;
   traitData: Record<string, TraitInfo>;
   server: string;
+  tier?: string;
 }) {
   const [requiredUnits, setRequiredUnits] = useState<string[]>([]);
   const [sort, setSort] = useState<"recency" | "placement">("recency");
@@ -279,6 +281,7 @@ export default function SearchComps({
         for (const u of selectedUnits) url.searchParams.append("unit", u);
         url.searchParams.set("sort", sortMode);
         url.searchParams.set("server", server);
+        if (tier) url.searchParams.set("tier", tier);
         const res = await fetch(url.toString());
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         setResults(await res.json());
@@ -288,7 +291,7 @@ export default function SearchComps({
         setLoading(false);
       }
     },
-    [server]
+    [server, tier]
   );
 
   useEffect(() => {

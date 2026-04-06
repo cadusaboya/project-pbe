@@ -2,12 +2,15 @@ from django.db import models
 
 SERVER_CHOICES = [("PBE", "PBE"), ("LIVE", "Live"), ("SCRIMS", "Scrims")]
 
+TIER_CHOICES = [("tier1", "Tier 1"), ("tier2", "Tier 2"), ("open", "Open")]
+
 
 class Player(models.Model):
     game_name = models.CharField(max_length=100)
     tag_line = models.CharField(max_length=50)
     puuid = models.CharField(max_length=200, unique=True, blank=True, null=True)
     region = models.CharField(max_length=10, default="PBE", db_index=True)
+    tier = models.CharField(max_length=10, choices=TIER_CHOICES, blank=True, null=True, db_index=True)
     last_seen_match_id = models.CharField(max_length=100, blank=True, null=True)
     last_polled_at = models.DateTimeField(blank=True, null=True)
 
