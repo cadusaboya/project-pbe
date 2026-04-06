@@ -5,11 +5,12 @@ import DataExplorer from "../../components/DataExplorer";
 import PageSkeleton from "../../components/PageSkeleton";
 import { UnitStat } from "../../components/StatsTable";
 
-async function fetchUnits(server?: string, tier?: string): Promise<UnitStat[]> {
+async function fetchUnits(server?: string, tier?: string, queue?: string): Promise<UnitStat[]> {
   try {
     const params = new URLSearchParams({ sort: "games" });
     if (server) params.set("server", server);
     if (tier) params.set("tier", tier);
+    if (queue) params.set("queue", queue);
     return await fetchJson<UnitStat[]>(`/api/unit-stats/?${params}`);
   } catch {
     return [];
@@ -41,6 +42,7 @@ async function fetchTraits(server?: string): Promise<Record<string, { breakpoint
 type RawParams = {
   game_version?: string;
   tier?: string;
+  queue?: string;
   require_unit?: string | string[];
   ban_unit?: string | string[];
   player_level?: string | string[];
@@ -118,14 +120,16 @@ async function ExploreContent({
   gameVersion,
   initialConditions,
   tier,
+  queue,
 }: {
   server: string;
   gameVersion: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initialConditions: any[];
   tier?: string;
+  queue?: string;
 }) {
-  const [units, versions, traitData] = await Promise.all([fetchUnits(server, tier), fetchVersions(server), fetchTraits(server)]);
+  const [units, versions, traitData] = await Promise.all([fetchUnits(server, tier, queue), fetchVersions(server), fetchTraits(server)]);
 
   return (
     <DataExplorer
@@ -136,6 +140,7 @@ async function ExploreContent({
       traitData={traitData}
       server={server}
       tier={tier}
+      queue={queue}
     />
   );
 }
@@ -152,6 +157,7 @@ export default async function ExplorePage({
   const rawParams = await searchParams;
   const gameVersion = rawParams.game_version ?? await getDefaultVersion(server);
   const tier = rawParams.tier;
+  const queue = rawParams.queue;
   const initialConditions = buildInitialConditions(rawParams);
 
   return (
@@ -161,6 +167,7 @@ export default async function ExplorePage({
         gameVersion={gameVersion}
         initialConditions={initialConditions}
         tier={tier}
+        queue={queue}
       />
     </Suspense>
   );

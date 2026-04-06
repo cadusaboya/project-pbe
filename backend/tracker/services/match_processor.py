@@ -17,6 +17,31 @@ logger = logging.getLogger(__name__)
 SKIP_UNITS = {"tft17_bardfollower"}
 
 
+def classify_pbe_match(participant_puuids: list[str], puuid_to_player: dict) -> tuple[str, str | None]:
+    """
+    Classify a PBE match based on player tiers.
+
+    A match is PROJECT_PBE of a specific tier if at least 6 of 8 players
+    belong to that tier. Otherwise it's PRO_RANDOM.
+
+    Returns:
+        (match_category, match_tier):
+        - ("PROJECT_PBE", "tier1"|"tier2"|"open") if 6+ players share a tier
+        - ("PRO_RANDOM", None) otherwise
+    """
+    tier_counts: dict[str, int] = {"tier1": 0, "tier2": 0, "open": 0}
+    for puuid in participant_puuids:
+        player = puuid_to_player.get(puuid)
+        if player and player.tier:
+            tier_counts[player.tier] = tier_counts.get(player.tier, 0) + 1
+
+    for tier, count in tier_counts.items():
+        if count >= 6:
+            return ("PROJECT_PBE", tier)
+
+    return ("PRO_RANDOM", None)
+
+
 def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "17 B", server: str = "PBE") -> bool:
     """
     Store a match and the unit data for every participant (all 8 slots).
@@ -38,6 +63,15 @@ def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "
         game_datetime_ms / 1000.0, tz=datetime.timezone.utc
     )
 
+    # Classify PBE matches before creating
+    participants_data: list[dict] = match_data.get("info", {}).get("participants", [])
+    participant_puuids = [p.get("puuid", "") for p in participants_data if p.get("puuid")]
+
+    match_category = None
+    match_tier = None
+    if server == "PBE":
+        match_category, match_tier = classify_pbe_match(participant_puuids, puuid_to_player)
+
     match, created = Match.objects.get_or_create(
         match_id=match_id,
         defaults={
@@ -45,6 +79,8 @@ def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "
             "game_version": game_version,
             "server": server,
             "raw_json": match_data,
+            "match_category": match_category,
+            "match_tier": match_tier,
         },
     )
 
@@ -52,7 +88,6 @@ def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "
         logger.debug("Match %s already in DB — skipping.", match_id)
         return False
 
-    participants_data: list[dict] = match_data.get("info", {}).get("participants", [])
     tracked_count = 0
 
     for p_data in participants_data:
@@ -65,6 +100,13 @@ def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "
         if player is not None:
             tracked_count += 1
 
+        # For PROJECT_PBE matches, all 8 participants count for stats.
+        # For PRO_RANDOM or non-PBE, only tracked players count.
+        if match_category == "PROJECT_PBE":
+            counts = True
+        else:
+            counts = player is not None
+
         participant, _ = Participant.objects.get_or_create(
             match=match,
             puuid=puuid,
@@ -73,6 +115,7 @@ def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "
                 "placement": p_data.get("placement", 0),
                 "level": p_data.get("level", 1),
                 "gold_left": p_data.get("gold_left", 0),
+                "counts_for_stats": counts,
             },
         )
 
@@ -97,9 +140,11 @@ def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "
         if unit_usages:
             UnitUsage.objects.bulk_create(unit_usages)
 
+    category_label = f" [{match_category}{'/' + match_tier if match_tier else ''}]" if match_category else ""
     logger.info(
-        "Stored match %s — %d/%d participants were tracked players.",
+        "Stored match %s%s — %d/%d participants were tracked players.",
         match_id,
+        category_label,
         tracked_count,
         len(participants_data),
     )

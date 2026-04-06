@@ -424,6 +424,7 @@ export default function WinningCompsList({
   allUnits,
   allPlayers,
   tier,
+  queue,
 }: {
   data: WinningComp[];
   itemAssets: Record<string, string>;
@@ -434,6 +435,7 @@ export default function WinningCompsList({
   allUnits: UnitStatBasic[];
   allPlayers: PlayerInfo[];
   tier?: string;
+  queue?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -479,6 +481,7 @@ export default function WinningCompsList({
         url.searchParams.set("server", server);
         if (selectedVersion) url.searchParams.set("game_version", selectedVersion);
         if (tier) url.searchParams.set("tier", tier);
+        if (queue) url.searchParams.set("queue", queue);
         const res = await fetch(url.toString());
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
@@ -491,7 +494,7 @@ export default function WinningCompsList({
     };
     fetchData();
     return () => { cancelled = true; };
-  }, [requiredUnits, sort, server, selectedVersion, tier]);
+  }, [requiredUnits, sort, server, selectedVersion, tier, queue]);
 
   // Fetch player results when players are selected
   useEffect(() => {
@@ -511,6 +514,7 @@ export default function WinningCompsList({
         url.searchParams.set("limit", "200");
         if (selectedVersion) url.searchParams.set("game_version", selectedVersion);
         if (tier) url.searchParams.set("tier", tier);
+        if (queue) url.searchParams.set("queue", queue);
         const res = await fetch(url.toString());
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json: WinningComp[] = await res.json();
@@ -533,7 +537,7 @@ export default function WinningCompsList({
     };
     fetchData();
     return () => { cancelled = true; };
-  }, [selectedPlayers, server, selectedVersion, tier]);
+  }, [selectedPlayers, server, selectedVersion, tier, queue]);
 
   // Reset visible count when filters change
   useEffect(() => {

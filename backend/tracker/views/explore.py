@@ -19,7 +19,7 @@ from ..services.cdragon import (
     ensure_trait_cache,
 )
 from ..services.items import get_item_canonical_map
-from .helpers import cc, get_tier
+from .helpers import cc, get_queue, get_tier, pbe_participant_filter
 
 # ── Per-module caches ─────────────────────────────────────────────────────────
 
@@ -39,6 +39,7 @@ def _run_explore_filter(request):
     server = request.query_params.get("server", "PBE").upper()
     game_version = request.query_params.get("game_version")
     tier = get_tier(request)
+    queue = get_queue(request)
     include_trait_stats = request.query_params.get("include_trait_stats") == "1"
     require_units = set(request.query_params.getlist("require_unit"))
     ban_units = set(request.query_params.getlist("ban_unit"))
@@ -109,7 +110,7 @@ def _run_explore_filter(request):
 
     global _explore_base_cache, _explore_cache_version
     match_count = Match.objects.filter(server=server).count()
-    cache_key = (server, game_version or "")
+    cache_key = (server, game_version or "", queue or "", tier or "")
     if match_count != _explore_cache_version.get(server, -1):
         stale_keys = [k for k in _explore_base_cache if k[0] == server]
         for k in stale_keys:
@@ -119,11 +120,8 @@ def _run_explore_filter(request):
     if cache_key in _explore_base_cache:
         participants = _explore_base_cache[cache_key]
     else:
-        participants = ExploreView._build_participant_data(game_version, server)
+        participants = ExploreView._build_participant_data(game_version, server, queue, tier)
         _explore_base_cache[cache_key] = participants
-
-    if tier:
-        participants = [p for p in participants if p.get("player_tier") == tier]
 
     _server_api_name_map = TRAIT_API_NAME_MAP.get(server, {})
 
@@ -290,14 +288,24 @@ class ExploreView(APIView):
     """
 
     @staticmethod
-    def _build_participant_data(game_version: str | None, server: str = "PBE") -> list[dict]:
+    def _build_participant_data(game_version: str | None, server: str = "PBE", queue: str | None = None, tier: str | None = None) -> list[dict]:
         """Build pre-processed participant dicts (cacheable, filter-independent)."""
         cmap = get_item_canonical_map()
         unit_traits_map: dict[str, list] = dict(
             Unit.objects.values_list("character_id", "traits")
         )
 
-        qs = Participant.objects.filter(match__server=server, player__isnull=False)
+        qs = Participant.objects.filter(match__server=server)
+        if server == "PBE" and queue == "project_pbe":
+            qs = qs.filter(match__match_category="PROJECT_PBE", counts_for_stats=True)
+            if tier:
+                qs = qs.filter(match__match_tier=tier)
+        elif server == "PBE" and queue == "pro_random":
+            qs = qs.filter(match__match_category="PRO_RANDOM", counts_for_stats=True)
+        else:
+            qs = qs.filter(player__isnull=False)
+            if tier:
+                qs = qs.filter(player__tier=tier)
         if game_version:
             qs = qs.filter(match__game_version=game_version)
         # Defer raw_json to avoid loading ~22KB per match in the JOIN;

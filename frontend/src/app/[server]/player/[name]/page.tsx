@@ -4,10 +4,11 @@ import PageSkeleton from "../../../components/PageSkeleton";
 import { fetchJson } from "@/lib/api";
 import Link from "next/link";
 
-async function fetchPlayerProfile(name: string, server?: string, tier?: string): Promise<PlayerProfileData> {
+async function fetchPlayerProfile(name: string, server?: string, tier?: string, queue?: string): Promise<PlayerProfileData> {
   const params = new URLSearchParams();
   if (server) params.set("server", server);
   if (tier) params.set("tier", tier);
+  if (queue) params.set("queue", queue);
   const qs = params.toString();
   return fetchJson<PlayerProfileData>(`/api/player/${encodeURIComponent(name)}/profile/${qs ? `?${qs}` : ""}`);
 }
@@ -32,10 +33,12 @@ async function ProfileContent({
   decodedName,
   server,
   tier,
+  queue,
 }: {
   decodedName: string;
   server: string;
   tier?: string;
+  queue?: string;
 }) {
   let profile: PlayerProfileData | null = null;
   let itemAssets: Record<string, string> = {};
@@ -46,7 +49,7 @@ async function ProfileContent({
   try {
     let itemData: { assets: Record<string, string>; names: Record<string, string> };
     [profile, itemData, traitData] = await Promise.all([
-      fetchPlayerProfile(decodedName, server, tier),
+      fetchPlayerProfile(decodedName, server, tier, queue),
       fetchItemData(),
       fetchTraitBreakpoints(),
     ]);
@@ -79,11 +82,11 @@ export default async function PlayerPage({
   searchParams,
 }: {
   params: Promise<{ server: string; name: string }>;
-  searchParams: Promise<{ game_version?: string; tier?: string }>;
+  searchParams: Promise<{ game_version?: string; tier?: string; queue?: string }>;
 }) {
   const { server: serverSlug, name } = await params;
   const server = serverSlug.toUpperCase();
-  const { tier } = await searchParams;
+  const { tier, queue } = await searchParams;
   const decodedName = decodeURIComponent(name);
 
   return (
@@ -97,7 +100,7 @@ export default async function PlayerPage({
       </Link>
 
       <Suspense fallback={<PageSkeleton variant="profile" />}>
-        <ProfileContent decodedName={decodedName} server={server} tier={tier} />
+        <ProfileContent decodedName={decodedName} server={server} tier={tier} queue={queue} />
       </Suspense>
     </div>
   );

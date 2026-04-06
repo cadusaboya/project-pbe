@@ -1,13 +1,22 @@
 "use client";
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { VALID_TIERS_SET, TIER_LABELS, getServerFromPath } from "@/lib/constants";
+import { VALID_TIERS_SET, getServerFromPath, DEFAULT_PBE_QUEUE, DEFAULT_PBE_TIER } from "@/lib/constants";
 
-const TIERS = [
-  { value: "", label: "All" },
-  { value: "tier1", label: "Tier 1" },
-  { value: "tier2", label: "Tier 2" },
-  { value: "open", label: "Open" },
+/**
+ * Combined queue + tier selector for PBE.
+ *
+ * Buttons: [ T1 ] [ T2 ] [ Open ] [ Random Q ]
+ *
+ * T1/T2/Open → queue=project_pbe&tier=tierX
+ * Random Q   → queue=pro_random  (no tier)
+ */
+
+const OPTIONS = [
+  { queue: "project_pbe", tier: "tier1", label: "T1" },
+  { queue: "project_pbe", tier: "tier2", label: "T2" },
+  { queue: "project_pbe", tier: "open", label: "Open" },
+  { queue: "pro_random", tier: "", label: "Random Q" },
 ] as const;
 
 export default function TierSelector() {
@@ -19,10 +28,12 @@ export default function TierSelector() {
   // Only show on PBE
   if (server !== "pbe") return null;
 
-  const current = searchParams.get("tier") ?? "";
+  const currentQueue = searchParams.get("queue") ?? DEFAULT_PBE_QUEUE;
+  const currentTier = searchParams.get("tier") ?? (currentQueue === "project_pbe" ? DEFAULT_PBE_TIER : "");
 
-  function handleChange(tier: string) {
+  function handleChange(queue: string, tier: string) {
     const params = new URLSearchParams(searchParams.toString());
+    params.set("queue", queue);
     if (tier && VALID_TIERS_SET.has(tier)) {
       params.set("tier", tier);
     } else {
@@ -34,19 +45,22 @@ export default function TierSelector() {
 
   return (
     <div className="flex gap-0.5 bg-tft-surface border border-tft-border rounded-lg p-0.5">
-      {TIERS.map((t) => (
-        <button
-          key={t.value}
-          onClick={() => handleChange(t.value)}
-          className={`px-2 sm:px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-            current === t.value
-              ? "bg-tft-gold/20 text-tft-gold shadow-sm"
-              : "text-tft-text/70 hover:text-tft-text"
-          }`}
-        >
-          {t.label}
-        </button>
-      ))}
+      {OPTIONS.map((opt) => {
+        const isActive = currentQueue === opt.queue && currentTier === opt.tier;
+        return (
+          <button
+            key={`${opt.queue}-${opt.tier}`}
+            onClick={() => handleChange(opt.queue, opt.tier)}
+            className={`px-2 sm:px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+              isActive
+                ? "bg-tft-gold/20 text-tft-gold shadow-sm"
+                : "text-tft-text/70 hover:text-tft-text"
+            }`}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

@@ -165,11 +165,13 @@ export default function StatsTable({
   selectedVersion,
   server,
   tier,
+  queue,
 }: {
   data: UnitStat[];
   selectedVersion: string;
   server: string;
   tier?: string;
+  queue?: string;
 }) {
   const [sortKey, setSortKey] = useState<SortKey>("avg_placement");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -220,6 +222,7 @@ export default function StatsTable({
       if (selectedVersion) url.searchParams.set("game_version", selectedVersion);
       url.searchParams.set("server", server);
       if (tier) url.searchParams.set("tier", tier);
+      if (queue) url.searchParams.set("queue", queue);
       const res = await fetch(url.toString());
       if (res.ok) {
         const data: UnitDetailStats = await res.json();

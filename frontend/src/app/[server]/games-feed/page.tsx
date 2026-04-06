@@ -12,11 +12,12 @@ async function fetchTraitBreakpoints(): Promise<Record<string, TraitInfo>> {
   }
 }
 
-async function fetchWinningComps(gameVersion?: string, server?: string, tier?: string): Promise<WinningComp[]> {
+async function fetchWinningComps(gameVersion?: string, server?: string, tier?: string, queue?: string): Promise<WinningComp[]> {
   const params = new URLSearchParams({ limit: "200" });
   if (gameVersion) params.set("game_version", gameVersion);
   if (server) params.set("server", server);
   if (tier) params.set("tier", tier);
+  if (queue) params.set("queue", queue);
   return fetchJson<WinningComp[]>(`/api/winning-comps/?${params}`);
 }
 
@@ -74,10 +75,12 @@ async function FeedContent({
   server,
   gameVersion,
   tier,
+  queue,
 }: {
   server: string;
   gameVersion: string;
   tier?: string;
+  queue?: string;
 }) {
   let data: WinningComp[] = [];
   let itemAssets: Record<string, string> = {};
@@ -90,7 +93,7 @@ async function FeedContent({
   try {
     let itemData: { assets: Record<string, string>; names: Record<string, string> };
     [data, itemData, versions, traitBreakpoints, allUnits, allPlayers] = await Promise.all([
-      fetchWinningComps(gameVersion, server, tier),
+      fetchWinningComps(gameVersion, server, tier, queue),
       fetchItemData(),
       fetchVersions(server),
       fetchTraitBreakpoints(),
@@ -124,6 +127,7 @@ async function FeedContent({
       allUnits={allUnits}
       allPlayers={allPlayers}
       tier={tier}
+      queue={queue}
     />
   );
 }
@@ -133,11 +137,11 @@ export default async function GamesFeedPage({
   searchParams,
 }: {
   params: Promise<{ server: string }>;
-  searchParams: Promise<{ game_version?: string; tier?: string }>;
+  searchParams: Promise<{ game_version?: string; tier?: string; queue?: string }>;
 }) {
   const { server: serverSlug } = await params;
   const server = serverSlug.toUpperCase();
-  const { game_version: gameVersion, tier } = await searchParams;
+  const { game_version: gameVersion, tier, queue } = await searchParams;
 
   return (
     <div className="space-y-6">
@@ -149,7 +153,7 @@ export default async function GamesFeedPage({
       </div>
 
       <Suspense fallback={<PageSkeleton variant="feed" />}>
-        <FeedContent server={server} gameVersion={gameVersion ?? await getDefaultVersion(server)} tier={tier} />
+        <FeedContent server={server} gameVersion={gameVersion ?? await getDefaultVersion(server)} tier={tier} queue={queue} />
       </Suspense>
     </div>
   );

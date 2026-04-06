@@ -717,6 +717,7 @@ export default function DataExplorer({
   traitData = {},
   server,
   tier,
+  queue,
 }: {
   units: UnitStat[];
   versions: string[];
@@ -725,6 +726,7 @@ export default function DataExplorer({
   traitData?: TraitData;
   server: string;
   tier?: string;
+  queue?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -849,6 +851,7 @@ export default function DataExplorer({
       params.set("include_trait_stats", "1");
       params.set("server", server);
       if (tier) params.set("tier", tier);
+      if (queue) params.set("queue", queue);
       fetch(backendUrl(`/api/explore/?${params.toString()}`))
         .then((r) => (r.ok ? r.json() : null))
         .then(setExploreData)
@@ -859,7 +862,7 @@ export default function DataExplorer({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [filters, selectedVersion, traitData, server, tier]);
+  }, [filters, selectedVersion, traitData, server, tier, queue]);
 
   function handleVersionChange(v: string) {
     setSelectedVersion(v);

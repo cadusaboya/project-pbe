@@ -5,11 +5,12 @@ import ItemsExplorer from "../../components/ItemsExplorer";
 import PageSkeleton from "../../components/PageSkeleton";
 import { UnitStat } from "../../components/StatsTable";
 
-async function fetchUnits(server?: string, tier?: string): Promise<UnitStat[]> {
+async function fetchUnits(server?: string, tier?: string, queue?: string): Promise<UnitStat[]> {
   try {
     const params = new URLSearchParams({ sort: "games" });
     if (server) params.set("server", server);
     if (tier) params.set("tier", tier);
+    if (queue) params.set("queue", queue);
     return await fetchJson<UnitStat[]>(`/api/unit-stats/?${params}`);
   } catch {
     return [];
@@ -31,12 +32,14 @@ async function ItemsContent({
   server,
   gameVersion,
   tier,
+  queue,
 }: {
   server: string;
   gameVersion: string;
   tier?: string;
+  queue?: string;
 }) {
-  const [units, versions] = await Promise.all([fetchUnits(server, tier), fetchVersions(server)]);
+  const [units, versions] = await Promise.all([fetchUnits(server, tier, queue), fetchVersions(server)]);
 
   return (
     <ItemsExplorer
@@ -45,6 +48,7 @@ async function ItemsContent({
       selectedVersion={gameVersion}
       server={server}
       tier={tier}
+      queue={queue}
     />
   );
 }
@@ -54,15 +58,15 @@ export default async function ItemsPage({
   searchParams,
 }: {
   params: Promise<{ server: string }>;
-  searchParams: Promise<{ game_version?: string; tier?: string }>;
+  searchParams: Promise<{ game_version?: string; tier?: string; queue?: string }>;
 }) {
   const { server: serverSlug } = await params;
   const server = serverSlug.toUpperCase();
-  const { game_version: gameVersion, tier } = await searchParams;
+  const { game_version: gameVersion, tier, queue } = await searchParams;
 
   return (
     <Suspense fallback={<PageSkeleton variant="explorer" />}>
-      <ItemsContent server={server} gameVersion={gameVersion ?? await getDefaultVersion(server)} tier={tier} />
+      <ItemsContent server={server} gameVersion={gameVersion ?? await getDefaultVersion(server)} tier={tier} queue={queue} />
     </Suspense>
   );
 }

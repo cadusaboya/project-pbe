@@ -4,6 +4,11 @@ SERVER_CHOICES = [("PBE", "PBE"), ("LIVE", "Live"), ("SCRIMS", "Scrims")]
 
 TIER_CHOICES = [("tier1", "Tier 1"), ("tier2", "Tier 2"), ("open", "Open")]
 
+MATCH_CATEGORY_CHOICES = [
+    ("PROJECT_PBE", "Project PBE"),
+    ("PRO_RANDOM", "Pro Random Queue"),
+]
+
 
 class Player(models.Model):
     game_name = models.CharField(max_length=100)
@@ -26,8 +31,19 @@ class Match(models.Model):
     game_datetime = models.DateTimeField(db_index=True)
     game_version = models.CharField(max_length=100, default="16.6 PBE Alpha - No Items THex", db_index=True)
     server = models.CharField(max_length=10, choices=SERVER_CHOICES, default="PBE", db_index=True)
+    match_category = models.CharField(
+        max_length=20, choices=MATCH_CATEGORY_CHOICES, blank=True, null=True, db_index=True,
+    )
+    match_tier = models.CharField(
+        max_length=10, choices=TIER_CHOICES, blank=True, null=True, db_index=True,
+    )
     raw_json = models.JSONField()
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["server", "match_category", "match_tier"], name="idx_match_server_cat_tier"),
+        ]
 
     def __str__(self):
         return self.match_id
@@ -48,6 +64,7 @@ class Participant(models.Model):
     placement = models.IntegerField(db_index=True)
     level = models.IntegerField(db_index=True)
     gold_left = models.IntegerField()
+    counts_for_stats = models.BooleanField(default=True, db_index=True)
 
     class Meta:
         unique_together = [("match", "puuid")]
@@ -92,6 +109,12 @@ class AggregatedUnitStat(models.Model):
         Unit, on_delete=models.CASCADE, related_name="stats"
     )
     server = models.CharField(max_length=10, choices=SERVER_CHOICES, default="PBE", db_index=True)
+    match_category = models.CharField(
+        max_length=20, choices=MATCH_CATEGORY_CHOICES, blank=True, null=True, db_index=True,
+    )
+    match_tier = models.CharField(
+        max_length=10, choices=TIER_CHOICES, blank=True, null=True, db_index=True,
+    )
     games = models.IntegerField(default=0)
     total_placement = models.IntegerField(default=0)
     avg_placement = models.FloatField(default=0.0)
@@ -100,7 +123,7 @@ class AggregatedUnitStat(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = [("unit", "server")]
+        unique_together = [("unit", "server", "match_category", "match_tier")]
 
     def __str__(self):
         return f"Stats for {self.unit.character_id} ({self.server})"

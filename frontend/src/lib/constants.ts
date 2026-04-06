@@ -44,3 +44,17 @@ export const TIER_LABELS: Record<string, string> = {
   tier2: "Tier 2",
   open: "Open",
 };
+
+// Match category / queue constants
+export const VALID_QUEUES = ["project_pbe", "pro_random"] as const;
+export type QueueSlug = (typeof VALID_QUEUES)[number];
+
+export const QUEUE_LABELS: Record<string, string> = {
+  project_pbe: "Project PBE",
+  pro_random: "Random Q",
+};
+
+/** Default queue for PBE pages */
+export const DEFAULT_PBE_QUEUE: QueueSlug = "project_pbe";
+/** Default tier for PBE pages */
+export const DEFAULT_PBE_TIER: TierSlug = "tier1";

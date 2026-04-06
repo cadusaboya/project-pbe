@@ -11,11 +11,12 @@ interface CompsResponse {
   comps: CompStat[];
 }
 
-async function fetchCompStats(gameVersion?: string, server?: string, tier?: string): Promise<CompsResponse> {
+async function fetchCompStats(gameVersion?: string, server?: string, tier?: string, queue?: string): Promise<CompsResponse> {
   const params = new URLSearchParams();
   if (gameVersion) params.set("game_version", gameVersion);
   if (server) params.set("server", server);
   if (tier) params.set("tier", tier);
+  if (queue) params.set("queue", queue);
   const qs = params.toString();
   return fetchJson<CompsResponse>(`/api/comps/${qs ? `?${qs}` : ""}`);
 }
@@ -47,11 +48,13 @@ async function CompsContent({
   serverSlug,
   gameVersion,
   tier,
+  queue,
 }: {
   server: string;
   serverSlug: string;
   gameVersion: string;
   tier?: string;
+  queue?: string;
 }) {
   let data: CompStat[] = [];
   let totalComps = 0;
@@ -61,7 +64,7 @@ async function CompsContent({
 
   try {
     const [compsRes, v, t] = await Promise.all([
-      fetchCompStats(gameVersion, server, tier),
+      fetchCompStats(gameVersion, server, tier, queue),
       fetchVersions(server),
       fetchTraits(server),
     ]);
@@ -110,11 +113,11 @@ export default async function CompsPage({
   searchParams,
 }: {
   params: Promise<{ server: string }>;
-  searchParams: Promise<{ game_version?: string; tier?: string }>;
+  searchParams: Promise<{ game_version?: string; tier?: string; queue?: string }>;
 }) {
   const { server: serverSlug } = await params;
   const server = serverSlug.toUpperCase();
-  const { game_version: gameVersion, tier } = await searchParams;
+  const { game_version: gameVersion, tier, queue } = await searchParams;
 
   return (
     <div className="space-y-6">
@@ -126,7 +129,7 @@ export default async function CompsPage({
       </div>
 
       <Suspense fallback={<PageSkeleton variant="cards" />}>
-        <CompsContent server={server} serverSlug={serverSlug} gameVersion={gameVersion ?? await getDefaultVersion(server)} tier={tier} />
+        <CompsContent server={server} serverSlug={serverSlug} gameVersion={gameVersion ?? await getDefaultVersion(server)} tier={tier} queue={queue} />
       </Suspense>
     </div>
   );

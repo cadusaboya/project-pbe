@@ -13,7 +13,7 @@ from ..models import AggregatedUnitStat, Match, Participant, Player, UnitUsage
 from ..serializers import UnitStatSerializer
 from ..services.cache import VersionedCache
 from ..services.items import get_item_canonical_map
-from .helpers import SORT_MAP, cc, get_tier
+from .helpers import SORT_MAP, cc, get_queue, get_tier, pbe_participant_filter
 
 # ── Per-module caches ─────────────────────────────────────────────────────────
 
@@ -34,9 +34,18 @@ class StatsView(APIView):
         server = request.query_params.get("server", "PBE").upper()
         game_version = request.query_params.get("game_version")
         tier = get_tier(request)
+        queue = get_queue(request)
         match_qs = Match.objects.filter(server=server)
         if game_version:
             match_qs = match_qs.filter(game_version=game_version)
+
+        # Apply match category/tier filters for PBE
+        if server == "PBE" and queue == "project_pbe":
+            match_qs = match_qs.filter(match_category="PROJECT_PBE")
+            if tier:
+                match_qs = match_qs.filter(match_tier=tier)
+        elif server == "PBE" and queue == "pro_random":
+            match_qs = match_qs.filter(match_category="PRO_RANDOM")
 
         if server == "SCRIMS":
             players_count = 0
@@ -56,9 +65,14 @@ class StatsView(APIView):
             last_polled = player_qs.aggregate(latest=Max("last_polled_at"))["latest"]
             last_run = last_polled.isoformat() if last_polled else None
 
-        participant_qs = Participant.objects.filter(match__server=server, player__isnull=False)
-        if tier:
-            participant_qs = participant_qs.filter(player__tier=tier)
+        if server == "PBE":
+            participant_qs = Participant.objects.filter(match__server=server).filter(
+                pbe_participant_filter(request)
+            )
+        else:
+            participant_qs = Participant.objects.filter(match__server=server, player__isnull=False)
+            if tier:
+                participant_qs = participant_qs.filter(player__tier=tier)
         if game_version:
             participant_qs = participant_qs.filter(match__game_version=game_version)
 
@@ -111,7 +125,6 @@ class UnitStatsView(ListAPIView):
 
     def _stats_for_version(self, request, game_version: str):
         server = request.query_params.get("server", "PBE").upper()
-        tier = get_tier(request)
         min_games = request.query_params.get("min_games")
         search = request.query_params.get("search")
         sort_key = request.query_params.get("sort", "avg_placement")
@@ -119,10 +132,14 @@ class UnitStatsView(ListAPIView):
         qs = UnitUsage.objects.filter(
             participant__match__game_version=game_version,
             participant__match__server=server,
-            participant__player__isnull=False,
         )
-        if tier:
-            qs = qs.filter(participant__player__tier=tier)
+        if server == "PBE":
+            qs = qs.filter(pbe_participant_filter(request, prefix="participant__"))
+        else:
+            qs = qs.filter(participant__player__isnull=False)
+            tier = get_tier(request)
+            if tier:
+                qs = qs.filter(participant__player__tier=tier)
         qs = (
             qs.values("unit__character_id", "unit__cost", "unit__traits")
             .annotate(
@@ -170,7 +187,21 @@ class UnitStatsView(ListAPIView):
 
     def get_queryset(self):
         server = self.request.query_params.get("server", "PBE").upper()
+        queue = get_queue(self.request)
+        tier = get_tier(self.request)
         qs = AggregatedUnitStat.objects.filter(server=server).select_related("unit")
+
+        # Filter by match_category/match_tier for PBE pre-aggregated stats
+        if server == "PBE":
+            if queue == "project_pbe":
+                qs = qs.filter(match_category="PROJECT_PBE")
+                if tier:
+                    qs = qs.filter(match_tier=tier)
+            elif queue == "pro_random":
+                qs = qs.filter(match_category="PRO_RANDOM", match_tier__isnull=True)
+            else:
+                # No queue specified — legacy: show null category (all)
+                qs = qs.filter(match_category__isnull=True)
 
         min_games = self.request.query_params.get("min_games")
         if min_games:
@@ -201,14 +232,17 @@ class UnitStarStatsView(APIView):
 
     def get(self, request, unit_name: str):
         server = request.query_params.get("server", "PBE").upper()
-        tier = get_tier(request)
         qs = UnitUsage.objects.filter(
             unit__character_id=unit_name,
             participant__match__server=server,
-            participant__player__isnull=False,
         )
-        if tier:
-            qs = qs.filter(participant__player__tier=tier)
+        if server == "PBE":
+            qs = qs.filter(pbe_participant_filter(request, prefix="participant__"))
+        else:
+            qs = qs.filter(participant__player__isnull=False)
+            tier = get_tier(request)
+            if tier:
+                qs = qs.filter(participant__player__tier=tier)
 
         game_version = request.query_params.get("game_version")
         if game_version:

@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 
 from ..models import Participant, Player, UnitUsage
 from ..services.cache import VersionedCache
-from .helpers import cc, get_tier
+from .helpers import cc, get_queue, get_tier, pbe_participant_filter
 
 # ── Per-module caches ─────────────────────────────────────────────────────────
 
@@ -46,6 +46,7 @@ class PlayerProfileView(APIView):
             return Response({"error": "Player not found"}, status=404)
 
         game_version = request.query_params.get("game_version")
+        queue = get_queue(request)
 
         participations = (
             Participant.objects.filter(player=player, match__server=server)
@@ -55,6 +56,14 @@ class PlayerProfileView(APIView):
             )
             .order_by("-match__game_datetime")
         )
+        # Filter by match category for PBE
+        if server == "PBE" and queue == "project_pbe":
+            participations = participations.filter(match__match_category="PROJECT_PBE")
+            tier = get_tier(request)
+            if tier:
+                participations = participations.filter(match__match_tier=tier)
+        elif server == "PBE" and queue == "pro_random":
+            participations = participations.filter(match__match_category="PRO_RANDOM")
         if game_version:
             participations = participations.filter(match__game_version=game_version)
 
@@ -159,6 +168,7 @@ class PlayerListView(APIView):
     def get(self, request):
         server = request.query_params.get("server", "PBE").upper()
         tier = get_tier(request)
+        queue = get_queue(request)
         if server == "SCRIMS":
             players = Player.objects.filter(region="SCRIMS")
         elif server == "PBE":
@@ -168,7 +178,7 @@ class PlayerListView(APIView):
         if tier:
             players = players.filter(tier=tier)
         player_count = players.count()
-        cache_key = (server, tier)
+        cache_key = (server, queue, tier)
         cached = _players_cache.get(cache_key, player_count)
         if cached is not None:
             return cc(Response(cached), 300)
@@ -202,6 +212,7 @@ class PlayerStatsView(APIView):
     def get(self, request):
         server = request.query_params.get("server", "PBE").upper()
         tier = get_tier(request)
+        queue = get_queue(request)
         sort_key = request.query_params.get("sort", "avg_placement")
         search = request.query_params.get("search", "").strip()
         min_games = int(request.query_params.get("min_games", 0) or 0)
@@ -220,6 +231,8 @@ class PlayerStatsView(APIView):
 
         # Build participation filter for this server + optional game_version
         part_filter = Q(participations__match__server=server)
+        if server == "PBE":
+            part_filter &= pbe_participant_filter(request, prefix="participations__")
         if game_version:
             part_filter &= Q(participations__match__game_version=game_version)
 

@@ -3,7 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { backendUrl } from "@/lib/backend";
-import { getServerFromPath } from "@/lib/constants";
+import { getServerFromPath, DEFAULT_PBE_QUEUE, DEFAULT_PBE_TIER } from "@/lib/constants";
 
 interface GlobalStats {
   matches_analyzed: number;
@@ -59,7 +59,11 @@ export default function StatsBar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const server = getServerFromPath(pathname).toUpperCase();
-  const tier = searchParams.get("tier") ?? "";
+  const isPbe = server === "PBE";
+  const queue = isPbe ? (searchParams.get("queue") ?? DEFAULT_PBE_QUEUE) : "";
+  const tier = isPbe
+    ? (searchParams.get("tier") ?? (queue === "project_pbe" ? DEFAULT_PBE_TIER : ""))
+    : (searchParams.get("tier") ?? "");
   const [stats, setStats] = useState<GlobalStats | null>(null);
   const [, tick] = useState(0);
 
@@ -67,7 +71,7 @@ export default function StatsBar() {
     let cancelled = false;
 
     // Use cached data if fresh enough — skip network call entirely
-    const cacheKey = tier ? `${server}_${tier}` : server;
+    const cacheKey = [server, queue, tier].filter(Boolean).join("_");
     const cached = getCachedStats(cacheKey);
     if (cached) {
       setStats(cached);
@@ -78,6 +82,7 @@ export default function StatsBar() {
     // No polling — FreshnessGuard reloads the page when new data arrives.
     const url = new URL(backendUrl("/api/stats/"));
     url.searchParams.set("server", server);
+    if (queue) url.searchParams.set("queue", queue);
     if (tier) url.searchParams.set("tier", tier);
     fetch(url.toString(), { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
@@ -89,7 +94,7 @@ export default function StatsBar() {
       .catch(() => { if (!cancelled) setStats(null); });
 
     return () => { cancelled = true; };
-  }, [server, tier]);
+  }, [server, queue, tier]);
 
   // Re-render every 60s so the relative time stays fresh
   useEffect(() => {

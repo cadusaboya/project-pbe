@@ -11,6 +11,7 @@ async function fetchHiddenCompStats(
   minOccurrences?: string,
   server?: string,
   tier?: string,
+  queue?: string,
 ): Promise<CompStat[]> {
   const params = new URLSearchParams({ limit: "20" });
   if (gameVersion) params.set("game_version", gameVersion);
@@ -18,6 +19,7 @@ async function fetchHiddenCompStats(
   if (minOccurrences) params.set("min_occurrences", minOccurrences);
   if (server) params.set("server", server);
   if (tier) params.set("tier", tier);
+  if (queue) params.set("queue", queue);
   return fetchJson<CompStat[]>(`/api/comps/hidden/?${params}`);
 }
 
@@ -50,6 +52,7 @@ async function HiddenCompsContent({
   coreSizes,
   minOccurrences,
   tier,
+  queue,
 }: {
   server: string;
   serverSlug: string;
@@ -57,6 +60,7 @@ async function HiddenCompsContent({
   coreSizes: string;
   minOccurrences: string;
   tier?: string;
+  queue?: string;
 }) {
   let data: CompStat[] = [];
   let versions: string[] = [];
@@ -65,7 +69,7 @@ async function HiddenCompsContent({
 
   try {
     [data, versions, traitData] = await Promise.all([
-      fetchHiddenCompStats(gameVersion, coreSizes, minOccurrences, server, tier),
+      fetchHiddenCompStats(gameVersion, coreSizes, minOccurrences, server, tier, queue),
       fetchVersions(server),
       fetchTraits(server),
     ]);
@@ -107,7 +111,7 @@ export default async function HiddenCompsPage({
   searchParams,
 }: {
   params: Promise<{ server: string }>;
-  searchParams: Promise<{ game_version?: string; core_sizes?: string; min_occurrences?: string; tier?: string }>;
+  searchParams: Promise<{ game_version?: string; core_sizes?: string; min_occurrences?: string; tier?: string; queue?: string }>;
 }) {
   const { server: serverSlug } = await params;
   const server = serverSlug.toUpperCase();
@@ -116,6 +120,7 @@ export default async function HiddenCompsPage({
     core_sizes: coreSizes = "4,5,6",
     min_occurrences: minOccurrences = "100",
     tier,
+    queue,
   } = await searchParams;
 
   return (
@@ -135,6 +140,7 @@ export default async function HiddenCompsPage({
           coreSizes={coreSizes}
           minOccurrences={minOccurrences}
           tier={tier}
+          queue={queue}
         />
       </Suspense>
     </div>
