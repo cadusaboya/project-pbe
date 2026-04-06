@@ -4,7 +4,7 @@ import logging
 
 import httpx
 
-from tracker.services.riot_api import RiotAPIService
+from tracker.services.riot_api import RATE_LIMITED, RiotAPIService
 
 logger = logging.getLogger(__name__)
 
@@ -86,20 +86,68 @@ async def fetch_accounts_async(
     api_key: str,
     need_fetch: list,
     routing: str = "americas",
+    batch_size: int = 5,
+    rate_limit_wait: int = 120,
+    stdout=None,
 ) -> list:
     """
     Batch-resolve account PUUIDs via Riot Account API.
+
+    Processes in small batches. When a batch has failures (possible rate limit),
+    waits ``rate_limit_wait`` seconds and retries the failed ones once.
 
     Args:
         api_key: Riot API key
         need_fetch: list of (game_name, tag_line, ...) tuples
         routing: Riot routing value (americas, europe, asia, sea)
+        batch_size: how many concurrent requests per batch
+        rate_limit_wait: seconds to wait when rate limited
+        stdout: optional management command stdout for progress logging
 
     Returns: list of account dicts (or None for failures), same order as input
     """
     service = RiotAPIService(api_key, routing=routing)
+    results: list = [None] * len(need_fetch)
+
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(30.0), follow_redirects=True
     ) as client:
-        tasks = [service.get_account(client, p[0], p[1]) for p in need_fetch]
-        return await asyncio.gather(*tasks)
+        for batch_start in range(0, len(need_fetch), batch_size):
+            batch_end = min(batch_start + batch_size, len(need_fetch))
+            batch = need_fetch[batch_start:batch_end]
+
+            tasks = [service.get_account(client, p[0], p[1]) for p in batch]
+            batch_results = await asyncio.gather(*tasks)
+
+            # Separate rate-limited from real failures
+            rate_limited_indices = []
+            for i, res in enumerate(batch_results):
+                idx = batch_start + i
+                if res is RATE_LIMITED:
+                    rate_limited_indices.append((i, idx))
+                elif res is not None:
+                    results[idx] = res
+                # res is None → hard failure (404 etc.), skip
+
+            # Only wait + retry for rate-limited requests
+            if rate_limited_indices:
+                msg = f"  Rate limited on {len(rate_limited_indices)} requests in batch {batch_start+1}-{batch_end}, waiting {rate_limit_wait}s..."
+                if stdout:
+                    stdout.write(msg)
+                else:
+                    logger.warning(msg)
+                await asyncio.sleep(rate_limit_wait)
+
+                retry_tasks = [
+                    service.get_account(client, batch[i][0], batch[i][1])
+                    for i, _ in rate_limited_indices
+                ]
+                retry_results = await asyncio.gather(*retry_tasks)
+                for (_, idx), res in zip(rate_limited_indices, retry_results):
+                    if res is not None and res is not RATE_LIMITED:
+                        results[idx] = res
+
+            if stdout and batch_end % 50 < batch_size:
+                stdout.write(f"  Resolved {batch_end}/{len(need_fetch)}...")
+
+    return results

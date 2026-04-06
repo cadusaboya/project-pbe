@@ -61,6 +61,10 @@ class RiotAPIError(Exception):
     pass
 
 
+# Sentinel returned when retries are exhausted due to 429s (not a real failure).
+RATE_LIMITED = object()
+
+
 class RiotAPIService:
     BASE_URL = "https://americas.api.riotgames.com"
 
@@ -88,10 +92,14 @@ class RiotAPIService:
         url: str,
         params: dict | None = None,
     ) -> Optional[dict | list]:
+        """Returns data on success, None on hard failure (404, network),
+        or RATE_LIMITED when retries are exhausted due to 429s."""
         headers = {"X-Riot-Token": self.api_key}
+        last_was_429 = False
 
         for attempt in range(MAX_RETRIES):
             response: httpx.Response | None = None
+            last_was_429 = False
 
             # Acquire semaphore only for the actual HTTP call, not the sleep.
             async with self._semaphore:
@@ -116,6 +124,7 @@ class RiotAPIService:
                 return response.json()
 
             if response.status_code == 429:
+                last_was_429 = True
                 retry_after = float(
                     response.headers.get("Retry-After", BASE_BACKOFF * (2 ** attempt))
                 )
@@ -141,6 +150,9 @@ class RiotAPIService:
                 continue
             return None
 
+        if last_was_429:
+            logger.error("Exhausted retries for %s (rate-limited)", url)
+            return RATE_LIMITED
         logger.error("Exhausted retries for %s", url)
         return None
 
@@ -162,6 +174,18 @@ class RiotAPIService:
             f"{self.base_url}/riot/account/v1/accounts/by-riot-id"
             f"/{quote(game_name, safe='')}/{quote(tag_line, safe='')}"
         )
+        return await self._request(client, url)
+
+    async def get_account_by_puuid(
+        self,
+        client: httpx.AsyncClient,
+        puuid: str,
+    ) -> Optional[dict]:
+        """
+        GET /riot/account/v1/accounts/by-puuid/{puuid}
+        Returns: {"puuid": "...", "gameName": "...", "tagLine": "..."}
+        """
+        url = f"{self.base_url}/riot/account/v1/accounts/by-puuid/{puuid}"
         return await self._request(client, url)
 
     async def get_match_ids(

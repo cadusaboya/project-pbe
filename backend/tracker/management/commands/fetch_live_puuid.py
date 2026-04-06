@@ -181,7 +181,7 @@ class Command(BaseCommand):
         )
 
         # Account API always uses americas routing
-        accounts = asyncio.run(fetch_accounts_async(api_key, need_fetch, routing="americas"))
+        accounts = asyncio.run(fetch_accounts_async(api_key, need_fetch, routing="americas", stdout=self.stdout))
 
         saved = skipped = 0
         for (game_name, tag_line, region), data in zip(need_fetch, accounts):

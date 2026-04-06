@@ -3,7 +3,8 @@
     "allow": [
       "Bash(/tmp/test_set17_urls.js:*)",
       "Bash(node /tmp/test_set17_urls.js:*)",
-      "Bash(/tmp/compare_paths.txt:*)"
+      "Bash(/tmp/compare_paths.txt:*)",
+      "Read(//c/Users/carlo/Desktop/Coding/**)"
     ],
     "additionalDirectories": [
       "\\tmp"

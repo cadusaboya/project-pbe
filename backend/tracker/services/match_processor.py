@@ -36,7 +36,7 @@ def classify_pbe_match(participant_puuids: list[str], puuid_to_player: dict) -> 
             tier_counts[player.tier] = tier_counts.get(player.tier, 0) + 1
 
     for tier, count in tier_counts.items():
-        if count >= 6:
+        if count >= 5:
             return ("PROJECT_PBE", tier)
 
     return ("PRO_RANDOM", None)
@@ -71,6 +71,9 @@ def process_match(match_data: dict, puuid_to_player: dict, game_version: str = "
     match_tier = None
     if server == "PBE":
         match_category, match_tier = classify_pbe_match(participant_puuids, puuid_to_player)
+        if match_category != "PROJECT_PBE":
+            logger.info("Skipping non-PROJECT_PBE match %s (category=%s).", match_id, match_category)
+            return False
 
     match, created = Match.objects.get_or_create(
         match_id=match_id,

@@ -16,7 +16,6 @@ const OPTIONS = [
   { queue: "project_pbe", tier: "tier1", label: "T1" },
   { queue: "project_pbe", tier: "tier2", label: "T2" },
   { queue: "project_pbe", tier: "open", label: "Open" },
-  { queue: "pro_random", tier: "", label: "Random Q" },
 ] as const;
 
 export default function TierSelector() {

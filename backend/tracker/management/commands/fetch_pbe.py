@@ -32,6 +32,7 @@ from tracker.management.commands._fetch_utils import (
     fetch_single_match_async,
     finish_fetch,
     process_player_matches,
+    resolve_project_pbe_players,
 )
 
 logger = logging.getLogger(__name__)
@@ -178,6 +179,7 @@ class Command(BaseCommand):
         try:
             if process_match(match_data, puuid_to_player, game_version=GAME_VERSION, server="PBE"):
                 self.stdout.write(self.style.SUCCESS(f"{match_id} - stored"))
+                resolve_project_pbe_players(self, api_key, match_data, match_id, puuid_to_player)
                 count = recompute_unit_stats(server="PBE")
                 self.stdout.write(self.style.SUCCESS(f"Done - updated stats for {count} unit(s)."))
             else:

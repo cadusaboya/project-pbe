@@ -6,9 +6,9 @@ from typing import Callable, Optional
 
 import httpx
 
-from tracker.models import Match, Player
+from tracker.models import Match, Participant, Player
 from tracker.services.aggregation import recompute_unit_stats
-from tracker.services.match_processor import process_match
+from tracker.services.match_processor import classify_pbe_match, process_match
 from tracker.services.riot_api import RiotAPIService
 
 logger = logging.getLogger(__name__)
@@ -46,6 +46,109 @@ async def fetch_single_match_async(
         timeout=httpx.Timeout(30.0), follow_redirects=True
     ) as client:
         return await service.get_match(client, match_id)
+
+
+# ---------------------------------------------------------------------------
+# Resolve unknown players in PROJECT_PBE matches
+# ---------------------------------------------------------------------------
+
+async def _fetch_accounts_by_puuid_async(
+    api_key: str,
+    puuids: list[str],
+    routing: str = "americas",
+) -> list[Optional[dict]]:
+    """Batch-resolve Riot accounts by PUUID."""
+    service = RiotAPIService(api_key, routing=routing)
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(30.0), follow_redirects=True
+    ) as client:
+        tasks = [service.get_account_by_puuid(client, p) for p in puuids]
+        return await asyncio.gather(*tasks)
+
+
+def resolve_project_pbe_players(
+    command,
+    api_key: str,
+    match_data: dict,
+    match_id: str,
+    puuid_to_player: dict[str, Player],
+) -> None:
+    """
+    For a PROJECT_PBE match, find participants without a Player record,
+    fetch their Riot account info, create Player records, and link them.
+
+    This ensures all 8 players in a PROJECT_PBE match have names instead
+    of showing as "Unknown".
+    """
+    participant_puuids = [
+        p.get("puuid", "")
+        for p in match_data.get("info", {}).get("participants", [])
+        if p.get("puuid")
+    ]
+
+    # Classify to get the match tier
+    match_category, match_tier = classify_pbe_match(participant_puuids, puuid_to_player)
+    if match_category != "PROJECT_PBE":
+        return
+
+    # Find puuids not in our tracked player map
+    unknown_puuids = [p for p in participant_puuids if p not in puuid_to_player]
+    if not unknown_puuids:
+        return
+
+    # Also check if they already have Player records (e.g. from a previous match)
+    existing = set(
+        Player.objects.filter(puuid__in=unknown_puuids).values_list("puuid", flat=True)
+    )
+    to_resolve = [p for p in unknown_puuids if p not in existing]
+
+    # Link already-existing players to their participants
+    if existing:
+        existing_players = {p.puuid: p for p in Player.objects.filter(puuid__in=existing)}
+        for puuid, player in existing_players.items():
+            Participant.objects.filter(match_id=match_id, puuid=puuid, player__isnull=True).update(player=player)
+            puuid_to_player[puuid] = player
+
+    if not to_resolve:
+        return
+
+    # Fetch account info from Riot API
+    accounts = asyncio.run(_fetch_accounts_by_puuid_async(api_key, to_resolve))
+
+    for puuid, account in zip(to_resolve, accounts):
+        if not account:
+            command.stdout.write(f"      Could not resolve puuid {puuid[:12]}...")
+            continue
+
+        game_name = account.get("gameName", "")
+        tag_line = account.get("tagLine", "")
+        if not game_name:
+            continue
+
+        # Create Player record
+        player, created = Player.objects.get_or_create(
+            puuid=puuid,
+            defaults={
+                "game_name": game_name,
+                "tag_line": tag_line,
+                "region": "PBE",
+                "tier": match_tier,
+            },
+        )
+        if not created and not player.tier:
+            player.tier = match_tier
+            player.save(update_fields=["tier"])
+
+        # Link participant to this player
+        Participant.objects.filter(
+            match_id=match_id, puuid=puuid, player__isnull=True,
+        ).update(player=player)
+
+        # Add to map for future matches in this run
+        puuid_to_player[puuid] = player
+
+        label = "created" if created else "linked"
+        command.stdout.write(f"      {label} player {game_name}#{tag_line} (tier: {match_tier})")
 
 
 # ---------------------------------------------------------------------------
@@ -191,6 +294,11 @@ def process_player_matches(
                     command.stdout.write(
                         f"    {mid} - stored ({game_start_utc.date()}, {game_version})"
                     )
+                    # Resolve unknown players in PROJECT_PBE matches
+                    if server == "PBE":
+                        resolve_project_pbe_players(
+                            command, api_key, match_data, mid, puuid_to_player,
+                        )
                 else:
                     command.stdout.write(f"    {mid} - already existed")
             except Exception as exc:
